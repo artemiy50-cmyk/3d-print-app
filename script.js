@@ -695,6 +695,18 @@ function updateProductTypeUI() {
     updateProductCosts(); updateProductAvailability();
 }
 
+function onParentProductChange() {
+    const parentId = document.getElementById('productParent').value;
+    if (parentId) {
+        const parent = db.products.find(p => p.id == parentId);
+        if (parent) {
+            document.getElementById('productQuantity').value = parent.quantity;
+        }
+    }
+    updateProductCosts();
+}
+
+
 function updateCompositeProductValues() {
     const eid = document.getElementById('productModal').getAttribute('data-edit-id'); if (!eid) return;
     const children = db.products.filter(p => p.parentId == eid && p.type === 'Часть составного'); 
@@ -1465,4 +1477,21 @@ function setupEventListeners() {
     // Other
     document.getElementById('generateReportBtn')?.addEventListener('click', updateFinancialReport);
     document.getElementById('addBrandBtn')?.addEventListener('click', addBrand); document.getElementById('addColorBtn')?.addEventListener('click', addColor); document.getElementById('addFilamentTypeBtn')?.addEventListener('click', addFilamentType); document.getElementById('addFilamentStatusBtn')?.addEventListener('click', addFilamentStatus); document.getElementById('addPrinterBtn')?.addEventListener('click', addPrinter); document.getElementById('addElectricityCostBtn')?.addEventListener('click', addElectricityCost);
+}
+
+function updateReports() {
+    // 1. Установка дат по умолчанию (если пусто)
+    const startInput = document.getElementById('reportStartDate');
+    const endInput = document.getElementById('reportEndDate');
+    
+    if (startInput && !startInput.value) {
+        const prevYear = new Date().getFullYear() - 1;
+        startInput.value = `${prevYear}-01-01`;
+    }
+    if (endInput && !endInput.value) {
+        endInput.value = new Date().toISOString().split('T')[0];
+    }
+
+    // 2. Генерация отчета
+    updateFinancialReport();
 }
