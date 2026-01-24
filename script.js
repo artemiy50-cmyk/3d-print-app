@@ -466,21 +466,63 @@ function saveFilament() {
     saveToLocalStorage(); updateAllSelects(); updateFilamentsTable(); updateDashboard(); closeFilamentModal();
 }
 
+// ЗАМЕНИТЕ ЭТУ ФУНКЦИЮ
 function updateFilamentsTable() {
     const tbody = document.querySelector('#filamentsTable tbody');
     const sortBy = document.getElementById('filamentSortBy').value;
-    const sorted = [...db.filaments].sort((a, b) => {
-        if(sortBy === 'date-desc') return new Date(b.date) - new Date(a.date);
-        if(sortBy === 'date-asc') return new Date(a.date) - new Date(b.date);
-        return 0; 
+
+    const sortedFilaments = [...db.filaments].sort((a, b) => {
+        switch (sortBy) {
+            case 'date-desc': return new Date(b.date) - new Date(a.date);
+            case 'date-asc': return new Date(a.date) - new Date(b.date);
+            // ... другие сортировки, если нужны
+            default: return 0;
+        }
     });
-    tbody.innerHTML = sorted.map(f => {
-        let rowClass = f.availability === 'Израсходовано' ? 'row-bg-gray' : (f.remainingLength < 50 ? 'row-bg-danger' : '');
-        let remHtml = f.remainingLength.toFixed(1); if(f.availability === 'В наличии' && f.remainingLength < 50) remHtml = `<span class="badge badge-danger">${remHtml}</span>`;
-        return `<tr class="${rowClass}"><td><strong>${escapeHtml(f.customId)}</strong></td><td>${f.date}</td><td><span class="badge ${f.availability === 'В наличии' ? 'badge-success' : 'badge-gray'}">${escapeHtml(f.availability)}</span></td><td><span class="color-swatch" style="background:${f.color.hex}"></span>${escapeHtml(f.color.name)}</td><td>${escapeHtml(f.brand)}</td><td>${escapeHtml(f.type)}</td><td>${f.length.toFixed(1)}</td><td>${remHtml}</td><td>${(f.usedLength||0).toFixed(1)}</td><td>${(f.usedWeight||0).toFixed(1)}</td><td>${f.actualPrice.toFixed(2)}</td><td>${f.avgPrice.toFixed(2)}</td><td class="text-center">${f.link ? 'Link' : ''}</td><td class="text-center"><div class="action-buttons"><button class="btn-secondary btn-small" onclick="editFilament(${f.id})">✎</button><button class="btn-secondary btn-small" onclick="copyFilament(${f.id})">❐</button><button class="btn-danger btn-small" onclick="deleteFilament(${f.id})">✕</button></div></td></tr>`;
+
+    tbody.innerHTML = sortedFilaments.map(f => {
+        const badge = f.availability === 'В наличии' ? 'badge-success' : 'badge-gray';
+        
+        // ИСПРАВЛЕНИЕ: Логика для тултипа и ссылки
+        const note = f.note ? `<span class="tooltip-container" style="display:inline-flex; vertical-align:middle;"><span class="tooltip-icon">ℹ</span><span class="tooltip-text tooltip-top-left" style="width:200px; white-space:normal; line-height:1.2;">${escapeHtml(f.note)}</span></span>` : '';
+        const link = f.link ? `<a href="${escapeHtml(f.link)}" target="_blank" style="color:#1e40af;text-decoration:underline;">Товар</a>` : '';
+        
+        let rowClass = '';
+        if (f.availability === 'Израсходовано') rowClass = 'row-bg-gray';
+        
+        let remainingHtml = f.remainingLength.toFixed(1);
+        if (f.availability === 'В наличии' && f.remainingLength < 50) {
+            remainingHtml = `<span class="badge badge-danger">${remainingHtml}</span>`;
+            rowClass = 'row-bg-danger';
+        }
+
+        return `<tr class="${rowClass}">
+            <td><strong>${escapeHtml(f.customId)}</strong></td>
+            <td>${f.date}</td>
+            <td><span class="badge ${badge}">${escapeHtml(f.availability)}</span></td>
+            <td><span class="color-swatch" style="background:${f.color.hex}"></span>${escapeHtml(f.color.name)}</td>
+            <td>${escapeHtml(f.brand)}</td>
+            <td>${escapeHtml(f.type)}</td>
+            <td>${f.length.toFixed(1)}</td>
+            <td>${remainingHtml} ${note}</td>
+            <td>${(f.usedLength||0).toFixed(1)}</td>
+            <td>${(f.usedWeight||0).toFixed(1)}</td>
+            <td>${f.actualPrice.toFixed(2)}</td>
+            <td>${f.avgPrice.toFixed(2)}</td>
+            <td class="text-center">${link}</td>
+            <td class="text-center">
+                <div class="action-buttons">
+                    <button class="btn-secondary btn-small" title="Редактировать" onclick="editFilament(${f.id})">✎</button>
+                    <button class="btn-secondary btn-small" title="Копировать" onclick="copyFilament(${f.id})">❐</button>
+                    <button class="btn-danger btn-small" title="Удалить" onclick="deleteFilament(${f.id})">✕</button>
+                </div>
+            </td>
+        </tr>`;
     }).join('');
+    
     filterFilaments();
 }
+
 
 function filterFilaments() {
     const term = document.getElementById('filamentSearch').value.toLowerCase(); const status = document.getElementById('filamentStatusFilter').value;
@@ -665,17 +707,43 @@ function closeProductModal() {
     document.getElementById('productModal').removeAttribute('data-edit-id'); 
     clearProductForm(); 
 }
+
+// ЗАМЕНИТЕ ЭТУ ФУНКЦИЮ
 function clearProductForm() {
-    document.getElementById('productName').value = '';
-    document.getElementById('productQuantity').value = 1;
-    document.getElementById('productWeight').value = '';
-    document.getElementById('productLength').value = '';
-    document.getElementById('productPrintTimeHours').value = '';
-    document.getElementById('productPrintTimeMinutes').value = '';
-    document.getElementById('productType').value = 'Самостоятельное';
-    document.getElementById('productDefective').checked = false;
-    currentProductImage = null; currentProductFiles = []; renderProductImage(); renderProductFiles();
+    const setVal = (id, v) => { const el = document.getElementById(id); if(el) el.value = v; };
+    const setCheck = (id, v) => { const el = document.getElementById(id); if(el) el.checked = v; };
+    
+    setVal('productName', ''); 
+    setVal('productLink', ''); 
+    setVal('productQuantity', '1'); 
+    setVal('productWeight', ''); 
+    setVal('productLength', ''); 
+    setVal('productPrintTimeHours', ''); 
+    setVal('productPrintTimeMinutes', ''); 
+    setVal('productNote', ''); 
+    setCheck('productDefective', false);
+    setVal('productFilament', ''); 
+    setVal('productPrinter', db.printers.length > 0 ? db.printers[0].id : ''); 
+    setVal('productDate', new Date().toISOString().split('T')[0]);
+    
+    // Сброс валидации
+    const msg = document.getElementById('productValidationMessage');
+    if(msg) msg.classList.add('hidden'); 
+    document.querySelectorAll('#productModal input, #productModal select').forEach(el => el.classList.remove('error'));
+    
+    // Сброс файлов
+    currentProductImage = null; 
+    currentProductFiles = []; 
+    renderProductImage(); 
+    renderProductFiles();
+
+    // Сброс UI
+    setVal('productType', 'Самостоятельное'); 
+    updateProductTypeUI();
+    updateProductColorDisplay();
+    updateProductCosts();
 }
+
 
 
 // ЗАМЕНИТЕ эту функцию целиком
@@ -1195,7 +1263,7 @@ function buildProductRow(p, isChild) {
 
 
 
-// ЗАМЕНИТЕ ЭТУ ФУНКЦИЮ ЦЕЛИКОМ
+// ЗАМЕНИТЕ ЭТУ ФУНКЦИЮ
 function updateChildrenTable() { 
     const eid = document.getElementById('productModal').getAttribute('data-edit-id'); 
     if(!eid) return; 
@@ -1216,6 +1284,7 @@ function updateChildrenTable() {
         </tr>`;
     }).join(''); 
 }
+
 
 
 
@@ -1762,18 +1831,14 @@ function resetWriteoffFilters() { updateWriteoffTable(); }
 
 // ==================== REPORTS (FIXED LOGIC) ====================
 
+// ЗАМЕНИТЕ ЭТУ ФУНКЦИЮ
 function updateFinancialReport() {
-    const startInput = document.getElementById('reportStartDate');
-    const endInput = document.getElementById('reportEndDate');
-    if (!startInput || !endInput) return;
-
-    const dStart = new Date(startInput.value);
-    const dEnd = new Date(endInput.value);
+    const dStart = new Date(document.getElementById('reportStartDate').value);
+    const dEnd = new Date(document.getElementById('reportEndDate').value);
     dEnd.setHours(23, 59, 59, 999); 
 
     const filamentsBought = db.filaments.filter(f => { const d = new Date(f.date); return d >= dStart && d <= dEnd; });
     const sumExpenses = filamentsBought.reduce((sum, f) => sum + (f.actualPrice || 0), 0);
-
     const writeoffsInRange = db.writeoffs.filter(w => { const d = new Date(w.date); return d >= dStart && d <= dEnd; });
     const sumRevenue = writeoffsInRange.filter(w => w.type === 'Продажа').reduce((sum, w) => sum + (w.total || 0), 0);
 
@@ -1783,25 +1848,50 @@ function updateFinancialReport() {
         const costOne = product ? (product.costPer1Actual || 0) : 0;
         const totalCost = costOne * w.qty;
         if (w.type === 'Продажа') sumCOGS += totalCost;
-        else sumCostUsedDefect += totalCost;
+        else if (w.type === 'Использовано' || w.type === 'Брак') sumCostUsedDefect += totalCost;
     });
-
     const defectiveProducts = db.products.filter(p => { const d = new Date(p.date); return p.defective === true && d >= dStart && d <= dEnd; });
     defectiveProducts.forEach(p => sumCostUsedDefect += (p.costActualPrice || 0));
 
-    const tbody = document.querySelector('#financialTable tbody');
-    if (!tbody) return;
-    
-    // Helper
-    const row = (t, e, u, r, c, p) => `<tr><td>${t}</td><td>${e||''}</td><td>${u||''}</td><td>${r||''}</td><td>${c||''}</td><td>${p}</td><td></td><td></td></tr>`;
-    
-    const profit1 = -sumExpenses + sumRevenue;
-    const profit4 = sumRevenue - sumCOGS - sumCostUsedDefect;
+    const createRowHtml = (title, desc, expenses, costUsed, revenue, cogs, profit) => {
+        const ros = revenue > 0 ? (profit / revenue) * 100 : 0;
+        const markup = cogs > 0 ? (profit / cogs) * 100 : 0;
+        const fmtMoney = (v) => v !== null ? v.toLocaleString('ru-RU', {style: 'currency', currency: 'RUB'}) : '';
+        const fmt = (v) => v ? v.toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '';
+        const pColor = profit > 0 ? 'val-positive' : (profit < 0 ? 'val-negative' : 'val-neutral');
 
-    tbody.innerHTML = 
-        row('Cash Flow', sumExpenses.toFixed(2), null, sumRevenue.toFixed(2), null, profit1.toFixed(2)) +
-        row('Чистая прибыль (Операционная)', null, sumCostUsedDefect.toFixed(2), sumRevenue.toFixed(2), sumCOGS.toFixed(2), profit4.toFixed(2));
+        return `
+        <tr>
+            <td style="text-align:left; padding: 12px 16px;">
+                <div class="tooltip-container" style="display: inline-block; position: relative;">
+                    <div class="report-row-title">${title}</div>
+                    <span class="tooltip-text">${desc}</span>
+                </div>
+            </td>
+            <td class="report-val val-neutral">${expenses !== null ? fmtMoney(expenses) : ''}</td>
+            <td class="report-val val-neutral">${costUsed !== null ? fmtMoney(costUsed) : ''}</td>
+            <td class="report-val val-neutral">${revenue !== null ? fmtMoney(revenue) : ''}</td>
+            <td class="report-val val-neutral">${cogs !== null ? fmtMoney(cogs) : ''}</td>
+            <td class="report-val ${pColor} col-profit">${fmtMoney(profit)}</td>
+            <td class="report-val col-ros">${revenue !== null && cogs !== null ? fmt(ros) : ''}%</td>
+            <td class="report-val col-markup">${cogs !== null ? fmt(markup) : ''}%</td>
+        </tr>`;
+    };
+
+    const tbody = document.querySelector('#financialTable tbody');
+    let html = '';
+    const profit1 = -sumExpenses + sumRevenue;
+    html += createRowHtml('Прибыль (Cash Flow)', '<b>Формула:</b><br>Выручка с продаж<br>− Затраты на покупку филамента (в этот период)<br><br>Сколько денег пришло минус сколько ушло на закупку.', sumExpenses, null, sumRevenue, null, profit1);
+    const profit2 = -sumExpenses + sumRevenue + sumCostUsedDefect;
+    html += createRowHtml('Прибыль (Скорректированная)', '<b>Формула:</b><br>Cash Flow + Себестоимость (Использовано для себя + Брак)<br><br>Показывает реальный результат, если бы вы не тратили пластик на себя.', sumExpenses, sumCostUsedDefect, sumRevenue, null, profit2);
+    const profit3 = sumRevenue - sumCOGS;
+    html += createRowHtml('Валовая прибыль (Торговая)', '<b>Формула:</b><br>Выручка с продаж<br>− Себестоимость проданных товаров<br><br>Эффективность именно продаж (без учета закупок на склад).', null, null, sumRevenue, sumCOGS, profit3);
+    const profit4 = sumRevenue - sumCOGS - sumCostUsedDefect;
+    html += createRowHtml('Чистая прибыль (Операционная)', '<b>Формула:</b><br>Валовая прибыль<br>− Убытки (Использовано + Брак)<br><br>Итоговый финансовый результат деятельности.', null, sumCostUsedDefect, sumRevenue, sumCOGS, profit4);
+
+    tbody.innerHTML = html;
 }
+
 
 function updateReports() { updateFinancialReport(); }
 
@@ -1869,7 +1959,7 @@ function moveReferenceItemDown(arrayName, index) { const arr = db[arrayName]; if
 
 // ==================== EVENT LISTENERS ====================
 
-// ЗАМЕНИТЕ ЭТУ ФУНКЦИЮ ЦЕЛИКОМ
+// ЗАМЕНИТЕ ЭТУ ФУНКЦИЮ
 function setupEventListeners() {
     // Nav
     document.querySelectorAll('.menu-item[data-page]').forEach(b => b.addEventListener('click', () => showPage(b.dataset.page)));
@@ -1881,7 +1971,10 @@ function setupEventListeners() {
     document.getElementById('saveFilamentBtn')?.addEventListener('click', saveFilament);
     document.getElementById('closeFilamentModalBtn')?.addEventListener('click', closeFilamentModal);
     document.getElementById('filamentSearch')?.addEventListener('input', filterFilaments);
-    
+    // ИСПРАВЛЕНИЕ: Добавлены обработчики
+    document.getElementById('filamentAvailability')?.addEventListener('change', updateFilamentStatusUI);
+    document.getElementById('filamentColor')?.addEventListener('change', updateFilamentColorPreview);
+
     // Products
     document.getElementById('addProductBtn')?.addEventListener('click', openProductModal);
     document.getElementById('saveProductBtn')?.addEventListener('click', () => saveProduct(false));
@@ -1894,7 +1987,6 @@ function setupEventListeners() {
         document.getElementById('showProductChildren').addEventListener('change', filterProducts);
     }
     document.getElementById('productDefective')?.addEventListener('change', updateProductAvailability);
-    // ИСПРАВЛЕНИЕ: Добавлен обработчик для авто-заполнения цвета
     document.getElementById('productFilament')?.addEventListener('change', () => {
         updateProductColorDisplay();
         updateProductCosts();
@@ -1905,9 +1997,9 @@ function setupEventListeners() {
     document.getElementById('addProductPageWriteoffBtn')?.addEventListener('click', () => openWriteoffModal());
     document.getElementById('saveWriteoffBtn')?.addEventListener('click', saveWriteoff);
     document.getElementById('closeWriteoffModalBtn')?.addEventListener('click', closeWriteoffModal);
-    // ИСПРАВЛЕНИЕ: Добавлен обработчик для кнопки "добавить изделие к списанию"
     document.getElementById('addWriteoffItemBtn')?.addEventListener('click', () => addWriteoffItemSection());
-
+    document.getElementById('writeoffType')?.addEventListener('change', updateWriteoffTypeUI);
+    
     // Reports
     document.getElementById('generateReportBtn')?.addEventListener('click', updateFinancialReport);
     
