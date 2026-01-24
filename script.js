@@ -1,4 +1,4 @@
-console.log("Version: 4.6 (Restored Logic)");
+console.log("Version: 4.6 (Restored Logic2)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
