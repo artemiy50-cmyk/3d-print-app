@@ -254,6 +254,8 @@
                 try { updateWriteoffTable(); } catch(e) { console.warn('Writeoff render issue', e); }
                 try { updateReports(); } catch(e) { console.warn('Reports render issue', e); }
                 try { updateDashboard(); } catch(e) { console.warn('Dashboard render issue', e); }
+				
+				setupEventListeners();
                 
             } catch (e) {
                 console.error("Critical initialization error:", e);
@@ -3146,3 +3148,96 @@
                 }
             }
         }
+
+// ==================== EVENT LISTENERS (НОВОЕ: Подключение кнопок) ====================
+function setupEventListeners() {
+    // 1. Навигация (Боковое меню)
+    document.querySelectorAll('.sidebar .menu-item').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const pageId = btn.getAttribute('data-page');
+            // Обработка кнопок навигации
+            if (pageId) {
+                showPage(pageId);
+            }
+            // Обработка кнопок бэкапа (они тоже имеют класс menu-item в HTML)
+            else if (btn.id === 'exportBtn') {
+                exportData();
+            }
+            else if (btn.id === 'importBtn') {
+                document.getElementById('importFile').click();
+            }
+        });
+    });
+
+    // 2. Бэкап (Загрузка файла)
+    const importInput = document.getElementById('importFile');
+    if(importInput) importInput.addEventListener('change', function() { importData(this); });
+
+    // 3. Страница Филамента
+    document.getElementById('addFilamentBtn')?.addEventListener('click', openFilamentModal);
+    document.getElementById('saveFilamentBtn')?.addEventListener('click', saveFilament);
+    document.getElementById('closeFilamentModalBtn')?.addEventListener('click', closeFilamentModal);
+    
+    // Поиск и фильтры филамента
+    const filSearch = document.getElementById('filamentSearch');
+    if(filSearch) {
+        filSearch.addEventListener('input', () => { 
+            filterFilaments(); 
+            toggleClearButton(filSearch); 
+        });
+        // Кнопка очистки поиска (крестик)
+        filSearch.nextElementSibling?.addEventListener('click', () => clearSearch('filamentSearch', 'filterFilaments'));
+    }
+    document.getElementById('filamentStatusFilter')?.addEventListener('change', filterFilaments);
+    document.getElementById('filamentSortBy')?.addEventListener('change', updateFilamentsTable);
+    document.getElementById('resetFilamentFiltersBtn')?.addEventListener('click', resetFilamentFilters);
+
+    // 4. Страница Изделий
+    document.getElementById('addProductBtn')?.addEventListener('click', openProductModal);
+    document.getElementById('addWriteoffBtn')?.addEventListener('click', openWriteoffModal); // Кнопка "Списать" на стр. изделий
+    document.getElementById('saveProductBtn')?.addEventListener('click', () => saveProduct(false));
+    document.getElementById('closeProductModalBtn')?.addEventListener('click', closeProductModal);
+    
+    // Поиск и фильтры изделий
+    const prodSearch = document.getElementById('productSearch');
+    if(prodSearch) {
+        prodSearch.addEventListener('input', () => { 
+            filterProducts(); 
+            toggleClearButton(prodSearch); 
+        });
+        prodSearch.nextElementSibling?.addEventListener('click', () => clearSearch('productSearch', 'filterProducts'));
+    }
+    document.getElementById('productAvailabilityFilter')?.addEventListener('change', filterProducts);
+    document.getElementById('productSortBy')?.addEventListener('change', filterProducts);
+    document.getElementById('showProductChildren')?.addEventListener('change', filterProducts);
+    document.getElementById('resetProductFiltersBtn')?.addEventListener('click', resetProductFilters);
+
+    // 5. Страница Списаний
+    document.getElementById('addWriteoffPageBtn')?.addEventListener('click', () => openWriteoffModal());
+    document.getElementById('addWriteoffItemBtn')?.addEventListener('click', () => addWriteoffItemSection());
+    document.getElementById('saveWriteoffBtn')?.addEventListener('click', saveWriteoff);
+    document.getElementById('closeWriteoffModalBtn')?.addEventListener('click', closeWriteoffModal);
+    
+    const writeSearch = document.getElementById('writeoffSearch');
+    if(writeSearch) {
+        writeSearch.addEventListener('input', () => { 
+            filterWriteoffs(); 
+            toggleClearButton(writeSearch); 
+        });
+        writeSearch.nextElementSibling?.addEventListener('click', () => clearSearch('writeoffSearch', 'filterWriteoffs'));
+    }
+    document.getElementById('writeoffTypeFilter')?.addEventListener('change', filterWriteoffs);
+    document.getElementById('writeoffSortBy')?.addEventListener('change', sortWriteoffs);
+    document.getElementById('resetWriteoffFiltersBtn')?.addEventListener('click', resetWriteoffFilters);
+
+    // 6. Отчеты
+    document.getElementById('generateReportBtn')?.addEventListener('click', updateFinancialReport);
+
+    // 7. Справочники (Кнопки добавления)
+    document.getElementById('addBrandBtn')?.addEventListener('click', addBrand);
+    document.getElementById('addColorBtn')?.addEventListener('click', addColor);
+    document.getElementById('addFilamentTypeBtn')?.addEventListener('click', addFilamentType);
+    document.getElementById('addFilamentStatusBtn')?.addEventListener('click', addFilamentStatus);
+    document.getElementById('addPrinterBtn')?.addEventListener('click', addPrinter);
+    document.getElementById('addElectricityCostBtn')?.addEventListener('click', addElectricityCost);
+}
