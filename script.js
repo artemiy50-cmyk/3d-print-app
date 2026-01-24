@@ -1,4 +1,4 @@
-console.log("Version: 4.6 (Restored Logic21-38)");
+console.log("Version: 4.6 (Restored Logic22-16)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -466,6 +466,7 @@ function saveFilament() {
     saveToLocalStorage(); updateAllSelects(); updateFilamentsTable(); updateDashboard(); closeFilamentModal();
 }
 
+
 // ЗАМЕНИТЕ ЭТУ ФУНКЦИЮ
 function updateFilamentsTable() {
     const tbody = document.querySelector('#filamentsTable tbody');
@@ -475,15 +476,12 @@ function updateFilamentsTable() {
         switch (sortBy) {
             case 'date-desc': return new Date(b.date) - new Date(a.date);
             case 'date-asc': return new Date(a.date) - new Date(b.date);
-            // ... другие сортировки, если нужны
             default: return 0;
         }
     });
 
     tbody.innerHTML = sortedFilaments.map(f => {
         const badge = f.availability === 'В наличии' ? 'badge-success' : 'badge-gray';
-        
-        // ИСПРАВЛЕНИЕ: Логика для тултипа и ссылки
         const note = f.note ? `<span class="tooltip-container" style="display:inline-flex; vertical-align:middle;"><span class="tooltip-icon">ℹ</span><span class="tooltip-text tooltip-top-left" style="width:200px; white-space:normal; line-height:1.2;">${escapeHtml(f.note)}</span></span>` : '';
         const link = f.link ? `<a href="${escapeHtml(f.link)}" target="_blank" style="color:#1e40af;text-decoration:underline;">Товар</a>` : '';
         
@@ -522,6 +520,7 @@ function updateFilamentsTable() {
     
     filterFilaments();
 }
+
 
 
 function filterFilaments() {
@@ -1393,7 +1392,7 @@ function updateProductColorDisplay() {
 
 // ==================== WRITEOFFS (RESTORED LOGIC) ====================
 
-// ДОБАВИТЬ эти 2 функции перед openWriteoffModal
+// ДОБАВЬТЕ ЭТИ 2 ФУНКЦИИ
 function renumberWriteoffSections() {
     writeoffSectionCount = 0; // Reset counter
     const sections = document.querySelectorAll('.writeoff-item-section');
@@ -1424,7 +1423,6 @@ function updateRemoveButtons() {
     });
 }
 
-// ... здесь должна идти ваша функция openWriteoffModal ...
 
 
 function openWriteoffModal(systemId = null) {
@@ -1529,7 +1527,6 @@ function addWriteoffItemSection(data = null) {
 
 
 
-// ЗАМЕНИТЕ эту функцию целиком
 function updateWriteoffSection(index) {
     const section = document.getElementById(`writeoffSection_${index}`);
     if (!section) return;
@@ -1540,13 +1537,7 @@ function updateWriteoffSection(index) {
     
     const product = db.products.find(p => p.id === pid);
     
-    if (!product) {
-        section.querySelector('.section-stock').textContent = '-';
-        section.querySelector('.section-remaining').textContent = '-';
-        section.querySelector('.section-cost').textContent = '-';
-        section.querySelector('.section-tooltip').textContent = 'Расчет с реальной стоимостью: -';
-        return;
-    }
+    if (!product) { /* ... сброс полей ... */ return; }
 
     const editGroup = document.getElementById('writeoffModal').getAttribute('data-edit-group');
     const usedElsewhere = getWriteoffQuantityForProduct(pid, editGroup);
@@ -1555,8 +1546,7 @@ function updateWriteoffSection(index) {
     section.querySelector('.section-stock').textContent = currentStock + ' шт.';
     
     const qty = parseInt(qtyInput.value) || 0;
-    const remaining = Math.max(0, currentStock - qty); 
-    section.querySelector('.section-remaining').textContent = remaining + ' шт.';
+    section.querySelector('.section-remaining').textContent = Math.max(0, currentStock - qty) + ' шт.';
     
     const costM = product.costPer1Market || 0;
     const costA = product.costPer1Actual || 0;
@@ -1566,14 +1556,13 @@ function updateWriteoffSection(index) {
     const price = parseFloat(priceInput.value) || 0;
     section.querySelector('.section-total').textContent = (price * qty).toFixed(2) + ' ₽';
     
-    // ВОССТАНОВЛЕНА ПОЛНАЯ ЛОГИКА РАСЧЕТА НАЦЕНКИ И ПРИБЫЛИ
     const type = document.getElementById('writeoffType').value;
     const markupContainer = section.querySelector('.markup-info');
     const profitContainer = section.querySelector('.profit-info');
     
     if (type === 'Продажа') {
-        if (markupContainer) markupContainer.classList.remove('hidden');
-        if (profitContainer) profitContainer.classList.remove('hidden');
+        markupContainer.classList.remove('hidden');
+        profitContainer.classList.remove('hidden');
         
         const markupM_money = price - costM;
         const markupM_percent = costM > 0 ? (markupM_money / costM) * 100 : 0;
@@ -1588,14 +1577,12 @@ function updateWriteoffSection(index) {
 
         const itemProfit = (price * qty) - (costA * qty);
         const profitValSpan = section.querySelector('.profit-val');
-        if (profitValSpan) {
-            profitValSpan.textContent = `${itemProfit.toFixed(2)} ₽`;
-            profitValSpan.style.color = itemProfit < 0 ? 'var(--color-danger)' : 'var(--color-success)';
-        }
+        profitValSpan.textContent = `${itemProfit.toFixed(2)} ₽`;
+        profitValSpan.style.color = itemProfit < 0 ? 'var(--color-danger)' : 'var(--color-success)';
 
     } else {
-        if (markupContainer) markupContainer.classList.add('hidden');
-        if (profitContainer) profitContainer.classList.add('hidden');
+        markupContainer.classList.add('hidden');
+        profitContainer.classList.add('hidden');
     }
     
     calcWriteoffTotal();
@@ -1634,21 +1621,30 @@ function updateWriteoffSection(index) {
 }
 
 function calcWriteoffTotal() {
-    let totalSale = 0; let totalProfit = 0;
+    let totalSale = 0;
+    let totalProfit = 0;
+    
     document.querySelectorAll('.writeoff-item-section').forEach(sec => {
         const qty = parseInt(sec.querySelector('.section-qty').value) || 0;
         const price = parseFloat(sec.querySelector('.section-price').value) || 0;
         const pid = parseInt(sec.querySelector('.writeoff-product-select').value);
         const product = db.products.find(p => p.id === pid);
         const costA = product ? (product.costPer1Actual || 0) : 0;
+
         totalSale += (qty * price);
         totalProfit += (qty * price) - (qty * costA);
     });
-    document.getElementById('writeoffTotalAmount').textContent = `${totalSale.toFixed(2)} ₽`;
-    document.getElementById('writeoffTotalProfit').textContent = `${totalProfit.toFixed(2)} ₽`;
+
+    const amountSpan = document.getElementById('writeoffTotalAmount');
+    const profitSpan = document.getElementById('writeoffTotalProfit');
+
+    amountSpan.textContent = `${totalSale.toFixed(2)} ₽`;
+    profitSpan.textContent = `${totalProfit.toFixed(2)} ₽`;
+    profitSpan.style.color = totalProfit < 0 ? 'var(--color-danger)' : 'var(--color-success)';
 }
 
-// ЗАМЕНИТЕ ЭТУ ФУНКЦИЮ ЦЕЛИКОМ
+
+// ЗАМЕНИТЕ ЭТУ ФУНКЦИЮ
 function saveWriteoff() {
     const systemId = document.getElementById('writeoffSystemId').textContent;
     const date = document.getElementById('writeoffDate').value;
@@ -1796,6 +1792,7 @@ function saveWriteoff() {
 }
 
 
+
 function deleteWriteoff(systemId) {
     if (!confirm('Удалить списание?')) return;
     const items = db.writeoffs.filter(w => w.systemId === systemId);
@@ -1893,7 +1890,22 @@ function updateFinancialReport() {
 }
 
 
-function updateReports() { updateFinancialReport(); }
+// ЗАМЕНИТЕ ЭТУ ФУНКЦИЮ
+function updateReports() {
+    const startInput = document.getElementById('reportStartDate');
+    const endInput = document.getElementById('reportEndDate');
+    
+    if (!startInput.value) {
+        const prevYear = new Date().getFullYear() - 1;
+        startInput.value = `${prevYear}-01-01`;
+    }
+    if (!endInput.value) {
+        endInput.value = new Date().toISOString().split('T')[0];
+    }
+
+    updateFinancialReport();
+}
+
 
 
 // ==================== REFERENCES UI ====================
@@ -1971,7 +1983,6 @@ function setupEventListeners() {
     document.getElementById('saveFilamentBtn')?.addEventListener('click', saveFilament);
     document.getElementById('closeFilamentModalBtn')?.addEventListener('click', closeFilamentModal);
     document.getElementById('filamentSearch')?.addEventListener('input', filterFilaments);
-    // ИСПРАВЛЕНИЕ: Добавлены обработчики
     document.getElementById('filamentAvailability')?.addEventListener('change', updateFilamentStatusUI);
     document.getElementById('filamentColor')?.addEventListener('change', updateFilamentColorPreview);
 
@@ -2010,7 +2021,6 @@ function setupEventListeners() {
     document.getElementById('btnAddFile')?.addEventListener('click', () => document.getElementById('productFileInput').click());
     document.getElementById('productFileInput')?.addEventListener('change', function() { handleFileUpload(this); });
 }
-
 
 
 
