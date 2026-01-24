@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Print: Filament & Products Manager</title>
+    <!-- Библиотека для работы с БД (пока оставляем, заменим на Firebase позже) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+    
+    <!-- Подключаем ваши стили -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    
+    <!-- Header -->
+    <div class="header">
+        <div style="display: flex; align-items: flex-end; gap: 16px;">
+            <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACEAAAAvCAYAAABt7qMfAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAzASURBVFhHnZhbiCTXecd/p6q6q29z3dmZnh3taLSry2qkLFIU60ZIHixsJ34I2LIgCiYQSGQECbGwTAwBYStG+CEPFpjkIUGGQC5sHkK8MtghImuvDCGy8MqJpNXuzuxqLt0z3TN9requOrc8nKqZ0WRtRD44dPepqvP9z//7f199pwW/wH7/+efr3a3mr47HUSFOkgCtAw2BMASeRwBeAUygtS74fiEAAmttASgI3y94EGhtboD+x8uXL3eOr3/UxPEJgLfeeqswjEbv7uzs3v1vP/wBV6++j/AEWEhUglpSUALhgdjxmR2ftUUvtJ4Qoi8bQoRz4IdYALn7/sryid947bXXWsf95OYfnwB45plnFmdm514WQgiAM2fOEIYhQaFAWAy5a2GFU5NLeAMfP/FZXq6L6nRBGD8RfhGWTp2kVBTMzU7yiU88MHfu3Ors9/71X7533E9utwXx9NNfnCmXi3+6s9MUm5ubvP3223Q6HawxWAy7izt07++g75ME0wHLG6v2rDnPSuE+Aj9kXUyJ7uQTDMr3MDc3w+lZf65WLf/VlStX1HFf/CIQDz/8K3dNTs18ae3GDfb29vA8n0cffYyz99zDvfeeo3JnGf+TUFupMXXvJI8mj4sn5n5dLC8sizP1FTGuW+ydjzExV6c8Pc9Di6pcCgvffv3118fHfQF4xycArl+/8fV/+oe/ZzAYsLW1ibWGWq1GtVKlFIZUZRU/CPACD0qW/bCFNgYpFX5aJOn2UGlKMhrT7CrisSp++OGHdx/3k9ttQaw+eH4wMzvLe++9S6/XI45jer0erVaL3d1deo0eUSMi7sYMekOu96/TaDVo7DZotJr0trbobt2is7VGp7HF1k4XaczZ435yuy0IwNx55wrz8wtEUUS/32dvr83Gxi2ajQb77X1kVxK/PaK2XUMokOWEvbkN7MmUbm9g426bwbVLRJ02rXaH+ZMLdx53ktttNfHbv/XZ3zHWPjQ1NY3v++zuNKnWaozHY6RM2evvoWYlMk4RUpBck5Rak7T29uh2u9zYvypirwrWYNKIm1d+QGNz/cTjjz/2z++8887ouL/b1olXX/3O3xpr/8AYgzGGW7fW2dzcpNfrkYzHTExNQsWSxKlbIQHfFtFWgQFjUxABvifo9bokyZhqraaf/vznn3jxxRf/67i/24bDgLHWHvyuLy7SaGxz9f33WFtb4+b6OjffvUVjfZvmeoPmdoPt5ofsNLdo7mzSarVo7TZoNrcZRkOCICCOYlsqlT5+dpCByIGEYYmZmRnO3b/K6gMPsLR0B6fqdU4tLnJqcZHzD53n/vvv58zZsywuLlKv16nX6ywsLFCv17nv3DmCILBhGJrjjjgK4o9femnypZdeevAb33jl4UGv14uiCKUUWmusMYzHCcYYXBE9ZEkIwYlTc8zPL1CtVLPrh9cAKpUqK3fdRaFQ1QcXj5gAeO65Ly8pPfxJsVg8NTExITzPF1d+9jNPKsm5+86xeOoU3//+RQqFIkEQ4Fgy6AykEAJjLUYbzJH5nM0wDLnj9LK8++yZZzc3B//e728kFy9eHOW7EQAvvPDVly3mz7VWJGmKVgopJZ3OPtvb21hjuOP0aSYmJhBCYI1FaUWz0SSKIh56+GE84eEHAYVCgfF4TLPZwPc8zpx1NUopSaOxzbVr1yJrTfeZL/zul7/2ta9eOALiK98xxjxvrEUrhR8EaK1J0oQTJ04wPTWNUoo0lfi+h+/7+H6A77sMD4IAwGkoi5a1FqUUSTJmY+ND4lHE1N0T/MeFS2ilefbZL+qpyenffOGFP3kzANDamDRN0NaAtaQyxVjLybmTPPLIr3HmzF0MhxHCE/iehxAeQeBjrEUgEOJwAHiek1qn0+HHl39Ee7/N7MwM7Xf3ODl3kmazyfz8vL+xufkZ4E0PQMpUJzIhScaMx26kScJwOGBnd4dabYLTp5dYWVnmjtNL1OvzTE9PMzk5Sa1Wo1KpUC6XKRaL+L6PtQallANlIRmNubV+i92dXTzPZ3l5mVptAmFFeBCOP3zuub9MkuQFo11xssZgrWVicpLV1Qd56qlPsr29TZKMGY1GjEZj0iRFyhSZ6cdVU+metxalNFKmxKOYOI7AgtaaNE0BOH/+PHEUf+uVV775Zx6AlloZ7R42WmOMQRtzoPDLb17mjTfe4Kc/fZurV69y/fp13nnnCtMzM1SrNfr9vmMvTRmPx0RRTLfbYW9vj3arRbfTpdPpEEURw8GA4XBIZ7+DAUVeJ7SWOk0SkiRBKoXSGqUUSrkepNvpsru7w831NT744APW19fodDsMhwMajQatVov1tRvcXF/j1q2b7kXXbNBut4iiiDiOD8LjBz5pmmIBlTnwAFKldO5YSulushZjXIFTys1J5ZjJAY4Tl8b9fo/BcEiv36ff79Pr9RgM+kRRxHg8YjSKGcUxWiuCoIC1FgEYZQ5BqFRprTX5kFIyGo0O4qe1IY5jRnGE53kEQYBSiv/5759z8+Y6eXU9ugmtNfWFOqVSmSAoIDyPVqtNq9XKmLBYqw9BWGtVmqZut1KitVswD0cuKKWVE22ml/X1NeLYCS9JxqSpC6lbSyKVBKBcLlMul5mensb3vAOt6aOaUEppJSVKZoqXEqXk4c0ZO8k4od/vs9/ZJxoO0VqRa8kNt5HDDblPlbEjMy0UstLvCXsIQkqppVJOlEpn6eVAOCYUUqZEcUyr3abd3j/MhgPnkjRJSZOENE2QacpoNEZm7EqZkkrpwiUl1lg8vKMgEu1udEMpiVIuVfNwuBqgsdbg+4JUSkd59pmmCVIm2XzKOBkzGsWkGbM5EMe4dJrwjoQjVUo5DeTCzFPUMWGMQetsKDekdCJ0CyfIVJKkKTJNHGCtCYKCu08ppMxY1irTlsXHlwcgrNbHmEjRygk0ZyJJcmrdUCrNNJQ5UfJAzFqmSOnAHOxeKcewVNxzz72sPvAgOnPgwqG11ko5x5kgldZorVxPYEy20KEjlTl3C7t5rdwG3Hd3zfUW+doKYzSTk1PUajWEEPowHGOppXKCSWVOndMFrtdz80ohVYpUEqnSg50prdDK9SG5UyfwPNU1WhtkJnqbvepFcASEUkqrHPHBcEyAq5xuhw6YVgol3YJaO/aMdrVD63zegcjXkSp17yWrEQKM08SROmET4yjWaOVGvlCO2s07R0prjNEYnYUoE+lHd62QWeV0wxzUHgCLxQhzyIQxwmiZolUmOJ26HWYPYG3GQoKSibtPJigpD7LiIGVVridDmmWJ1iZjymCN5f333+Pm+pr17JE6YbNwKK0cZVqjpcJk2WGxrgglKTJ1dSDfsbXgCYEnBL7vUQh8CkGAEBBlL7XReISxGXvGsH7jOt1uFyG8j2rCKTijLlOxC4cFC4VigbAUEoZFwjCkUCgQFAIKBZ8g8LO+08fzPHzfo1opY4wrcuPRCKMUxrh1lVZ4nsCdsw7CYYwrRnn8Dil00XAN8GF6uhriMiGjOWvv7ZGTW6VSYWVlhUqlQiolnU6Xvf0OMpUI4QHH3h3aGIyxB4u6KnkoIp2FKW/f8pGXdrCuafEdEzkjpVJIfXGBpaVFfD9ApilKazzXMB+GQwijVfYCs9npylqLOhIOrQ1CeBSLIaVSmbBUphiGlCsVqrUatYlJpmdnCcsVCsUSCJ94NHZt3TBif7+HzPoTawye68wPmajVpjoC4Rxn6amy498BE8aJ0FiIRyO63S7dbo92e49mc4etrW3W19ZpbDdoNpvs7OzQbrXZ3m6wsbFJr9uhWq0wNTlBEAQIz8PaIyBWV1d/cnJ+/udB4LviZLOwGO0gWBiNxux3Ouzu7tLt9ojjrOtOXZk+DMuh5SHVWjMYRkTxCGPcUVEIgfZcvD2ACxcupEtLS59aXDz1ZrFQPFjEWsdOHvv8M//+ccxmTRHZizAeuaOBEALkESYALl261FxYWHjq9OnlvyuFoTtz2mx3WdX8uI6Pm8DVkvzAbi0Uw5I1Junl1z9ijzzySMHzvK9vbmx8pVQqFf7oS89z4/o1vvvd147fCkeO/0d/h2HoRqlEKXRCrlQr1GoTTNRq1BcXKYXhD1999dufAez/AZGZeOyxJ39PqeRvPve5L4TWGv7imy9TLrk/S6amppmenmZmdpaJiQmqlSrV7DhYKpVI09Sd1OLYpFJ20iRpSSXbSsp2p9srj0ej/6xWy9+6ePFizO2YOGqf/vRnnzq9fMdfT09Pn52fn0+11p0oiqNhNIiGg2FvMBy0ktF4V2vd1lrvSql2jZFtKdkJArurtd67dOmSq/2/xH4pCIAnn3xyYtAZPGTKhe3T8/Ot0WiUzs/PywsXLtz2X5f/j/0v8LloqiEVbu4AAAAASUVORK5CYII=" style="height: 52px; border-radius: 4px; display: block;">
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+                <div class="header-title" style="line-height: 1; display: flex; align-items: baseline; gap: 8px;">
+                    <span>3D Print: Filament & Products Manager</span>
+                    <small style="font-size: 14px; color: var(--color-text-light); font-weight: 400;">v4.0</small>
+                </div>
+                <div class="header-info" style="line-height: 1;">Система учета филамента и напечатанных изделий</div>
+            </div>
+        </div>
+        <div class="header-info" id="currentDate"></div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <button class="menu-item active" data-page="dashboard">📊 Дашборд</button>
+            <button class="menu-item" data-page="filament">🧵 Филамент</button>
+            <button class="menu-item" data-page="products">📦 Изделия</button>
+            <button class="menu-item" data-page="writeoff">📒 Списание</button>
+            <button class="menu-item" data-page="reports">📈 Отчёты</button>
+            <button class="menu-item" data-page="references">⚙️ Справочники</button>
+
+            <div class="sidebar-divider"></div>
+            <div class="sidebar-section-title">Бэкапы</div>
+            <button class="menu-item" id="exportBtn" title="Скачать базу данных в JSON">💾 Скачать базу</button>
+            <button class="menu-item" id="importBtn" title="Загрузить базу из JSON">📂 Восстановить</button>
+            <input type="file" id="importFile" style="display: none;">
+            
+            <div style="margin-top: auto; font-size: 11px; color: #64748b; text-align: center; padding-top: 20px;">
+                © <span id="copyrightYear"></span> Artem Kiyashko Project
+            </div>
+        </div>
+
+        <!-- Content -->
+        <div class="content">
+ 
+            <div id="dashboard" class="page active">
+                <div class="page-title">Дашборд</div>
+                
+                 <div class="dashboard-row">
+                    <div class="card dashboard-counter-card">
+                        <div class="counter-title">Катушек с филаментом</div>
+                        <div class="counter-value" id="dashFilamentCount">0</div>
+                        <div id="dashFilamentWarnings" class="dashboard-warnings hidden"></div>
+                    </div>
+                    <div class="card dashboard-table-card">
+                        <div class="card-header">Филамент в наличии (Все)</div>
+                        <div class="table-container">
+                            <table id="dashFilamentTable">
+                                <thead><tr><th>Цвет</th><th>Дата покупки</th><th>Бренд</th><th>Тип пластика</th><th>Остаток (м)</th><th>Цена</th></tr></thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-row">
+                    <div class="card dashboard-counter-card">
+                        <div class="counter-title">Изделий / В наличии</div>
+                        <div class="counter-value-group">
+                            <div class="counter-value" id="dashProductCountRecord">0</div>
+                            <div class="counter-divider">/</div>
+                            <div class="counter-value" id="dashProductCountStock">0</div>
+                        </div>
+                    </div>
+                    <div class="card dashboard-table-card">
+                        <div class="card-header">Последние напечатанные изделия (10)</div>
+                        <div class="table-container">
+                            <table id="dashProductTable">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 30%;">Наименование</th>
+                                        <th style="width: 200px;">Дата</th>
+                                        <th style="width: 300px;">Цвет</th>
+                                        <th>Остаток</th>
+                                        <th style="width: 250px;">Статус</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-row">
+                    <div class="card dashboard-counter-card">
+                        <div class="counter-title">Продано</div>
+                        <div class="counter-value" id="dashSoldCount">0</div>
+                    </div>
+                    <div class="card dashboard-table-card">
+                        <div class="card-header">Последние проданные изделия (5)</div>
+                        <div class="table-container">
+                            <table id="dashSalesTable">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 30%;">Наименование</th>
+                                        <th style="width: 200px;">Дата</th>
+                                        <th style="width: 140px;">Кол-во</th>
+                                        <th style="width: 160px;">Цена (шт)</th>
+                                        <th>Сумма</th>
+                                        <th style="width: 250px;">Статус</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-row">
+                    <div class="card dashboard-counter-card">
+                        <div class="counter-title">Использовано</div>
+                        <div class="counter-value" id="dashUsedCount">0</div>
+                    </div>
+                    <div class="card dashboard-table-card">
+                        <div class="card-header">Последние использованные изделия (5)</div>
+                        <div class="table-container">
+                            <table id="dashUsedTable">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 30%;">Наименование</th>
+                                        <th style="width: 200px;">Дата</th>
+                                        <th style="width: 140px;">Кол-во</th>
+                                        <th>Комментарий</th>
+                                        <th style="width: 250px;">Статус</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-row">
+                    <div class="card dashboard-counter-card">
+                        <div class="counter-title">Забраковано</div>
+                        <div class="counter-value" id="dashDefectiveCount">0</div>
+                    </div>
+                    <div class="card dashboard-table-card">
+                        <div class="card-header">Последние забракованные изделия (5)</div>
+                        <div class="table-container">
+                            <table id="dashDefectiveTable">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 30%;">Наименование</th>
+                                        <th style="width: 200px;">Дата</th>
+                                        <th style="width: 140px;">Кол-во</th>
+                                        <th>Комментарий</th>
+                                        <th style="width: 250px;">Статус</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+   
+            <div id="filament" class="page">
+                <div class="page-title">Управление филаментом</div>
+                <div class="controls">
+                    <div class="controls-left">
+                        <button id="addFilamentBtn" class="btn-primary">➕ Добавить катушку</button>
+                        <div class="search-container">
+							<input type="text" class="search-input" id="filamentSearch" placeholder="Поиск по ID или названию...">
+							<span class="search-clear">&times;</span>
+						</div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div style="display: flex; gap: var(--spacing); align-items: center; margin-bottom: var(--spacing); flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label style="margin: 0;">Наличие:</label>
+                            <select id="filamentStatusFilter" style="padding: 8px 12px; border: 1px solid var(--color-border); border-radius: var(--radius); font-size: 14px; width: 180px;">
+                                <option value="">— Все статусы —</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label style="margin: 0;">Сортировать по:</label>
+                            <select id="filamentSortBy" style="padding: 8px 12px; border: 1px solid var(--color-border); border-radius: var(--radius); font-size: 14px; width: 180px;">
+                                <option value="date-desc">Дате покупки (новые)</option>
+                                <option value="date-asc">Дате покупки (старые)</option>
+                                <option value="availability">Наличию</option>
+                                <option value="brand">Бренду</option>
+                                <option value="color">Цвету</option>
+                                <option value="id">ID</option>
+                                <option value="length">Остатку</option>
+                                <option value="price">Цене катушки</option>
+                            </select>
+                        </div>
+                        <button id="resetFilamentFiltersBtn" class="btn-secondary" style="padding: 8px 16px; font-size: 14px;">Сбросить</button>
+                    </div>
+
+                    <div class="table-container">
+                        <table id="filamentsTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Дата покупки</th>
+                                    <th>Наличие</th>
+                                    <th>Цвет</th>
+                                    <th>Бренд</th>
+                                    <th>Тип пластика</th>
+                                    <th>Длина (м)</th>
+                                    <th>Остаток (м)</th>
+                                    <th>Израсх. (м)</th>
+                                    <th>Израсх. (г)</th>
+                                    <th>Цена (₽)</th>
+                                    <th>Рынок (₽)</th>
+                                    <th></th>
+                                    <th class="text-center">Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="products" class="page">
+                <div class="page-title">Управление изделиями</div>
+                <div class="controls">
+                    <div class="controls-left">
+                        <button id="addProductBtn" class="btn-primary">➕ Добавить изделие</button>
+                        <div class="search-container">
+							<input type="text" class="search-input" id="productSearch" placeholder="Поиск по названию...">
+							<span class="search-clear">&times;</span>
+						</div>
+                    </div>
+                    <div class="controls-right">
+                        <button id="addWriteoffBtn" class="btn-primary">➕ Добавить списание</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div style="display: flex; align-items: center; gap: 20px; margin-bottom: 20px; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label style="margin: 0;">Наличие:</label>
+                            <select id="productAvailabilityFilter" style="padding: 8px 12px; border: 1px solid var(--color-border); border-radius: var(--radius); font-size: 14px; width: 180px;">
+                                <option value="">— Все статусы —</option>
+                                <option value="InStock">В наличии</option>
+                                <option>В наличии полностью</option>
+                                <option>В наличии частично</option>
+                                <option>Нет в наличии</option>
+                                <option>Брак</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label style="margin: 0;">Сортировать по:</label>
+							<select id="productSortBy" style="padding: 8px 12px; border: 1px solid var(--color-border); border-radius: var(--radius); font-size: 14px; width: 180px;">
+                                <option value="systemId-desc">Системный ID (новые)</option>
+                                <option value="systemId-asc">Системный ID (старые)</option>
+                                <option value="date-desc">Дата (новые)</option>
+                                <option value="date-asc">Дата (старые)</option>
+								<option value="name">Наименование</option>
+                                <option value="length">Длина</option>
+								<option value="weight">Вес</option>
+								<option value="quantity">Кол-во</option>
+                            </select>
+                        </div>
+                        <button id="resetProductFiltersBtn" class="btn-secondary">Сбросить</button>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <input type="checkbox" id="showProductChildren" checked style="cursor: pointer; width: 18px; height: 18px;">
+                            <label for="showProductChildren" style="cursor: pointer; font-size: 14px; margin: 0;">Показывать части составных</label>
+                        </div>
+                    </div>
+
+                    <div class="table-container">
+                        <table id="productsTable">
+								<thead>
+									<tr>
+										<th>Наименование</th>
+										<th style="width: 2px;"></th>
+										<th style="width: 100px;">Дата</th>
+										<th>Филамент</th>
+										<th>Время (ч:м)</th> 
+										<th>Вес (г)</th>
+										<th>Длина (м)</th>
+										<th>Кол-во</th>
+										<th>Остаток</th>
+										<th>Себест. за 1 шт.<br><small>(рынок)</small></th>
+										<th>Себест. за 1 шт.<br><small>(точная)</small></th>
+										<th style="text-align: left;">Статус</th>
+										<th class="text-center"></th>
+										<th class="text-center">Действия</th>
+									</tr>
+								</thead>
+                            <tbody></tbody>
+                        </table>                        
+					</div>
+                </div>
+            </div>
+
+            <div id="writeoff" class="page">
+                <div class="page-title">Списание</div>
+                <div class="controls">
+                    <div class="controls-left">
+                        <button id="addWriteoffPageBtn" class="btn-primary">➕ Добавить списание</button>
+                        <div class="search-container">
+							<input type="text" class="search-input" id="writeoffSearch" placeholder="Поиск по названию или ID...">
+							<span class="search-clear">&times;</span>
+						</div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div style="display: flex; gap: var(--spacing); align-items: center; margin-bottom: var(--spacing); flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label style="margin: 0;">Тип списания:</label>
+                            <select id="writeoffTypeFilter" style="padding: 8px 12px; border: 1px solid var(--color-border); border-radius: var(--radius); font-size: 14px; width: 180px;">
+                                <option value="">— Все типы —</option>
+                                <option value="Продажа">Продажа</option>
+                                <option value="Использовано">Использовано</option>
+                                <option value="Брак">Брак</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <label style="margin: 0;">Сортировать по:</label>
+                            <select id="writeoffSortBy" style="padding: 8px 12px; border: 1px solid var(--color-border); border-radius: var(--radius); font-size: 14px; width: 180px;">
+                                <option value="systemId-desc">Системный ID (новые)</option>
+                                <option value="systemId-asc">Системный ID (старые)</option>
+                                <option value="date-desc">Дата (новые)</option>
+                                <option value="date-asc">Дата (старые)</option>
+                                <option value="product">Наименование</option>
+                                <option value="total">Сумма</option>
+                            </select>
+                        </div>
+                        <button id="resetWriteoffFiltersBtn" class="btn-secondary" style="padding: 8px 16px; font-size: 14px;">Сбросить</button>
+                    </div>
+
+                    <div class="table-container">
+                         <table id="writeoffTable">
+                            <thead>
+                                <tr>
+                                    <th style="width: 110px;">Дата</th>
+                                    <th>Системный ID</th>
+                                    <th>Изделие</th>
+                                    <th>Тип списания</th>
+                                    <th>Себест. за 1 шт.<br><small>(точная)</small></th>
+                                    <th>Кол-во</th>
+                                    <th>Цена продажи (шт)</th>
+                                    <th>Сумма</th>
+                                    <th>Примечание</th>
+                                    <th class="text-center">Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="reports" class="page">
+                <div class="page-title">Финансовый отчет</div>
+                
+                <div class="report-controls">
+                    <div class="form-group" style="margin-bottom:0; width: 150px;">
+                        <label>Период с:</label>
+                        <input type="date" id="reportStartDate">
+                    </div>
+                    <div class="form-group" style="margin-bottom:0; width: 150px;">
+                        <label>по:</label>
+                        <input type="date" id="reportEndDate">
+                    </div>
+                    <button class="btn-primary" id="generateReportBtn">🔄 Сформировать отчет</button>
+                </div>
+
+                <div class="card">
+                    <div class="table-container">
+                         <table class="report-table" id="financialTable">
+                            <thead>
+                                <tr>
+                                    <th class="col-title" style="text-align:left; padding-left:16px;">Показатель прибыли</th>
+                                    <th><span class="tooltip-container" style="border-bottom:1px dashed #94a3b8;">Затраты на фил.<span class="tooltip-text">Сумма полной стоимости катушек (по реальной цене), купленных в выбранный период</span></span></th>
+                                    <th><span class="tooltip-container" style="border-bottom:1px dashed #94a3b8;">Себест. исп/брак<span class="tooltip-text">Суммарная реальная себестоимость списаний ("Использовано", "Брак") + изделия с признаком "Брак"</span></span></th>
+                                    <th><span class="tooltip-container" style="border-bottom:1px dashed #94a3b8;">Выручка<span class="tooltip-text">Общая сумма продаж (выручка) за период</span></span></th>
+                                    <th><span class="tooltip-container" style="border-bottom:1px dashed #94a3b8;">Себест. продано<span class="tooltip-text">Суммарная реальная себестоимость проданных изделий</span></span></th>
+                                    <th class="col-profit">Прибыль, ₽</th>
+                                    <th class="col-ros"><span class="tooltip-container" style="border-bottom:1px dashed #94a3b8;">ROS %<span class="tooltip-text tooltip-left-up">Рентабельность продаж:<br>(Прибыль / Выручка) * 100%</span></span></th>
+                                    <th class="col-markup"><span class="tooltip-container" style="border-bottom:1px dashed #94a3b8;">К себест. %<span class="tooltip-text tooltip-left-up">Наценка:<br>(Прибыль / Себестоимость продаж) * 100%</span></span></th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+			
+            <div id="references" class="page">
+                <div class="page-title">Справочники</div>
+                
+                <div class="form-row">
+                    <div class="card">
+                        <div class="card-header">Бренды филамента</div>
+                        <div style="margin-bottom: var(--spacing);">
+                            <input type="text" id="newBrand" placeholder="Новый бренд..." style="margin-bottom: 8px;">
+                            <button id="addBrandBtn" class="btn-primary" style="width: 100%;">Добавить</button>
+                        </div>
+                        <div id="brandsList" style="max-height: 300px; overflow-y: auto;"></div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">Цвета</div>
+                        <div style="margin-bottom: var(--spacing);">
+                            <input type="text" id="newColor" placeholder="Новый цвет..." style="margin-bottom: 8px;">
+                            <input type="color" id="newColorCode" value="#ffffff" style="width: 100%; height: 40px; border: 1px solid var(--color-border); cursor: pointer; margin-bottom: 8px;">
+                            <button id="addColorBtn" class="btn-primary" style="width: 100%;">Добавить</button>
+                        </div>
+                        <div id="colorsList" style="max-height: 300px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="card">
+                        <div class="card-header">Типы филамента</div>
+                        <div style="margin-bottom: var(--spacing);">
+                            <input type="text" id="newFilamentType" placeholder="Новый тип..." style="margin-bottom: 8px;">
+                            <button id="addFilamentTypeBtn" class="btn-primary" style="width: 100%;">Добавить</button>
+                        </div>
+                        <div id="filamentTypeList" style="max-height: 300px; overflow-y: auto;"></div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">Статусы филамента</div>
+                        <div style="margin-bottom: var(--spacing);">
+                            <input type="text" id="newFilamentStatus" placeholder="Новый статус..." style="margin-bottom: 8px;">
+                            <button id="addFilamentStatusBtn" class="btn-primary" style="width: 100%;">Добавить</button>
+                        </div>
+                        <div id="filamentStatusList" style="max-height: 300px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="card">
+                        <div class="card-header">Принтеры</div>
+                        <div style="display: flex; gap: var(--spacing); margin-bottom: var(--spacing);">
+                            <input type="text" id="newPrinterModel" placeholder="Модель принтера...">
+                            <input type="number" id="newPrinterPower" placeholder="Мощность (кВт)" step="0.1">
+                        </div>
+                        <button id="addPrinterBtn" class="btn-primary" style="width: 100%; margin-bottom: var(--spacing);">Добавить</button>
+                        <div id="printersList" style="max-height: 300px; overflow-y: auto;"></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">Стоимость электроэнергии</div>
+                        <div style="display: flex; gap: var(--spacing); margin-bottom: var(--spacing);">
+                            <div class="form-group" style="flex:1; margin:0;">
+                                <label>Дата начала (гггг-мм-дд)</label>
+                                <input type="date" id="newElectricityDate">
+                            </div>
+                            <div class="form-group" style="flex:1; margin:0;">
+                                <label>Стоимость 1 кВт (₽)</label>
+                                <input type="number" id="newElectricityCost" step="0.01">
+                            </div>
+                        </div>
+                        <button id="addElectricityCostBtn" class="btn-primary" style="width: 100%; margin-bottom: var(--spacing);">Добавить тариф</button>
+                        <div id="electricityCostList" style="max-height: 300px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="filamentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header-simple-custom">
+                <div class="modal-header-title">Добавить филамент</div>
+                <div id="filamentValidationMessage" class="validation-message hidden" style="position: absolute; bottom: 8px; left: 24px; margin: 0; padding: 0;">Не все обязательные поля заполнены</div>
+                <div id="filamentUniqueIdMessage" class="validation-message hidden" style="position: absolute; bottom: 8px; left: 24px; margin: 0; padding: 0;">Пользовательский ID должен быть уникальным</div>
+            </div>
+            
+            <div class="modal-body">
+                <div class="form-section">
+                    <div class="form-section-title">Основная информация</div>
+                    <div class="form-row-3">
+                        <div class="form-group"><label>Пользовательский ID:</label><input type="text" id="filamentCustomId" placeholder="Белый - 1"></div>
+                        <div class="form-group"><label>Наличие:</label><select id="filamentAvailability"></select></div>
+                        <div class="form-group"><label>Дата покупки:</label><input type="date" id="filamentDate" value=""></div>
+                    </div>
+                    <div class="form-group"><label>Наименование филамента:</label><input type="text" id="filamentName" placeholder="PLA 1.75mm"></div>
+                    <div class="form-group"><label>Ссылка на товар / заказ:</label><input type="url" id="filamentLink" placeholder="https://..."></div>
+                    <div class="form-row-3">
+                        <div class="form-group"><label>Бренд:</label><select id="filamentBrand"></select></div>
+                        <div class="form-group"><label>Тип пластика:</label><select id="filamentType"></select></div>
+                        <div class="form-group">
+                            <label>Цвет:</label>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span class="color-swatch" id="filamentColorPreview" style="background:#ffffff;width:24px;height:24px;border-radius:4px;border:1px solid var(--color-border);flex-shrink:0;"></span>
+                                <select id="filamentColor" style="flex:1;"></select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="form-section-title">Стоимость</div>
+                    <div class="form-row-3">
+                        <div class="form-group"><label class="label-with-tooltip">Цена этой катушки (₽):<span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text" id="priceTooltip">Коэффициент: -</span></span></label><input type="number" id="filamentActualPrice" step="0.01"></div>
+                        <div class="form-group"><label>Себест. за грамм (₽):</label><div class="calc-field" id="actualCostPerGramCalc">0.00 ₽/г</div></div>
+                        <div class="form-group"><label>Себест. за метр (₽):</label><div class="calc-field" id="actualCostPerMeterCalc">0.00 ₽/м</div></div>
+                    </div>
+                    <div class="form-row-3">
+                        <div class="form-group"><label>Средняя цена рынка (₽):</label><input type="number" id="filamentAvgPrice" step="0.01"></div>
+                        <div class="form-group"><label>Рынок. себест. за грамм (₽):</label><div class="calc-field" id="avgCostPerGramCalc">0.00 ₽/г</div></div>
+                        <div class="form-group"><label>Рынок. себест. за метр (₽):</label><div class="calc-field" id="avgCostPerMeterCalc">0.00 ₽/м</div></div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div class="form-section-title">Остаток</div>
+                    <div class="form-row-3">
+                        <div class="form-group"><label class="label-with-tooltip">Вес катушки (г):<span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text" id="weightTooltip">Граммов в метре: -</span></span></label><input type="number" id="filamentWeight" value="1000" step="1"></div>
+                        <div class="form-group"><label>Израсходовано (г):</label><div class="calc-field" id="weightUsedCalc">0 г</div></div>
+                        <div class="form-group"><label>Остаток (г):</label><div class="calc-field" id="weightRemainingCalc">0 г</div></div>
+                    </div>
+                    <div class="form-row-3">
+                        <div class="form-group"><label>Длина катушки (м):</label><input type="number" id="filamentLength" value="330" step="1"></div>
+                        <div class="form-group"><label>Израсходовано (м):</label><div class="calc-field" id="lengthUsedCalc">0.0 м</div></div>
+                        <div class="form-group"><label>Остаток (м):</label><div class="calc-field" id="lengthRemainingCalc">0.0 м</div></div>
+                    </div>
+                </div>
+
+                <div class="form-section"><div class="form-group"><label>Примечание:</label><textarea id="filamentNote" placeholder="Дополнительная информация..."></textarea></div></div>
+            </div>
+
+            <div class="modal-footer">
+                <button id="closeFilamentModalBtn" class="btn-secondary">Отмена</button>
+                <button id="saveFilamentBtn" class="btn-primary">Сохранить и закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="productModal" class="modal">
+        <div class="modal-content" style="max-width: 900px;">
+			<div class="modal-header-custom">
+			  <div class="modal-header-title">Добавить изделие</div>
+			  <div class="header-right-elements"><label class="checkbox-label" style="flex-direction: row-reverse;"><input type="checkbox" id="productDefective">Брак изделия</label></div>
+              <div id="productValidationMessage" class="validation-message hidden" style="position: absolute; bottom: 8px; left: 24px; margin: 0; padding: 0;">Не все обязательные поля заполнены</div>
+              <div class="system-id-block" style="position: absolute; bottom: 8px; right: 24px; font-size: 12px; color: #64748b;">Системный ID: <span id="productSystemId">-</span></div>
+			</div>
+
+			<div class="header-divider"></div>
+
+            <div class="modal-body">
+                <div class="form-section-title" style="margin-top: 0; display: flex; justify-content: space-between; align-items: center;">
+                    <span>ОСНОВНАЯ ИНФОРМАЦИЯ</span>
+                    <div id="productAllPartsCreatedContainer" style="display: none;"><label class="checkbox-label" style="margin: 0; font-size: 12px; font-weight: normal; color: var(--color-text); gap: 6px;"><input type="checkbox" id="productAllPartsCreated" style="transform: translateY(1px);">Все части изделия созданы</label></div>
+                </div>
+
+                <div class="modal-layout-grid">
+                    <div>
+                        <div class="form-group" style="margin-bottom: 4px;">
+                            <label>Изображение изделия:</label>
+                            <div class="image-upload-container"><div class="image-upload-placeholder" id="imagePlaceholder"><span class="image-upload-icon">📷</span><span>Добавить фото</span></div><img id="productImagePreview" class="product-image-preview" src="" alt="Preview"><button class="btn-delete-image" id="btnDeleteImage">🗑️</button><input type="file" id="productImageInput" accept="image/*" style="display: none;"></div>
+                        </div>
+                    </div>
+
+					<div class="modal-basic-info-grid">
+                        <div class="form-group"><label>Дата изготовления:</label><input type="date" id="productDate"></div>
+                        <div class="form-group"><label>Статус наличия:</label><div class="calc-field" id="productAvailabilityField">В наличии полностью</div></div>
+                        <div class="form-group"><label>Тип изделия:</label><select id="productType"><option value="Самостоятельное">Самостоятельное</option><option value="Составное">Составное</option><option value="Часть составного">Часть составного</option></select></div>
+                        <div class="form-group">
+                            <div style="display: flex; gap: 10px; width: 100%;">
+                                <div style="flex: 1;"><label>Кол-во (шт):</label><input type="number" id="productQuantity" value="1" min="1"></div>
+                                <div style="flex: 1;"><label>Остаток (шт):</label><div class="calc-field" id="productStockCalc">1</div></div>
+                            </div>
+                        </div>
+                        <div class="form-group" style="grid-column: span 2;"><label id="labelProductName">Наименование изделия:</label><input type="text" id="productName" placeholder="Кубик для тестирования"></div>
+                        <div id="productParentGroup" class="form-group hidden" style="grid-column: span 2;"><label>Составное изделие, для которого изготовлена данная часть изделия:</label><select id="productParent"></select></div>
+                        <div class="form-group" id="productLinkFieldContainer" style="grid-column: span 2;"><label for="productLink">Ссылка на модель:</label><input type="text" id="productLink" placeholder="https://"></div>
+                    </div>
+                </div>
+				
+                <div id="fileUploadSection" class="form-group" style="margin-top: 16px; margin-bottom: 24px;">
+                    <div style="display: flex; align-items: flex-end; margin-bottom: 4px;">
+                        <div style="width: 240px; display: flex; justify-content: space-between; align-items: center;">
+                            <label style="margin:0">Файлы модели</label>
+                            <span style="font-size: 10px; color: #94a3b8;" id="fileCountLabel">0 / 5</span>
+                        </div>
+                    </div>
+                    <div class="file-section-row">
+                        <div class="file-upload-btn-wrapper"><button type="button" class="btn-secondary" id="btnAddFile">📎 Добавить файл</button><input type="file" id="productFileInput" style="display: none;"></div>
+                        <div id="fileListContainer" class="file-list-container"></div>
+                    </div>
+                </div>
+
+                <div id="materialSection" class="form-section">
+                    <div class="form-section-title">Материал</div>
+                    <div class="form-row-3">
+                        <div class="form-group"><label>Используемый филамент:</label><select id="productFilament"></select></div>
+                        <div class="form-group" id="productColorGroup">
+                            <label>Цвет:</label>
+                            <div style="display:flex;align-items:center;gap:8px;min-height:38px;"><span class="color-swatch" id="productColorSwatch" style="background:#ffffff;width:24px;height:24px;border-radius:4px;border:1px solid var(--color-border);flex-shrink:0;"></span><div class="calc-field" style="padding:10px 12px;flex:1;background:var(--color-bg);border:1px solid var(--color-border);border-radius:var(--radius);font-size:14px;color:var(--color-text-light);min-height:18px;display:flex;align-items:center;"><span id="productColorName">—</span></div></div>
+                        </div>
+                        <div class="form-group"><label>Принтер:</label><select id="productPrinter"></select></div>
+                    </div>
+                </div>
+
+               <div class="form-section">
+                    <div class="form-section-title">Время и ресурс</div>
+                    <div class="form-row-3">
+                        <div class="form-group"><label class="label-with-tooltip">Длительность печати (ЧЧ:MM):<span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text" id="energyCostTooltip">Стоимость 1 кВт: -</span></span></label><div style="display:flex;gap:8px;"><div style="flex:1;"><input type="number" id="productPrintTimeHours" min="0" placeholder="ч"></div><div style="flex:1;"><input type="number" id="productPrintTimeMinutes" min="0" max="59" placeholder="м"></div></div></div>
+                        <div class="form-group"><label class="label-with-tooltip">Программный вес фил. (г):<span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text" id="costPerGramTooltip">Себест. за грамм рынок/реальная: - / -</span></span></label><input type="number" id="productWeight" step="0.1"></div>
+						<div class="form-group"><label class="label-with-tooltip">Программная длина фил. (м):<span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text tooltip-top-left" id="costPerMeterTooltip">Себест. за метр рынок/реальная: - / -</span></span></label><input type="number" id="productLength" step="0.1"></div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+					<div class="form-section-title" style="display: flex; justify-content: space-between; align-items: center;">
+						<div>Стоимость<span id="compositeCostNote" class="hidden" style="font-weight: 400; color: var(--color-text-light); margin-left: 8px;">(суммарные значения по всем частям)</span></div>
+						<div class="tooltip-container"><span style="font-size: 11px; font-weight: 400; text-transform: none; cursor: help; border-bottom: 1px dashed var(--color-text-light);">Подробный расчет</span><span class="tooltip-text tooltip-top-left" id="costsDetailTooltip" style="width: 450px; text-align: left; line-height: 1.4;">Здесь будут формулы...</span></div>
+					</div>
+                    <div class="form-row-3">
+                        <div class="form-group"><label>Стоим. энергии на изделие</label><div class="calc-field" id="productEnergyCostCalc" style="text-align:left;">0.00</div></div>
+                        <div class="form-group"><label class="label-with-tooltip">Рынок. Стоим. фил. по весу<span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text" id="filamentCostByWeightTooltip">С реальной стоимостью: -</span></span></label><div class="calc-field" id="productFilamentCostByWeightCalc" style="text-align:left;">0.00</div></div>
+                        <div class="form-group"><label class="label-with-tooltip">Рынок. Стоим. фил. по длине<span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text tooltip-top-left" id="filamentCostByLengthTooltip">С реальной стоимостью: -</span></span></label><div class="calc-field" id="productFilamentCostByLengthCalc" style="text-align:left;">0.00</div></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label class="label-with-tooltip">Рынок. себест. изделия<span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text" id="productCostActualTooltip">С реальной стоимостью: -</span></span></label><div class="calc-field" id="productCostMarketCalc" style="text-align:left;">0.00</div></div>
+                        <div class="form-group"><label class="label-with-tooltip">Рынок. себест. за 1 шт.<span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text" id="productCostPerUnitActualTooltip">С реальной стоимостью: -</span></span></label><div class="calc-field" id="productCostMarketPerUnitCalc" style="text-align:left;">0.00</div></div>
+                    </div>
+                </div>
+
+                <div class="form-section hidden" id="childrenTableGroup">
+                    <div class="form-section-title">Части составного изделия</div>
+                    <div class="table-container"><table id="childrenTable"><thead><tr><th>Наименование</th><th>Цвет</th><th>Кол-во</th><th>Вес (г)</th><th>Длина (м)</th><th>Рын. себест.</th><th>Себест.</th></tr></thead><tbody></tbody></table></div>
+                </div>
+
+                <div class="form-section"><div class="form-group"><label>Примечание:</label><textarea id="productNote" placeholder="Дополнительная информация..."></textarea></div></div>
+            </div>
+
+            <div class="modal-footer">
+                <button id="closeProductModalBtn" class="btn-secondary">Отмена</button>
+                <button id="saveProductBtn" class="btn-primary">Сохранить и закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="writeoffModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header-simple-custom">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div class="modal-header-title">Добавить списание изделия</div>
+                    <div class="writeoff-sale-summary hidden" id="writeoffTotalSummary" style="background:transparent; border:none; padding:0; display: flex; gap: 16px; font-size:13px; align-items: center;"><span>ПРОДАЖА: <strong id="writeoffTotalAmount">0.00 ₽</strong></span><span>ПРИБЫЛЬ: <strong id="writeoffTotalProfit">0.00 ₽</strong></span></div>
+                </div>
+                <div id="writeoffValidationMessage" class="validation-message hidden" style="position: absolute; bottom: 8px; left: 24px; margin: 0; padding: 0;">Не все обязательные поля заполнены</div>
+				<div class="system-id-block" style="position: absolute; bottom: 8px; right: 24px; font-size: 12px; color: #64748b;">Системный ID: <span id="writeoffSystemId">-</span></div>
+            </div>
+            
+            <div class="modal-body">
+                <div class="form-section">
+                    <div class="form-section-title">Основная информация</div>
+                    <div class="form-row-3">
+                        <div class="form-group" style="grid-column: span 2;"><label>Тип списания:*</label><select id="writeoffType"><option value="Продажа">Продажа</option><option value="Использовано">Использовано</option><option value="Брак">Брак</option></select></div>
+                        <div class="form-group"><label>Дата списания:*</label><input type="date" id="writeoffDate"></div>
+                    </div>
+                </div>
+                <div id="writeoffItemsContainer"></div>
+                <button id="addWriteoffItemBtn" class="btn-add-section">➕ Добавить изделие к списанию</button>
+                <div class="form-section"><div class="form-group"><label>Примечание:</label><textarea id="writeoffNote" style="min-height: 60px;" placeholder="Дополнительная информация..."></textarea></div></div>
+            </div>
+
+            <div class="modal-footer">
+                <button id="closeWriteoffModalBtn" class="btn-secondary">Отмена</button>
+                <button id="saveWriteoffBtn" class="btn-primary">Сохранить и закрыть</button>
+            </div>
+        </div>
+    </div>
+
+	<div id="globalImageTooltip"><img id="globalImageTooltipImg" src=""></div>
+
+
+    <!-- Подключаем ваш скрипт -->
+    <script src="script.js"></script>
+</body>
+</html>

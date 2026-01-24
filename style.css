@@ -1,0 +1,1022 @@
+        :root {
+            --color-primary: #1e40af;
+            --color-success: #15803d;
+            --color-warning: #ea580c;
+            --color-danger: #dc2626;
+            --color-info: #0369a1;
+            --color-purple: #7c3aed;
+            --color-light-green-bg: #dcfce7;
+            --color-light-green-text: #166534;
+            --color-bg: #f8fafc;
+            --color-surface: #ffffff;
+            --color-border: #e2e8f0;
+            --color-text: #1e293b;
+            --color-text-light: #64748b;
+            --color-sidebar: #1e293b;
+            --color-sidebar-text: #f1f5f9;
+            --spacing: 16px;
+            --radius: 8px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--color-bg);
+            color: var(--color-text);
+            height: 100%;
+			overflow: hidden; /* Запрет скролла всей страницы */
+        }
+
+        body { display: flex; flex-direction: column; }
+
+        .hidden { display: none !important; }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+
+        /* Header */
+        .header {
+            background: var(--color-surface);
+            border-bottom: 1px solid var(--color-border);
+            padding: var(--spacing) calc(var(--spacing) * 2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .header-title { font-size: 24px; font-weight: 700; color: var(--color-primary); display: flex; align-items: center; }
+        .header-info { font-size: 12px; color: var(--color-text-light); }
+
+        /* Main Layout */
+        .container { display: flex; flex: 1; overflow: hidden; }
+        
+        /* Sidebar */
+        .sidebar {
+            width: 220px;
+            background: var(--color-sidebar);
+            color: var(--color-sidebar-text);
+            padding: var(--spacing);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+        .menu-item {
+            padding: 12px 16px;
+            margin-bottom: 8px;
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+            border: none;
+            width: 100%;
+            text-align: left;
+            background: transparent;
+            color: var(--color-sidebar-text);
+        }
+        .menu-item:hover { background: rgba(255,255,255,0.1); }
+        .menu-item.active { background: var(--color-primary); font-weight: 600; }
+        
+        .sidebar-divider { height: 1px; background: rgba(255,255,255,0.2); margin: 16px 0; }
+        .sidebar-section-title { font-size: 11px; text-transform: uppercase; color: rgba(255,255,255,0.5); margin-bottom: 8px; padding-left: 16px; letter-spacing: 0.5px; }
+
+
+        /* Content Layout */
+        .content { 
+            flex: 1; 
+            overflow: hidden; /* Скрываем скролл контейнера контента */
+            position: relative;
+            display: flex; 
+            flex-direction: column;
+        }
+		
+		/* Page Title Style (Restored) */
+        .page-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--color-primary);
+            margin-bottom: var(--spacing);
+            display: flex;
+            align-items: center;
+        }
+
+        /* Dashboard tables - remove limits as requested */
+        .dashboard-table-card .table-container { 
+            max-height: none !important; 
+            overflow-y: visible !important;
+        }
+
+        /* Fixed Layout for Perfect Alignment */
+        .dashboard-table-card table {
+            table-layout: fixed;
+            width: 100%;
+        }
+        
+        .dashboard-table-card th, 
+        .dashboard-table-card td {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+
+        /* Default Page Style (Dashboard, Reports, References) - Scrollable Page */
+        .page { 
+            display: none; 
+            height: 100%;
+            overflow-y: auto; /* Скроллим саму страницу */
+            padding: var(--spacing) calc(var(--spacing) * 2); /* Отступы перенесли сюда */
+        }
+        
+        .page.active { display: block; }
+
+        /* Fixed Layout Pages (Filament, Products, Writeoff) - Internal Table Scroll */
+        /* Эти страницы становятся Flex-контейнерами на всю высоту */
+        #filament.page.active, 
+        #products.page.active, 
+        #writeoff.page.active {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* Запрещаем скролл страницы */
+        }
+
+        /* На этих страницах последняя карточка (с таблицей) растягивается */
+        #filament.page > .card:last-of-type,
+        #products.page > .card:last-of-type,
+        #writeoff.page > .card:last-of-type {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0; /* Важно для работы скролла внутри flex */
+            margin-bottom: var(--spacing);
+        }
+
+        /* Контейнер таблицы внутри растянутой карточки тоже растягивается */
+        #filament.page > .card:last-of-type .table-container,
+        #products.page > .card:last-of-type .table-container,
+        #writeoff.page > .card:last-of-type .table-container {
+            flex: 1;
+            overflow-y: auto; /* Скролл только здесь */
+            max-height: none;
+            border-bottom: none;
+            border-radius: var(--radius) var(--radius) 0 0;
+        }
+
+        /* Фиксация шапки таблицы */
+        .table-container thead { 
+            position: sticky; 
+            top: 0; 
+            z-index: 10; 
+            box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.1); 
+        }
+
+
+        /* Controls */
+        .controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing); flex-wrap: wrap; gap: var(--spacing); }
+        .controls-left { display: flex; gap: var(--spacing); }
+        .controls-right { display: flex; gap: var(--spacing); margin-left: auto; }
+
+        button {
+            padding: 10px 16px; border: none; border-radius: var(--radius); cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.2s; display: flex; align-items: center; gap: 8px;
+        }
+        .btn-primary { background: var(--color-primary); color: white; }
+        .btn-primary:hover { background: #1e3a8a; }
+        .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
+        .btn-secondary { background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border); }
+        .btn-secondary:hover { background: var(--color-bg); }
+        .btn-small { padding: 6px 12px; font-size: 13px; }
+        .btn-danger { background: var(--color-danger); color: white; }
+        .btn-danger:hover { background: #b91c1c; }
+
+        .search-input { padding: 10px 14px; border: 1px solid var(--color-border); border-radius: var(--radius); font-size: 14px; width: 250px; }
+        .search-input:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1); }
+        input, textarea, select { width: 100%; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: var(--radius); font-size: 14px; font-family: inherit; color: var(--color-text); }
+        input:focus, textarea:focus, select:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1); }
+        input.error, select.error { border-color: var(--color-danger); box-shadow: 0 0 0 1px var(--color-danger); }
+        textarea { resize: vertical; min-height: 80px; }
+
+        .card { background: var(--color-surface); border-radius: var(--radius); border: 1px solid var(--color-border); padding: var(--spacing); margin-bottom: var(--spacing); box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .card-header { font-size: 18px; font-weight: 600; margin-bottom: var(--spacing); color: var(--color-text); }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--spacing); margin-bottom: calc(var(--spacing) * 2); }
+        .stat-card { background: var(--color-surface); border-radius: var(--radius); padding: var(--spacing); border: 1px solid var(--color-border); text-align: center; }
+        .stat-label { font-size: 13px; color: var(--color-text-light); margin-bottom: 8px; }
+        .stat-value { font-size: 28px; font-weight: 700; color: var(--color-primary); }
+
+        .table-container { overflow-x: auto; border: 1px solid var(--color-border); border-radius: var(--radius); }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        thead { background: var(--color-bg); border-bottom: 2px solid var(--color-border); }
+		th { padding: 12px 10px; text-align: left; font-weight: 600; color: var(--color-text); vertical-align: middle; }
+		td { padding: 12px 10px; border-bottom: 1px solid var(--color-border); vertical-align: middle; }
+        tbody tr:hover { background: rgba(30, 64, 175, 0.02); }
+        
+        tr.product-child-row { background-color: rgba(0,0,0,0.02); }
+        .product-name-cell { display: flex; align-items: center; }
+        .product-icon-wrapper { width: 24px; display: flex; justify-content: center; margin-right: 4px; flex-shrink: 0; }
+        .product-child-indent { padding-left: 24px; }
+
+        .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; text-align: center; white-space: nowrap; }
+ 
+        .badge-success { background: rgba(21, 128, 61, 0.18); color: var(--color-success); }
+        .badge-danger { background: rgba(220, 38, 38, 0.18); color: var(--color-danger); }
+        .badge-secondary { background-color: #e2e8f0; color: #475569; }
+ 
+		.badge-gray { background: rgba(107, 114, 128, 0.18); color: #475569; }
+        .badge-purple { background: rgba(124, 58, 237, 0.18); color: var(--color-purple); }
+        .badge-light-green { background-color: rgba(22, 101, 52, 0.18); color: var(--color-light-green-text); }
+        
+
+        .checkbox-aligned-bottom input { 
+            width: auto; 
+            margin: 0 0 3px 0; 
+            transform: translateY(2px);
+        }
+        
+        .tooltip-text.tooltip-top-center {
+            bottom: 125%;
+            left: 50%;
+            margin-left: -110px; /* Половина ширины 220px */
+        }
+        .tooltip-text.tooltip-top-center::after {
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-color: var(--color-primary) transparent transparent transparent;
+        }
+		
+		 /* Styles for clickable links inside tooltips */
+        .tooltip-text a {
+            display: block;
+            padding: 4px 8px;
+            color: white;
+            text-decoration: underline;
+            cursor: pointer;
+            border-radius: 4px;
+            margin: 2px 0;
+        }
+        .tooltip-text a:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+ 
+        .color-swatch { display: inline-block; width: 20px; height: 20px; border-radius: 4px; border: 1px solid var(--color-border); vertical-align: middle; margin-right: 8px; }
+        .form-group { margin-bottom: var(--spacing); }
+        .form-group label { display: block; margin-bottom: 6px; font-weight: 500; font-size: 12px; color: var(--color-text); }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing); }
+        .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--spacing); }
+        
+        /* Tooltip */
+        .tooltip-container { position: relative; display: inline-block; cursor: help; }
+        .tooltip-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; margin-left: 6px; background: var(--color-primary); color: white; border-radius: 50%; font-size: 11px; font-weight: bold; line-height: 1; flex-shrink: 0; }
+        .tooltip-text { visibility: hidden; width: 220px; background-color: var(--color-primary); color: white; text-align: center; border-radius: var(--radius); padding: 8px 10px; position: absolute; z-index: 100; bottom: 125%; left: 50%; margin-left: -110px; opacity: 0; transition: opacity 0.3s; font-size: 12px; font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,0.15); word-wrap: break-word; }
+        .tooltip-text::after { content: ""; position: absolute; top: 100%; left: 50%; margin-left: -5px; border-width: 5px; border-style: solid; border-color: var(--color-primary) transparent transparent transparent; }
+        .tooltip-container:hover .tooltip-text { visibility: visible; opacity: 1; }
+        .tooltip-text.tooltip-right { left: auto; right: 0; margin-left: 0; }
+        .tooltip-text.tooltip-right::after { left: auto; right: 12px; margin-left: 0; }
+        
+        /* Tooltip Top-Left (Вверх и влево) */
+        .tooltip-text.tooltip-top-left { left: auto; right: 0; margin-left: 0; bottom: 125%; margin-bottom: 5px; }
+        .tooltip-text.tooltip-top-left::after { left: auto; right: 6px; margin-left: 0; }
+
+        /* Tooltip Top-Right (Вверх и вправо) - НОВЫЙ */
+        .tooltip-text.tooltip-top-right { bottom: 125%; left: 0; margin-left: -5px; margin-bottom: 5px; }
+        .tooltip-text.tooltip-top-right::after { left: 10px; right: auto; margin-left: 0; }
+        
+        /* Left aligned tooltip */
+        .tooltip-text.tooltip-left::after { top: 50%; left: 100%; margin-left: 0; margin-top: -5px; border-color: transparent transparent transparent var(--color-primary); }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; overflow: hidden; }
+        .modal.active { display: flex; }
+        .modal-content { background: var(--color-surface); border-radius: var(--radius); max-width: 800px; width: 95%; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+        .modal-header { font-size: 18px; font-weight: 700; color: var(--color-text); padding: calc(var(--spacing) * 1.5); border-bottom: 1px solid var(--color-border); flex-shrink: 0; }
+        .modal-body { flex: 1; overflow-y: auto; padding: calc(var(--spacing) * 1.5); }
+        .modal-footer { display: flex; gap: var(--spacing); justify-content: flex-end; padding: calc(var(--spacing) * 1.5); border-top: 1px solid var(--color-border); flex-shrink: 0; }
+       
+        .calc-field { background: var(--color-bg); padding: 10px 12px; border-radius: var(--radius); border: 1px solid var(--color-border); font-size: 14px; color: var(--color-text-light); min-height: 42px; display: flex; align-items: center; }
+        .label-with-tooltip { display: flex; align-items: center; gap: 0; flex-wrap: wrap; }
+        .validation-message { color: var(--color-danger); font-size: 13px; margin-bottom: var(--spacing); }
+
+        /* Utils */
+        .action-buttons { display: flex; gap: 6px; justify-content: flex-end; flex-direction: row; }
+        .form-section { border-top: 2px solid var(--color-border); padding-top: var(--spacing); margin-top: calc(var(--spacing) * 1.5); }
+        .form-section:first-of-type { border-top: none; margin-top: 0; padding-top: 0; }
+        .form-section-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-text-light); margin-bottom: var(--spacing); }
+        .checkbox-label { display: flex; align-items: center; gap: 8px; font-weight: 500; cursor: pointer; font-size: 14px; }
+        .checkbox-label input[type="checkbox"] { width: auto; margin: 0; }
+        
+        /* Writeoff Styles */
+        .writeoff-item-section { border: 1px solid var(--color-border); border-radius: var(--radius); padding: var(--spacing); margin-bottom: var(--spacing); background: #fafafa; position: relative; }
+        .writeoff-item-header { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--color-text); text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; }
+        .writeoff-sale-summary { background: var(--color-bg); border-bottom: 1px solid var(--color-border); padding: 12px calc(var(--spacing) * 1.5); font-size: 14px; font-weight: 500; color: var(--color-text); }
+        .btn-add-section { width: 100%; justify-content: center; border: 1px dashed var(--color-border); background: #fff; color: var(--color-text-light); padding: 12px; border-radius: var(--radius); cursor: pointer; font-size: 14px; font-weight: 500; display: flex; align-items: center; transition: all 0.2s; }
+        .btn-add-section:hover { border-color: var(--color-primary); color: var(--color-primary); background: #f0fdf4; }
+        .btn-remove-section { background: none; border: none; color: var(--color-danger); cursor: pointer; font-size: 16px; padding: 0 4px; }
+        .btn-remove-section:hover { color: #b91c1c; }
+		
+		/* Dashboard New Layout */
+        .dashboard-row { display: flex; gap: var(--spacing); margin-bottom: var(--spacing); align-items: stretch; }
+        .dashboard-counter-card { width: 300px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+        .dashboard-table-card { flex: 1; display: flex; flex-direction: column; }
+        .dashboard-table-card .table-container { flex: 1; max-height: 300px; overflow-y: auto; }
+        .counter-title { font-size: 14px; color: var(--color-text-light); margin-bottom: 12px; }
+        .counter-value { font-size: 48px; font-weight: 700; color: var(--color-primary); line-height: 1.2; }
+        .counter-value-group { display: flex; gap: 16px; align-items: center; justify-content: center; }
+        .counter-divider { font-size: 32px; color: var(--color-border); font-weight: 300; }
+       
+ 	    
+		/* Basic Table Container */
+        .table-container { 
+            overflow-x: auto; 
+            border: 1px solid var(--color-border); 
+            border-radius: var(--radius); 
+            position: relative;
+        }
+        
+        /* Sticky Header for all tables inside container */
+        .table-container thead { 
+            position: sticky; 
+            top: 0; 
+            z-index: 10; 
+            box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.1); 
+        }
+
+        /* Specific height limit for Main Pages (Filament, Products, Writeoff) to avoid page scroll */
+        /* Применяем ограничение только если таблица находится внутри страницы контента, но НЕ в дашборде и НЕ в модальном окне */
+        .content > .page:not(#dashboard) .table-container {
+            overflow-y: auto;
+            max-height: calc(100vh - 280px); /* Высота экрана минус хедер и контролы */
+            min-height: 300px;
+        }
+
+        /* Dashboard tables are smaller */
+        .dashboard-table-card .table-container { 
+            max-height: 250px; 
+            overflow-y: auto;
+        }
+        .table-container thead { position: sticky; top: 0; z-index: 5; }
+
+        
+        /* Report Page Styles - Fix v1.93 */
+        .report-controls {
+            display: flex;
+            align-items: flex-end;
+            gap: 16px;
+            margin-bottom: 20px;
+            background: var(--color-surface);
+            padding: 16px;
+            border-radius: var(--radius);
+            border: 1px solid var(--color-border);
+        }
+        
+        #reports .table-container {
+            overflow: visible !important; 
+        }
+
+        .report-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: auto; /* Позволяем авто-ширину, но контролируем мин-ширину */
+        }
+
+        .report-table th { 
+            text-align: right; /* 4. Выравнивание заголовков по цифрам (вправо) */
+            vertical-align: middle; 
+            font-size: 12px;
+            background: #f1f5f9;
+            padding: 12px 8px;
+            position: relative;
+            z-index: 10;
+            white-space: nowrap; /* Чтобы заголовки не ломались некрасиво */
+        }
+        /* Исключение для первого заголовка */
+        .report-table th:first-child { text-align: left; }
+
+        .report-table td {
+            vertical-align: middle;
+            font-size: 13px;
+            position: relative;
+            padding: 8px;
+        }
+
+        /* 2 & 3. Поднимаем строку при наведении для отображения тултипов поверх всего */
+        .report-table tr:hover td {
+            z-index: 500;
+        }
+
+        .report-val { text-align: right; white-space: nowrap; }
+        
+        /* 1. Первая колонка широкая (300px) */
+        .col-title { width: 300px; min-width: 300px; }
+        .report-row-title { 
+            font-weight: 600; 
+            color: var(--color-primary); 
+            width: 100%;
+            white-space: normal; /* Разрешаем перенос */
+            line-height: 1.3;
+        }
+        
+        .val-negative { color: var(--color-danger); }
+        .val-positive { color: var(--color-success); }
+        .val-neutral { color: var(--color-text-light); }
+        
+        .col-profit { font-weight: 700; background: #f8fafc; }
+        .col-ros { text-align: center !important; } /* ROS и Markup по центру */
+        .col-markup { text-align: center !important; }
+
+		/* === ТУЛТИПЫ (ИСПРАВЛЕНО v1.97) === */
+        .tooltip-container { position: relative; display: inline-block; cursor: help; }
+        
+        /* Общий стиль тела тултипа */
+        .tooltip-text { 
+            visibility: hidden; 
+            opacity: 0;
+            position: absolute; 
+            background-color: var(--color-primary); 
+            color: white; 
+            text-align: left; 
+            border-radius: var(--radius); 
+            padding: 10px; 
+            font-size: 12px; 
+            font-weight: 500; 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.25); 
+            transition: opacity 0.2s; 
+            z-index: 10000; /* Максимальный Z-index */
+            width: 250px;
+            line-height: 1.4;
+            white-space: normal;
+        }
+        .tooltip-container:hover .tooltip-text { visibility: visible; opacity: 1; }
+
+        /* 1. Тултипы ЗАГОЛОВКОВ (Колонки 2,3,4,5) - ЦЕНТРИРОВАНИЕ */
+        /* Теперь они всплывают ровно над своим заголовком */
+        .report-table th .tooltip-container .tooltip-text {
+            bottom: 100%;
+            left: 50%;
+            right: auto;
+            transform: translateX(-50%); /* Центрируем относительно контейнера */
+            margin-bottom: 8px;
+        }
+        /* Стрелочка по центру */
+        .report-table th .tooltip-container .tooltip-text::after {
+            content: ""; position: absolute; top: 100%; left: 50%; margin-left: -5px; border-width: 5px; border-style: solid; border-color: var(--color-primary) transparent transparent transparent;
+        }
+        
+        /* Спец. стили для последних колонок (ROS/Markup), чтобы не ушли за край экрана */
+        .report-table th .tooltip-container .tooltip-text.tooltip-left-up {
+            left: auto; 
+            right: 0; 
+            transform: none;
+        }
+        .report-table th .tooltip-container .tooltip-text.tooltip-left-up::after {
+            left: auto; 
+            right: 15px; 
+            margin-left: 0;
+        }
+
+        /* 2. Тултипы СТРОК (Колонка 1) - ПРИЖАТЫ ВЛЕВО */
+        /* Жестко фиксируем слева, отменяем любые трансформации */
+        .report-table td .tooltip-container .tooltip-text {
+            bottom: 100%;
+            left: 0 !important;
+            right: auto !important;
+            transform: none !important;
+            margin-bottom: 6px;
+            margin-left: 0 !important; /* На всякий случай */
+        }
+        /* Стрелочка слева */
+        .report-table td .tooltip-container .tooltip-text::after {
+            content: ""; position: absolute; top: 100%; left: 20px; border-width: 5px; border-style: solid; border-color: var(--color-primary) transparent transparent transparent; margin-left: 0;
+        }
+
+        /* Исключение для заголовка 1-й колонки (он слева) */
+        .report-table th:first-child .tooltip-container .tooltip-text {
+            left: 0; right: auto; transform: none;
+        }
+        .report-table th:first-child .tooltip-container .tooltip-text::after {
+            left: 20px; right: auto; margin-left: 0;
+        }
+
+
+        /* --- Reference Sorting Styles --- */
+        .sort-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            margin-right: 8px;
+        }
+        .btn-sort {
+            background: #f1f5f9;
+            color: #64748b;
+            border: 1px solid #e2e8f0;
+            padding: 2px 4px;
+            font-size: 12px;
+            line-height: 1;
+            border-radius: 4px;
+        }
+        .btn-sort:hover {
+            background: #e2e8f0;
+            color: #334155;
+        }
+        .btn-sort:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            background: #f1f5f9;
+        }
+
+         /* --- Styles for Product Table Rows v2.1 --- */
+        .row-bg-light-green { background-color: rgba(22, 163, 74, 0.1); }
+        .row-bg-success { background-color: rgba(21, 128, 61, 0.1); }
+        .row-bg-danger { background-color: rgba(220, 38, 38, 0.1); }
+        .row-bg-gray { background-color: rgba(107, 114, 128, 0.1); }
+        
+        .status-text-danger { color: var(--color-danger); font-weight: 400; }
+        .status-text-purple { color: var(--color-purple); }
+
+        /* --- Styles for Search Clear Button --- */
+        .search-container {
+            position: relative;
+            display: inline-block;
+        }
+        .search-clear {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: #9ca3af;
+            font-size: 20px;
+            line-height: 1;
+            display: none; /* Скрыт по умолчанию */
+        }
+        .search-clear:hover {
+            color: var(--color-text);
+        }
+
+        /* --- Dashboard Warnings v2.3 --- */
+        .dashboard-warnings {
+            margin-top: 12px;
+            width: 100%;
+            text-align: left;
+            background: #fef2f2; /* Light red bg */
+            border: 1px solid #fecaca;
+            border-radius: 4px;
+            padding: 8px;
+        }
+        .warning-item {
+            font-size: 12px;
+            color: var(--color-danger);
+            margin-bottom: 4px;
+            display: flex;
+            align-items: flex-start;
+            gap: 6px;
+            line-height: 1.3;
+        }
+        .warning-item:last-child { margin-bottom: 0; }
+
+        /* Fix for filament table tooltip alignment */
+        #filamentsTable td {
+            white-space: nowrap; /* Запрещаем перенос текста в ячейках */
+        }
+        #filamentsTable .tooltip-container {
+            margin-left: 4px;
+        }
+		
+		
+		/* --- Styles for Product Modal Layout v3.1 --- */
+        .modal-layout-grid {
+            display: grid;
+            grid-template-columns: 240px 1fr;
+            gap: 24px;
+            margin-bottom: 16px;
+        }
+        
+		/* Image Uploader */
+		.image-upload-container {
+			width: 100%;
+			height: 282px; /* ИЗМЕНЕНО: min-height заменен на height для фиксации размера */
+			border: 2px dashed var(--color-border);
+			border-radius: var(--radius);
+			background: #f8fafc;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			cursor: pointer;
+			position: relative;
+			overflow: hidden;
+			transition: border-color 0.2s;
+		}
+
+        .image-upload-container:hover {
+            border-color: var(--color-primary);
+        }
+        .image-upload-placeholder {
+            text-align: center;
+            color: var(--color-text-light);
+            pointer-events: none;
+        }
+        .image-upload-icon {
+            font-size: 48px;
+            margin-bottom: 8px;
+            display: block;
+        }
+        .product-image-preview {
+            width: 100%;
+            height: 100%;
+            object-fit: contain; /* Показываем целиком */
+            display: none;
+        }
+        .btn-delete-image {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid var(--color-danger);
+            color: var(--color-danger);
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            display: none; /* Hidden by default */
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 16px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .btn-delete-image:hover {
+            background: var(--color-danger);
+            color: white;
+        }
+
+
+
+		/* --- File Section Styles (New Layout) --- */
+		.file-section-row {
+            display: flex;
+            gap: 16px; /* Уменьшил отступ между кнопкой и файлами */
+            align-items: center; /* Центрирование по вертикали */
+        }
+        
+        .file-upload-btn-wrapper {
+            width: 240px; /* Фиксированная ширина как у фото */
+            flex-shrink: 0;
+        }
+        
+		 /* Кнопка добавления файла - фикс высоты */
+        .file-upload-btn-wrapper .btn-secondary {
+            height: 38px; /* Фикс высота */
+            width: 100%;
+            justify-content: center;
+            padding: 0 10px;
+            display: flex;
+            align-items: center;
+        }
+		
+        .file-list-container {
+            flex: 1;
+            display: flex;
+            flex-wrap: nowrap; /* ЗАПРЕТ ПЕРЕНОСА */
+            gap: 8px;
+            align-items: center;
+            overflow: hidden; /* Обрезаем, если вдруг вылезет */
+        }
+
+        .file-chip span {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-right: 6px;
+            cursor: pointer;
+        }
+        
+        .file-chip span:hover {
+            text-decoration: underline;
+        }
+
+        .btn-delete-file {
+            background: none;
+            border: none;
+            color: var(--color-danger);
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            padding: 0;
+            line-height: 1;
+            flex-shrink: 0; /* Крестик не сжимать */
+        }
+
+        /* File Attachments */
+        .file-section-grid {
+            display: grid;
+            grid-template-columns: 120px 1fr;
+            gap: 16px;
+            align-items: start;
+            margin-top: 16px;
+        }
+		.file-list {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 4px;
+			max-width: 100%;
+		}
+		
+		.file-chip {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			background: #f1f5f9;
+			padding: 4px 8px;
+			border-radius: 4px;
+			font-size: 12px;
+			border: 1px solid var(--color-border);
+			max-width: 100%;
+			flex: 1;
+			min-width: 0;
+			height: 38px; 
+		}
+
+		
+		.file-link {
+			color: var(--color-primary);
+			text-decoration: none;
+			max-width: 200px;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			cursor: pointer;
+		}
+        .file-link:hover {
+            text-decoration: underline;
+        }
+        .btn-delete-file {
+            background: none;
+            border: none;
+            color: var(--color-danger);
+            cursor: pointer;
+            margin-left: 8px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+		/* Status Colors for Modal Field */
+        /* Добавлено font-weight: 700 для жирности во всех статусах */
+		.status-field-stocked { background-color: var(--color-light-green-bg); color: var(--color-light-green-text); font-weight: 700; border-color: transparent;}
+		.status-field-partial { background-color: rgba(21, 128, 61, 0.18); color: var(--color-success); font-weight: 700; border-color: transparent;}
+		.status-field-none { background-color: #e2e8f0; color: #475569; font-weight: 700; border-color: transparent;}
+		.status-field-defective { background-color: rgba(220, 38, 38, 0.18); color: var(--color-danger); font-weight: 700; border-color: transparent;}
+		.status-field-part { background-color: rgba(124, 58, 237, 0.1); color: var(--color-purple); font-weight: 700; border: 1px solid var(--color-border); }
+
+        .full-width { grid-column: 1 / -1; }
+
+
+		/* Custom Header Layout */
+		.modal-header-custom {
+			padding: 24px 24px 34px 24px; /* Увеличен нижний отступ для размещения ошибки */
+			display: flex;
+			justify-content: space-between;
+			align-items: flex-end; /* Выравнивание элементов шапки по нижней линии */
+			position: relative; /* Для позиционирования ошибки */
+		}
+		
+        .modal-header-title {
+            font-size: 20px;
+            font-weight: 700;
+            line-height: 1; /* Чтобы убрать лишние отступы шрифта */
+            margin: 0;
+        }
+	
+		.header-right-elements {
+			display: flex;
+			align-items: flex-end; /* Выравнивание ID и чекбокса по нижнему краю (п.1) */
+			gap: 16px;
+		}
+
+		/* Блок с ID */
+		.system-id-block {
+			font-size: 13px;
+			color: var(--color-text-light);
+			line-height: 1;
+			margin-bottom: 2px; /* Микро-корректировка для визуальной линии с текстом чекбокса */
+		}
+
+		/* Чекбокс и текст */
+        .checkbox-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+		
+		.header-divider {
+            height: 1px;
+            background-color: var(--color-border);
+            width: 100%;
+            margin: 0;
+        }
+
+		/* Стили для сообщения об ошибке */
+		#itemFormError {
+			position: absolute;
+			bottom: 8px; /* Размещается в пустом пространстве шапки */
+			left: 24px;
+			margin: 0;
+			font-size: 12px;
+			display: none;
+		}
+
+        /* Новая структура формы */
+        .form-cols-container {
+            display: flex;
+            gap: 20px;
+            width: 100%;
+        }
+
+		
+		.qty-row .form-group {
+			width: 80px; /* Ширина как у полей времени */
+		}		
+
+        .form-col {
+            flex: 1; /* Два равных столбца */
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        /* Группировка маленьких полей (Кол-во, Остаток) */
+        .small-inputs-row {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        .small-input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            width: 80px; /* Фиксированная ширина как у полей времени */
+        }
+
+
+		/* Сообщение об ошибке (п.3) */
+		#productValidationMessage {
+			position: absolute;
+			bottom: 8px; /* В свободном пространстве паддинга шапки */
+			left: 24px;
+			margin: 0;
+			font-size: 12px;
+			padding: 0 !important; /* Сбрасываем лишние отступы */
+		}		
+
+		/* Сетка для полей */
+		.product-grid-container {
+			display: grid;
+			grid-template-columns: 1fr 1fr; /* Две равные колонки */
+			gap: 20px;
+			margin-bottom: 15px;
+		}	
+
+		/* Поля Кол-во и Остаток (п.6) */
+		.product-qty-row {
+			display: flex;
+			gap: 10px;
+		}
+		.product-qty-row .form-group {
+			width: 80px; /* Узкие поля как у времени */
+		}		
+	
+		.info-icon:hover {
+			background-color: #495057;
+		}
+
+		/* Стили для тултипа */
+		.tooltip {
+			visibility: hidden;
+			width: 200px;
+			background-color: #555;
+			color: #fff;
+			text-align: center;
+			border-radius: 6px;
+			padding: 8px;
+			position: absolute;
+			z-index: 1000;
+			bottom: 125%;
+			left: 50%;
+			margin-left: -100px;
+			opacity: 0;
+			transition: opacity 0.3s;
+			font-size: 12px;
+			line-height: 1.4;
+		}
+
+		.tooltip::after {
+			content: "";
+			position: absolute;
+			top: 100%;
+			left: 50%;
+			margin-left: -5px;
+			border-width: 5px;
+			border-style: solid;
+			border-color: #555 transparent transparent transparent;
+		}
+
+		.tooltip.show {
+			visibility: visible;
+			opacity: 1;
+		}
+		
+		/* --- Fix for Basic Info Spacing --- */
+		.modal-basic-info-grid {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 16px; 
+			align-content: start;
+		}
+		/* Убираем лишний margin, так как отступ уже задается через gap сетки */
+		.modal-basic-info-grid .form-group {
+			margin-bottom: 0; 
+		}
+		
+		/* --- Global Image Preview Tooltip --- */
+		#globalImageTooltip {
+            position: fixed;
+            z-index: 9999;
+            background: white;
+            border: 1px solid var(--color-border);
+            padding: 4px;
+            border-radius: var(--radius);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            display: none;
+            pointer-events: none;
+            width: 200px;
+            height: 200px;
+            object-fit: contain;
+            background-color: #fff;
+        }
+        #globalImageTooltip img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+
+        /* --- Updated Header for Filament & Writeoff --- */
+        /* Универсальный стиль шапки, аналогичный Product Modal */
+        .modal-header-simple-custom {
+            padding: 24px 24px 34px 24px; /* Место снизу под ошибку */
+            border-bottom: 1px solid var(--color-border);
+            position: relative;
+            background: var(--color-surface);
+            border-radius: var(--radius) var(--radius) 0 0;
+        }
+        .modal-header-simple-custom .modal-header-title {
+            font-size: 20px; 
+            font-weight: 700; 
+            line-height: 1; 
+            margin: 0; 
+            color: var(--color-text);
+        }
+        
+        /* Сброс отступов для первой секции формы, чтобы она прилипала к шапке */
+        .modal-body .form-section:first-child {
+            border-top: none;
+            margin-top: 0;
+            padding-top: 0;
+        }
+
+		/* --- Filament Status Select Styling --- */
+        .select-status-stock { 
+            background-color: var(--color-light-green-bg) !important; 
+            color: var(--color-light-green-text) !important; 
+            font-weight: 700; 
+            border: 1px solid var(--color-success) !important;
+        }
+        .select-status-used { 
+            background-color: #f1f5f9 !important; 
+            color: #64748b !important; 
+            font-weight: 600; 
+            border: 1px solid #cbd5e1 !important; 
+        }
+		
+		/* --- Writeoff Status Select Styling --- */
+        .select-writeoff-sale {
+            background-color: var(--color-light-green-bg) !important;
+            color: var(--color-success) !important;
+            font-weight: 700;
+            border: 1px solid var(--color-success) !important;
+        }
+        .select-writeoff-used {
+            background-color: rgba(124, 58, 237, 0.1) !important;
+            color: var(--color-purple) !important;
+            font-weight: 700;
+            border: 1px solid var(--color-purple) !important;
+        }
+        .select-writeoff-defective {
+            background-color: rgba(220, 38, 38, 0.1) !important;
+            color: var(--color-danger) !important;
+            font-weight: 700;
+            border: 1px solid var(--color-danger) !important;
+        }
+
