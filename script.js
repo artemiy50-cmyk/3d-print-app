@@ -1,4 +1,4 @@
-console.log("Version: 4.6 (Restored Logic2)");
+console.log("Version: 4.6 (Restored Logic20-56)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -677,7 +677,8 @@ function clearProductForm() {
     currentProductImage = null; currentProductFiles = []; renderProductImage(); renderProductFiles();
 }
 
-// ЗАМЕНИТЬ эту функцию целиком
+
+// ЗАМЕНИТЕ эту функцию целиком
 function updateProductTypeUI() {
     const type = document.getElementById('productType').value;
     const groups = { parent: document.getElementById('productParentGroup'), allParts: document.getElementById('productAllPartsCreatedContainer'), material: document.getElementById('materialSection'), children: document.getElementById('childrenTableGroup'), linkContainer: document.getElementById('productLinkFieldContainer'), fileSection: document.getElementById('fileUploadSection') };
@@ -687,14 +688,14 @@ function updateProductTypeUI() {
     if(costNote) costNote.classList.toggle('hidden', type !== 'Составное');
 
     groups.parent.classList.add('hidden');
-    groups.allParts.style.display = 'none';
+    if(groups.allParts) groups.allParts.style.display = 'none';
     groups.material.classList.remove('hidden');
     groups.children.classList.add('hidden');
     groups.linkContainer.style.display = 'block';
     if(groups.fileSection) groups.fileSection.classList.remove('hidden');
 
     if (type === 'Составное') {
-        groups.allParts.style.display = 'flex';
+        if(groups.allParts) groups.allParts.style.display = 'flex';
         groups.material.classList.add('hidden');
         groups.children.classList.remove('hidden');
         inputs.forEach(id => { 
@@ -713,7 +714,7 @@ function updateProductTypeUI() {
         inputs.forEach(id => { const el = document.getElementById(id); if(el) el.disabled = false; });
     }
     
-    // ВОССТАНОВЛЕНО: Логика видимости кнопки "Списать"
+    // ВОССТАНОВЛЕНА ЛОГИКА ОТОБРАЖЕНИЯ КНОПКИ "СПИСАТЬ"
     const btnWriteOff = document.getElementById('btnWriteOffProduct');
     if (btnWriteOff) {
         const isExistingProduct = !!document.getElementById('productModal').getAttribute('data-edit-id');
@@ -727,6 +728,7 @@ function updateProductTypeUI() {
     updateProductCosts();
     updateProductAvailability();
 }
+
 
 
 function updateCompositeProductValues() {
@@ -1294,10 +1296,12 @@ function updateWriteoffTypeUI() {
     else if (type === 'Брак') el.classList.add('select-writeoff-defective');
 }
 
+// ЗАМЕНИТЕ эту функцию целиком
 function addWriteoffItemSection(data = null) {
     writeoffSectionCount++;
     const index = writeoffSectionCount;
     const container = document.getElementById('writeoffItemsContainer');
+    
     const div = document.createElement('div');
     div.className = 'writeoff-item-section';
     div.id = `writeoffSection_${index}`;
@@ -1310,28 +1314,151 @@ function addWriteoffItemSection(data = null) {
         const isSelected = data && data.productId === p.id;
         return (p.type !== 'Часть составного') && (isSelected || (!p.defective && hasStock)); 
     }).sort((a, b) => (b.systemId || '').localeCompare(a.systemId || ''));
-
+    
     const options = availableProducts.map(p => {
         const isSelected = data && data.productId === p.id;
-        return `<option value="${p.id}" ${isSelected?'selected':''}>${escapeHtml(p.name)} (${p.inStock} шт.)</option>`;
+        return `<option value="${p.id}" ${isSelected?'selected':''}>${escapeHtml(p.name)}</option>`;
     }).join('');
 
+    // ВОССТАНОВЛЕНА ПОЛНАЯ РАЗМЕТКА ИЗ v3.7
     div.innerHTML = `
-        <div class="writeoff-item-header"><span class="section-title">ИЗДЕЛИЕ ${index}</span><button class="btn-remove-section" onclick="removeWriteoffSection(${index})">✕</button></div>
-        <div class="form-group"><label>Изделие:</label><select class="writeoff-product-select" onchange="updateWriteoffSection(${index})"><option value="">-- Выберите --</option>${options}</select></div>
+        <div class="writeoff-item-header">
+            <span class="section-title">ИЗДЕЛИЕ ${index}</span>
+            <button class="btn-remove-section" onclick="removeWriteoffSection(${index})">✕</button>
+        </div>
+        <div class="form-group">
+            <label>Наименование изделия:</label>
+            <select class="writeoff-product-select" onchange="updateWriteoffSection(${index})">
+                <option value="">-- Выберите изделие --</option>
+                ${options}
+            </select>
+        </div>
         <div class="form-row-3">
-            <div class="form-group"><label>Наличие:</label><div class="calc-field section-stock">0</div></div>
-            <div class="form-group"><label>Списать (шт):</label><input type="number" class="section-qty" value="${data ? data.qty : ''}" min="1" oninput="updateWriteoffSection(${index})"></div>
-            <div class="form-group"><label>Остаток:</label><div class="calc-field section-remaining">0</div></div>
+            <div class="form-group">
+                <label>Наличие (шт):</label>
+                <div class="calc-field section-stock">0 шт.</div>
+            </div>
+            <div class="form-group">
+                <label>Количество списания (шт):</label>
+                <input type="number" class="section-qty" value="${data ? data.qty : ''}" min="1" oninput="updateWriteoffSection(${index})">
+            </div>
+            <div class="form-group">
+                <label>Остаток (шт):</label>
+                <div class="calc-field section-remaining">0 шт.</div>
+            </div>
         </div>
         <div class="form-row-3 writeoff-price-row">
-            <div class="form-group"><label>Себест.:</label><div class="calc-field section-cost">0.00</div></div>
-            <div class="form-group"><label>Цена (шт):</label><input type="number" class="section-price" value="${data ? data.price : ''}" step="0.01" oninput="updateWriteoffSection(${index})"></div>
-            <div class="form-group"><label>Итого:</label><div class="calc-field section-total">0.00</div></div>
-        </div>`;
+            <div class="form-group">
+                <label class="label-with-tooltip" style="justify-content:center;">
+                    Рынок. себест. за 1 шт.
+                    <span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text tooltip-top-center section-tooltip">Расчет с реальной стоимостью: -</span></span>
+                </label>
+                <div class="calc-field section-cost">0.00 ₽</div>
+            </div>
+            <div class="form-group">
+                <label>Цена продажи за 1 шт. (₽)</label>
+                <input type="number" class="section-price" value="${data ? data.price : ''}" step="0.01" oninput="updateWriteoffSection(${index})">
+            </div>
+            <div class="form-group">
+                <label>Стоимость продажи общая (₽)</label>
+                <div class="calc-field section-total">0.00 ₽</div>
+            </div>
+        </div>
+        <div class="markup-info hidden" style="margin-top: 8px; padding: 0 4px;">
+            <div style="font-size: 12px; color: var(--color-text-light); margin-bottom: 4px;">
+                Наценка для рыночной себестоимости = <span class="markup-market-val" style="font-weight:600; color: var(--color-text);">0 ₽ (0%)</span>
+            </div>
+            <div style="font-size: 12px; color: var(--color-text-light);">
+                Наценка для реальной себестоимости = <span class="markup-actual-val" style="font-weight:600; color: var(--color-text);">0 ₽ (0%)</span>
+            </div>
+        </div>
+        <div class="profit-info hidden" style="margin-top: 12px; padding: 0 4px; font-weight: bold; font-size: 13px;">
+            Прибыль с продажи Изделия: <span class="profit-val">0.00 ₽</span>
+        </div>
+    `;
     container.appendChild(div);
-    updateWriteoffSection(index);
+
+    updateRemoveButtons();
+    updateWriteoffSection(index); 
+    
+    const type = document.getElementById('writeoffType').value;
+    const priceInput = div.querySelector('.section-price');
+    priceInput.disabled = (type !== 'Продажа');
 }
+
+// ЗАМЕНИТЕ эту функцию целиком
+function updateWriteoffSection(index) {
+    const section = document.getElementById(`writeoffSection_${index}`);
+    if (!section) return;
+
+    const pid = parseInt(section.querySelector('.writeoff-product-select').value);
+    const qtyInput = section.querySelector('.section-qty');
+    const priceInput = section.querySelector('.section-price');
+    
+    const product = db.products.find(p => p.id === pid);
+    
+    if (!product) {
+        section.querySelector('.section-stock').textContent = '-';
+        section.querySelector('.section-remaining').textContent = '-';
+        section.querySelector('.section-cost').textContent = '-';
+        section.querySelector('.section-tooltip').textContent = 'Расчет с реальной стоимостью: -';
+        return;
+    }
+
+    const editGroup = document.getElementById('writeoffModal').getAttribute('data-edit-group');
+    const usedElsewhere = getWriteoffQuantityForProduct(pid, editGroup);
+    const currentStock = Math.max(0, product.quantity - usedElsewhere);
+    
+    section.querySelector('.section-stock').textContent = currentStock + ' шт.';
+    
+    const qty = parseInt(qtyInput.value) || 0;
+    const remaining = Math.max(0, currentStock - qty); 
+    section.querySelector('.section-remaining').textContent = remaining + ' шт.';
+    
+    const costM = product.costPer1Market || 0;
+    const costA = product.costPer1Actual || 0;
+    section.querySelector('.section-cost').textContent = costM.toFixed(2) + ' ₽';
+    section.querySelector('.section-tooltip').textContent = `Расчет с реальной стоимостью: ${costA.toFixed(2)} ₽`;
+    
+    const price = parseFloat(priceInput.value) || 0;
+    section.querySelector('.section-total').textContent = (price * qty).toFixed(2) + ' ₽';
+    
+    // ВОССТАНОВЛЕНА ПОЛНАЯ ЛОГИКА РАСЧЕТА НАЦЕНКИ И ПРИБЫЛИ
+    const type = document.getElementById('writeoffType').value;
+    const markupContainer = section.querySelector('.markup-info');
+    const profitContainer = section.querySelector('.profit-info');
+    
+    if (type === 'Продажа') {
+        if (markupContainer) markupContainer.classList.remove('hidden');
+        if (profitContainer) profitContainer.classList.remove('hidden');
+        
+        const markupM_money = price - costM;
+        const markupM_percent = costM > 0 ? (markupM_money / costM) * 100 : 0;
+        section.querySelector('.markup-market-val').textContent = `${markupM_money.toFixed(2)} ₽ (${markupM_percent.toFixed(1)}%)`;
+
+        const markupA_money = price - costA;
+        const markupA_percent = costA > 0 ? (markupA_money / costA) * 100 : 0;
+        section.querySelector('.markup-actual-val').textContent = `${markupA_money.toFixed(2)} ₽ (${markupA_percent.toFixed(1)}%)`;
+        
+        section.querySelector('.markup-market-val').style.color = markupM_money < 0 ? 'var(--color-danger)' : 'var(--color-success)';
+        section.querySelector('.markup-actual-val').style.color = markupA_money < 0 ? 'var(--color-danger)' : 'var(--color-success)';
+
+        const itemProfit = (price * qty) - (costA * qty);
+        const profitValSpan = section.querySelector('.profit-val');
+        if (profitValSpan) {
+            profitValSpan.textContent = `${itemProfit.toFixed(2)} ₽`;
+            profitValSpan.style.color = itemProfit < 0 ? 'var(--color-danger)' : 'var(--color-success)';
+        }
+
+    } else {
+        if (markupContainer) markupContainer.classList.add('hidden');
+        if (profitContainer) profitContainer.classList.add('hidden');
+    }
+    
+    calcWriteoffTotal();
+}
+
+
 
 function removeWriteoffSection(index) {
     const el = document.getElementById(`writeoffSection_${index}`);
@@ -1575,7 +1702,7 @@ function moveReferenceItemDown(arrayName, index) { const arr = db[arrayName]; if
 
 // ==================== EVENT LISTENERS ====================
 
-// ЗАМЕНИТЬ эту функцию целиком
+// ЗАМЕНИТЕ эту функцию целиком
 function setupEventListeners() {
     // Nav
     document.querySelectorAll('.menu-item[data-page]').forEach(b => b.addEventListener('click', () => showPage(b.dataset.page)));
@@ -1601,15 +1728,12 @@ function setupEventListeners() {
         document.getElementById('showProductChildren').addEventListener('change', filterProducts);
     }
     
-    // Writeoffs (ВОССТАНОВЛЕНО)
-    // Кнопка на странице "Списания"
-    document.getElementById('addWriteoffBtn')?.addEventListener('click', openWriteoffModal);
-    // Кнопка на странице "Изделия"
-    document.getElementById('addProductPageWriteoffBtn')?.addEventListener('click', openWriteoffModal);
-    // Кнопки внутри модального окна
+    // Writeoffs (ИСПРАВЛЕНО И ПРОВЕРЕНО)
+    document.getElementById('addWriteoffBtn')?.addEventListener('click', () => openWriteoffModal());
+    document.getElementById('addProductPageWriteoffBtn')?.addEventListener('click', () => openWriteoffModal());
     document.getElementById('saveWriteoffBtn')?.addEventListener('click', saveWriteoff);
     document.getElementById('closeWriteoffModalBtn')?.addEventListener('click', closeWriteoffModal);
-
+    
     // Reports
     document.getElementById('generateReportBtn')?.addEventListener('click', updateFinancialReport);
     
@@ -1620,4 +1744,5 @@ function setupEventListeners() {
     document.getElementById('btnAddFile')?.addEventListener('click', () => document.getElementById('productFileInput').click());
     document.getElementById('productFileInput')?.addEventListener('change', function() { handleFileUpload(this); });
 }
+
 
