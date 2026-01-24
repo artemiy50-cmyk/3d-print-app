@@ -56,7 +56,9 @@ window.addEventListener('DOMContentLoaded', () => {
 firebase.auth().onAuthStateChanged(async (user) => {
 const overlay = document.getElementById('loginOverlay');
 
-if (user) { console.log("Logged in:", user.email); if(overlay) overlay.style.display = 'none'; addLogoutButton(); await loadData(); // Восстановление логики запуска recalculateAllProductCosts(); loadShowChildren(); updateAllDates(); // ВОТ ОНА, ПРОПУЩЕННАЯ ФУНКЦИЯ updateAllSelects(); try { updateFilamentsTable(); } catch(e) {} try { updateProductsTable(); } catch(e) {} try { updateWriteoffTable(); } catch(e) {} try { updateReports(); } catch(e) {} try { updateDashboard(); } catch(e) {} setupEventListeners(); } else { if(overlay) overlay.style.display = 'flex'; } });
+if (user) { console.log("Logged in:", user.email); if(overlay) overlay.style.display = 'none'; addLogoutButton(); await loadData(); 
+recalculateAllProductCosts(); loadShowChildren(); updateAllDates(); 
+updateAllSelects(); try { updateFilamentsTable(); } catch(e) {} try { updateProductsTable(); } catch(e) {} try { updateWriteoffTable(); } catch(e) {} try { updateReports(); } catch(e) {} try { updateDashboard(); } catch(e) {} setupEventListeners(); } else { if(overlay) overlay.style.display = 'flex'; } });
 });
 
 function addLogoutButton() {
