@@ -2969,188 +2969,146 @@
 
 
 
-        // ==================== STORAGE & UTILS ====================
-        
-        // Настройка базы данных
-        //localforage.config({
-        //    driver: localforage.INDEXEDDB, // Принудительно используем IndexedDB
-        //   name: '3D_Filament_Manager',
-        //    version: 1.0,
-        //    storeName: 'main_store', 
-        //    description: 'Storage for filament and products data'
-        //});
+	// ==================== CLOUD STORAGE (FIREBASE) ====================
 
-        // Асинхронное сохранение
-        async function saveData() {
-            try {
-                // Создаем глубокую копию, чтобы избежать проблем с ссылками, если нужно
-                // Но localForage отлично справляется с JS-объектами
-                await localforage.setItem('db_data', db);
-                console.log('Данные успешно сохранены в IndexedDB');
-            } catch (err) {
-                console.error('Ошибка сохранения в IndexedDB:', err);
-                alert('Ошибка сохранения данных! Проверьте консоль.');
-            }
-        }
+	// 1. Конфигурация (Ваши ключи)
+	const firebaseConfig = {
+	  apiKey: "AIzaSyAC1jhjIEncoLZyoVkPVPs9J1s-cVQeOV4",
+	  authDomain: "d-print-app-3655b.firebaseapp.com",
+	  projectId: "d-print-app-3655b",
+	  storageBucket: "d-print-app-3655b.firebasestorage.app",
+	  messagingSenderId: "691529808811",
+	  appId: "1:691529808811:web:a6aec2a47d85d55f41f0ee",
+	  measurementId: "G-FF384D3F8F",
+	  databaseURL: "https://d-print-app-3655b-default-rtdb.europe-west1.firebasedatabase.app" 
+	  // Примечание: databaseURL может отличаться в зависимости от региона, 
+	  // если не заработает - проверим в консоли Firebase. Обычно для Europe-west1 он такой.
+	  // Если вы выбрали US, то будет .firebaseio.com
+	};
 
-        // Асинхронная загрузка с миграцией
-        async function loadData() {
-            try {
-                // 1. Попытка загрузить из IndexedDB
-                let loadedData = await localforage.getItem('db_data');
+	// 2. Инициализация
+	let dbRef;
+	try {
+		firebase.initializeApp(firebaseConfig);
+		const database = firebase.database();
+		dbRef = database.ref('filament_manager_data'); // Название "папки" в облаке
+		console.log("Firebase initialized");
+	} catch (e) {
+		console.error("Firebase init error:", e);
+		alert("Ошибка подключения к облаку!");
+	}
 
-                // 2. Если в IndexedDB пусто, проверяем старый localStorage (Миграция)
-                if (!loadedData) {
-                    console.log('IndexedDB пуста, проверяем localStorage...');
-                    const lsData = localStorage.getItem('3d_filament_db');
-                    if (lsData) {
-                        try {
-                            loadedData = JSON.parse(lsData);
-                            console.log('Нашли данные в localStorage, выполняем миграцию...');
-                            // Сразу сохраняем в новую базу
-                            await localforage.setItem('db_data', loadedData);
-                            // Опционально: можно очистить localStorage, но для безопасности пока оставим
-                            // localStorage.removeItem('3d_filament_db'); 
-                        } catch (e) {
-                            console.error('Ошибка парсинга localStorage:', e);
-                        }
-                    }
-                }
-
-                // 3. Применение загруженных данных
-                if (loadedData) {
-                    // Гарантируем, что массивы существуют (восстановление структуры)
-                    db.filaments = Array.isArray(loadedData.filaments) ? loadedData.filaments : [];
-                    db.products = Array.isArray(loadedData.products) ? loadedData.products : [];
-                    db.writeoffs = Array.isArray(loadedData.writeoffs) ? loadedData.writeoffs : [];
-                    db.brands = Array.isArray(loadedData.brands) ? loadedData.brands : (db.brands || []);
-                    db.colors = Array.isArray(loadedData.colors) ? loadedData.colors : (db.colors || []);
-                    db.plasticTypes = Array.isArray(loadedData.plasticTypes) ? loadedData.plasticTypes : (db.plasticTypes || []);
-                    db.filamentStatuses = Array.isArray(loadedData.filamentStatuses) ? loadedData.filamentStatuses : (db.filamentStatuses || []);
-                    db.printers = Array.isArray(loadedData.printers) ? loadedData.printers : (db.printers || []);
-                    
-                    // Миграция тарифов электроэнергии (если их не было)
-                    if (loadedData.electricityCosts && Array.isArray(loadedData.electricityCosts) && loadedData.electricityCosts.length > 0) {
-                        db.electricityCosts = loadedData.electricityCosts;
-                    } else {
-                        db.electricityCosts = [{ id: Date.now(), date: '2020-01-01', cost: loadedData.costPerKw || 6 }];
-                    }
-
-                    // Пересчет вычисляемых полей филамента (на случай сбоев)
-                    db.filaments.forEach(f => {
-                        if (f.usedLength === undefined) f.usedLength = 0;
-                        if (f.usedWeight === undefined) f.usedWeight = 0;
-                        f.remainingLength = f.length - f.usedLength;
-                    });
-                    
-                    // Пересчет ID списаний
-                    db.writeoffs.forEach(w => {
-                        if (!w.systemId) w.systemId = String(w.id);
-                    });
-
-                    // Восстановление статусов продуктов
-                    db.products.forEach(p => {
-                        if (p.inStock === undefined) p.inStock = p.quantity;
-                        if (!p.status) p.status = p.availability || 'В наличии полностью';
-                        if (!p.type && p.parentId) p.type = 'Часть составного';
-                        if (!p.type && !p.parentId) p.type = 'Самостоятельное';
-                    });
-                    
-                    console.log('Данные успешно загружены и применены.');
-                } else {
-                    console.log('База данных пуста, используем значения по умолчанию.');
-                }
-            } catch (err) {
-                console.error("Критическая ошибка загрузки данных:", err);
-                alert("Не удалось загрузить базу данных.");
-            }
-        }
-        
-        // Функция-обертка для совместимости, чтобы не менять вызовы по всему коду
-        // ВАЖНО: Теперь это просто алиас для новой функции
-        function saveToLocalStorage() {
-            saveData();
-        }
-
-        
-        function loadShowChildren() {
-            const s = localStorage.getItem('showProductChildren');
-            if(s!==null) document.getElementById('showProductChildren').checked = (s==='true');
-        }
-        function showPage(id) {
-            document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-            document.querySelectorAll('.menu-item').forEach(m=>m.classList.remove('active'));
-            document.getElementById(id).classList.add('active');
-            
-            // Find sidebar button to activate (simple approach)
-            const menuBtns = document.querySelectorAll('.sidebar .menu-item');
-            if (id === 'dashboard') menuBtns[0].classList.add('active');
-            if (id === 'filament') menuBtns[1].classList.add('active');
-            if (id === 'products') menuBtns[2].classList.add('active');
-            if (id === 'writeoff') menuBtns[3].classList.add('active');
-            if (id === 'reports') menuBtns[4].classList.add('active');
-            if (id === 'references') menuBtns[5].classList.add('active');
-        }
+	// 3. Сохранение данных (в облако)
+	// Эта функция теперь пишет не в браузер, а отправляет JSON в Google
+	async function saveData() {
+		if (!dbRef) return;
 		
+		// Создаем "чистую" копию для сохранения (без Blob картинок, т.к. текст базы не хранит файлы)
+		// Картинки пока будут теряться при перезагрузке (их нужно хранить в Storage, это след. шаг)
+		// Но текстовые данные сохранятся идеально.
+		const dataToSave = JSON.parse(JSON.stringify(db));
 		
-        // --- Image Preview Functions ---
-        function showProductImagePreview(element, productId) {
-            const product = db.products.find(p => p.id === productId);
-            // Проверяем, что картинка есть и это настоящий Blob (бинарные данные)
-            if (!product || !product.imageBlob || !(product.imageBlob instanceof Blob)) return;
+		// Удаляем временные поля картинок из копии, чтобы не засорять JSON
+		if(dataToSave.products) {
+			dataToSave.products.forEach(p => {
+				delete p.imageBlob;
+				delete p.attachedFiles;
+			});
+		}
 
-            const tooltip = document.getElementById('globalImageTooltip');
-            const img = document.getElementById('globalImageTooltipImg');
-            
-            if (tooltip && img) {
-                // Создаем временную ссылку на Blob
-                const url = URL.createObjectURL(product.imageBlob);
-                img.src = url;
-                
-                // Показываем тултип только когда картинка загрузилась
-                img.onload = () => {
-                    tooltip.style.display = 'block';
-                };
-                
-                // Сохраняем URL, чтобы потом очистить память
-                element.dataset.previewUrl = url;
-            }
-        }
+		try {
+			await dbRef.set(dataToSave);
+			console.log('✅ Данные сохранены в облако');
+			
+			// Визуальное подтверждение (мигание заголовка или что-то простое)
+			const header = document.querySelector('.header-info');
+			if(header) {
+				const original = header.textContent;
+				header.textContent = "☁️ Сохранено!";
+				setTimeout(() => header.textContent = original, 2000);
+			}
+		} catch (err) {
+			console.error('❌ Ошибка сохранения:', err);
+			alert('Ошибка синхронизации с облаком!');
+		}
+	}
 
-        function moveProductImagePreview(event) {
-            const tooltip = document.getElementById('globalImageTooltip');
-            if (tooltip && tooltip.style.display === 'block') {
-                const offset = 15;
-                let top = event.clientY + offset;
-                let left = event.clientX + offset;
-                
-                // Если тултип уходит за нижний край экрана, показываем его НАД курсором
-                if (top + tooltip.offsetHeight > window.innerHeight) {
-                    top = event.clientY - tooltip.offsetHeight - offset;
-                }
-                
-                tooltip.style.top = top + 'px';
-                tooltip.style.left = left + 'px';
-            }
-        }
+	// Алиас для старых вызовов (чтобы не менять весь код)
+	function saveToLocalStorage() {
+		saveData();
+	}
 
-        function hideProductImagePreview(element) {
-            const tooltip = document.getElementById('globalImageTooltip');
-            const img = document.getElementById('globalImageTooltipImg');
-            if (tooltip) {
-                tooltip.style.display = 'none';
-                if(img) img.src = ''; // Очищаем src
-                
-                // Очищаем память от Blob URL
-                if(element.dataset.previewUrl) {
-                    URL.revokeObjectURL(element.dataset.previewUrl);
-                    delete element.dataset.previewUrl;
-                }
-            }
-        }
+	// 4. Загрузка данных (из облака)
+	async function loadData() {
+		if (!dbRef) return;
+		console.log("⏳ Загрузка данных из облака...");
+		
+		try {
+			const snapshot = await dbRef.once('value');
+			const loadedData = snapshot.val();
 
-// ==================== EVENT LISTENERS (НОВОЕ: Подключение кнопок) ====================
-function setupEventListeners() {
+			if (loadedData) {
+				console.log("📥 Данные получены:", loadedData);
+				
+				// Восстановление структуры (гарантируем, что массивы существуют)
+				db.filaments = loadedData.filaments || [];
+				db.products = loadedData.products || [];
+				db.writeoffs = loadedData.writeoffs || [];
+				db.brands = loadedData.brands || [];
+				db.colors = loadedData.colors || [];
+				db.plasticTypes = loadedData.plasticTypes || [];
+				db.filamentStatuses = loadedData.filamentStatuses || [];
+				db.printers = loadedData.printers || [];
+				db.electricityCosts = loadedData.electricityCosts || [{ id: Date.now(), date: '2020-01-01', cost: 6 }];
+
+				// Пересчет вычисляемых полей
+				db.filaments.forEach(f => {
+					f.remainingLength = f.length - (f.usedLength || 0);
+				});
+				
+				// Восстановление статусов
+				db.products.forEach(p => {
+					if (p.inStock === undefined) p.inStock = p.quantity;
+					if (!p.status) p.status = p.availability || 'В наличии полностью';
+				});
+
+			} else {
+				console.log("✨ База пуста (первый запуск)");
+				// Можно здесь инициализировать дефолтные справочники, если нужно
+			}
+		} catch (err) {
+			console.error("Критическая ошибка загрузки:", err);
+			alert("Не удалось скачать данные из облака. Проверьте интернет.");
+		}
+	}
+
+	// Вспомогательные функции интерфейса
+	function loadShowChildren() {
+		const s = localStorage.getItem('showProductChildren');
+		if(s!==null) document.getElementById('showProductChildren').checked = (s==='true');
+	}
+
+	function showPage(id) {
+		document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+		document.querySelectorAll('.menu-item').forEach(m=>m.classList.remove('active'));
+		document.getElementById(id).classList.add('active');
+		
+		const menuBtns = document.querySelectorAll('.sidebar .menu-item');
+		// Простая логика подсветки
+		menuBtns.forEach(btn => {
+			if(btn.dataset.page === id) btn.classList.add('active');
+		});
+	}
+
+	// Картинки (пока заглушки, т.к. база хранит только текст)
+	function showProductImagePreview(element, productId) {}
+	function moveProductImagePreview(event) {}
+	function hideProductImagePreview(element) {}
+
+
+
+	// ==================== EVENT LISTENERS (НОВОЕ: Подключение кнопок) ====================
+	function setupEventListeners() {
     // 1. Навигация (Боковое меню)
     document.querySelectorAll('.sidebar .menu-item').forEach(btn => {
         btn.addEventListener('click', () => {
