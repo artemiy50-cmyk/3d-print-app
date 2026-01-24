@@ -560,6 +560,42 @@ function downloadFile(index) {
     else if(f.blob) { const url = URL.createObjectURL(f.blob); const a=document.createElement('a'); a.href=url; a.download=f.name; a.click(); document.body.removeChild(a); setTimeout(() => URL.revokeObjectURL(url), 100); }
 }
 
+
+// ДОБАВИТЬ эти 2 функции
+function captureProductSnapshot() {
+    const type = document.getElementById('productType').value;
+    const snapshot = {
+        name: document.getElementById('productName').value,
+        date: document.getElementById('productDate').value,
+        link: document.getElementById('productLink').value,
+        quantity: document.getElementById('productQuantity').value,
+        weight: document.getElementById('productWeight').value,
+        length: document.getElementById('productLength').value,
+        printTimeH: document.getElementById('productPrintTimeHours').value,
+        printTimeM: document.getElementById('productPrintTimeMinutes').value,
+        printer: document.getElementById('productPrinter').value,
+        type: type,
+        note: document.getElementById('productNote').value,
+        defective: document.getElementById('productDefective').checked,
+        filament: document.getElementById('productFilament').value,
+        parentId: type === 'Часть составного' ? document.getElementById('productParent').value : '',
+        allPartsCreated: type === 'Составное' ? document.getElementById('productAllPartsCreated').checked : false,
+    };
+    return JSON.stringify(snapshot);
+}
+
+function initiateWriteOff() {
+    const currentSnapshot = captureProductSnapshot();
+    if (currentSnapshot !== productSnapshotForDirtyCheck) {
+        if (!confirm('Вы вносили изменения. Сохранить их перед переходом к списанию?')) {
+            return; 
+        }
+    }
+    saveProduct(true); 
+}
+
+
+
 function updateProductCosts() {
     const type = document.getElementById('productType').value;
     const w = parseFloat(document.getElementById('productWeight').value) || 0;
@@ -641,31 +677,57 @@ function clearProductForm() {
     currentProductImage = null; currentProductFiles = []; renderProductImage(); renderProductFiles();
 }
 
+// ЗАМЕНИТЬ эту функцию целиком
 function updateProductTypeUI() {
     const type = document.getElementById('productType').value;
-    const groups = { parent: document.getElementById('productParentGroup'), material: document.getElementById('materialSection'), children: document.getElementById('childrenTableGroup') };
+    const groups = { parent: document.getElementById('productParentGroup'), allParts: document.getElementById('productAllPartsCreatedContainer'), material: document.getElementById('materialSection'), children: document.getElementById('childrenTableGroup'), linkContainer: document.getElementById('productLinkFieldContainer'), fileSection: document.getElementById('fileUploadSection') };
     const inputs = ['productFilament','productPrinter','productPrintTimeHours','productPrintTimeMinutes','productWeight','productLength'];
     
+    const costNote = document.getElementById('compositeCostNote');
+    if(costNote) costNote.classList.toggle('hidden', type !== 'Составное');
+
     groups.parent.classList.add('hidden');
+    groups.allParts.style.display = 'none';
     groups.material.classList.remove('hidden');
     groups.children.classList.add('hidden');
+    groups.linkContainer.style.display = 'block';
+    if(groups.fileSection) groups.fileSection.classList.remove('hidden');
 
     if (type === 'Составное') {
+        groups.allParts.style.display = 'flex';
         groups.material.classList.add('hidden');
         groups.children.classList.remove('hidden');
-        inputs.forEach(id => document.getElementById(id).disabled = true);
+        inputs.forEach(id => { 
+            const el = document.getElementById(id);
+            if(el) { el.disabled = true; if(id.includes('Filament') || id.includes('Printer')) el.value = ''; }
+        });
         updateChildrenTable();
         updateCompositeProductValues();
     } else if (type === 'Часть составного') {
         groups.parent.classList.remove('hidden');
-        inputs.forEach(id => document.getElementById(id).disabled = false);
+        groups.linkContainer.style.display = 'none';
+        if(groups.fileSection) groups.fileSection.classList.add('hidden');
+        inputs.forEach(id => { const el = document.getElementById(id); if(el) el.disabled = false; });
         updateParentSelect();
     } else {
-        inputs.forEach(id => document.getElementById(id).disabled = false);
+        inputs.forEach(id => { const el = document.getElementById(id); if(el) el.disabled = false; });
     }
+    
+    // ВОССТАНОВЛЕНО: Логика видимости кнопки "Списать"
+    const btnWriteOff = document.getElementById('btnWriteOffProduct');
+    if (btnWriteOff) {
+        const isExistingProduct = !!document.getElementById('productModal').getAttribute('data-edit-id');
+        if (isExistingProduct && type !== 'Часть составного') {
+            btnWriteOff.style.display = 'flex';
+        } else {
+            btnWriteOff.style.display = 'none';
+        }
+    }
+    
     updateProductCosts();
     updateProductAvailability();
 }
+
 
 function updateCompositeProductValues() {
     const eid = document.getElementById('productModal').getAttribute('data-edit-id'); 
@@ -708,126 +770,263 @@ function addChildPart(parentId) {
     if (parent) document.getElementById('productQuantity').value = parent.quantity;
 }
 
+// ЗАМЕНИТЬ эту функцию целиком
 function editProduct(id) {
-    const p = db.products.find(x => x.id === id); if (!p) return;
-    openProductModal();
-    document.getElementById('productModal').setAttribute('data-edit-id', id);
-    document.getElementById('productSystemId').textContent = p.systemId || '-';
-    
-    document.getElementById('productName').value = p.name;
-    document.getElementById('productDate').value = p.date;
-    document.getElementById('productQuantity').value = p.quantity;
-    document.getElementById('productWeight').value = p.weight;
-    document.getElementById('productLength').value = p.length;
-    document.getElementById('productPrintTimeHours').value = Math.floor((p.printTime||0)/60);
-    document.getElementById('productPrintTimeMinutes').value = (p.printTime||0)%60;
-    document.getElementById('productType').value = p.type;
-    document.getElementById('productNote').value = p.note;
-    document.getElementById('productDefective').checked = p.defective;
-    if(p.printer) document.getElementById('productPrinter').value = p.printer.id;
-    if(p.filament) document.getElementById('productFilament').value = p.filament.id;
-    if(p.parentId) document.getElementById('productParent').value = p.parentId;
-    
-    currentProductImage = p.imageUrl || null;
-    currentProductFiles = p.fileUrls || [];
-    renderProductImage();
-    renderProductFiles();
-    updateProductTypeUI();
-}
+    const productId = parseInt(id);
+    const p = db.products.find(x => x.id === productId);
+    if (!p) { console.error('Продукт не найден:', id); return; }
 
-async function saveProduct(andThenWriteOff = false) {
-    const saveBtn = document.getElementById('saveProductBtn');
-    const originalText = saveBtn.textContent;
-    saveBtn.textContent = '⏳ Загрузка...'; saveBtn.disabled = true;
+    document.getElementById('productSystemId').textContent = p.systemId || '-';
+    document.getElementById('productModal').setAttribute('data-edit-id', id);
+    document.getElementById('productModal').setAttribute('data-system-id', p.systemId);
+
+    openProductModal();
+
+    const titleEl = document.querySelector('#productModal .modal-header-title');
+    if (titleEl) titleEl.textContent = 'Редактировать изделие';
     
-    // Uploads
-    let imgUrl = currentProductImage;
-    if(currentProductImage instanceof Blob) imgUrl = await uploadFileToCloud(currentProductImage);
-    
-    let files = [];
-    for(let f of currentProductFiles) {
-        if(f.url) files.push(f);
-        else if(f.blob) { const u = await uploadFileToCloud(f.blob); if(u) files.push({name:f.name, url:u}); }
+    const defCheckbox = document.getElementById('productDefective');
+    if (defCheckbox) {
+        defCheckbox.checked = p.defective;
+        updateProductAvailability();
     }
 
-    const modal = document.getElementById('productModal');
-    const eid = modal.getAttribute('data-edit-id');
-    const type = document.getElementById('productType').value;
-    const qty = parseInt(document.getElementById('productQuantity').value)||1;
+    document.getElementById('productValidationMessage').classList.add('hidden');
+    document.querySelectorAll('#productModal input, #productModal select').forEach(el => el.classList.remove('error'));
+
+    const fieldsToFill = [ { id: 'productName', value: p.name }, { id: 'productLink', value: p.link || '' }, { id: 'productDate', value: p.date }, { id: 'productQuantity', value: p.quantity }, { id: 'productWeight', value: p.weight || '' }, { id: 'productLength', value: p.length || '' }, { id: 'productPrintTimeHours', value: Math.floor((p.printTime || 0) / 60) }, { id: 'productPrintTimeMinutes', value: (p.printTime || 0) % 60 }, { id: 'productNote', value: p.note || '' }, { id: 'productType', value: p.type || 'Самостоятельное' } ];
+    fieldsToFill.forEach(field => {
+        const el = document.getElementById(field.id);
+        if (el) el.value = field.value;
+    });
+
+    currentProductImage = p.imageUrl || null; 
+    currentProductFiles = p.fileUrls || []; 
+    renderProductImage();
+    renderProductFiles();
+    
+    updateProductTypeUI();
+    
+    const statusField = document.getElementById('productAvailabilityField');
+    if (statusField) {
+        const statusText = p.status || 'В наличии полностью';
+        statusField.textContent = statusText;
+        let statusClass = 'status-field-stocked';
+        if (statusText === 'В наличии частично') statusClass = 'status-field-partial';
+        else if (statusText === 'Нет в наличии') statusClass = 'status-field-none';
+        else if (statusText === 'Брак') statusClass = 'status-field-defective';
+        else if (statusText === 'Часть изделия') statusClass = 'status-field-part';
+        statusField.className = 'calc-field ' + statusClass;
+    }
+
+    const printerSelect = document.getElementById('productPrinter');
+    if (printerSelect && p.printer) printerSelect.value = p.printer.id;
+
+    if (p.type === 'Часть составного' && p.parentId) {
+        updateParentSelect();
+        document.getElementById('productParent').value = p.parentId;
+    }
+
+    if (p.type !== 'Составное' && p.filament) {
+        updateProductFilamentSelect();
+        document.getElementById('productFilament').value = p.filament.id;
+    }
+
+    if (p.type === 'Составное') {
+        const allPartsEl = document.getElementById('productAllPartsCreated');
+        if(allPartsEl) allPartsEl.checked = p.allPartsCreated || false;
+    }
+
+    updateProductCosts();
+
+    // ВОССТАНОВЛЕНА ЛОГИКА БЛОКИРОВКИ ПОЛЕЙ
+    const allInputs = document.querySelectorAll('#productModal input, #productModal select, #productModal textarea');
+    const validationMessage = document.getElementById('productValidationMessage');
+    allInputs.forEach(el => el.disabled = false);
+
+    let hasWriteoffs = db.writeoffs && db.writeoffs.some(w => w.productId === id);
+    let lockReason = '';
+
+    if (hasWriteoffs) {
+        lockReason = 'Редактирование ограничено: есть списания.';
+        allInputs.forEach(el => { if (el.id !== 'productNote') el.disabled = true; });
+    } else if (p.defective) {
+        lockReason = 'Редактирование ограничено: изделие в браке.';
+        allInputs.forEach(el => { if (el.id !== 'productNote' && el.id !== 'productDefective') el.disabled = true; });
+    }
+
+    if(lockReason) {
+        validationMessage.textContent = lockReason;
+        validationMessage.classList.remove('hidden');
+    }
+
+    productSnapshotForDirtyCheck = captureProductSnapshot();
+}
+
+
+
+// ЗАМЕНИТЬ эту функцию целиком
+async function saveProduct(andThenWriteOff = false) {
+    if (!validateProductForm()) return;
+
+    const saveBtn = document.getElementById('saveProductBtn');
+    saveBtn.textContent = '⏳ Сохраняю...'; saveBtn.disabled = true;
+
+    const eid = document.getElementById('productModal').getAttribute('data-edit-id'); 
+    const type = document.getElementById('productType').value; 
+    
+    // Сначала загружаем файлы в облако
+    let imgUrl = currentProductImage;
+    if(currentProductImage instanceof Blob) {
+        imgUrl = await uploadFileToCloud(currentProductImage);
+    }
+    
+    let fileUrls = [];
+    for(let f of currentProductFiles) {
+        if(f.url) fileUrls.push(f);
+        else if(f.blob) { 
+            const u = await uploadFileToCloud(f.blob); 
+            if(u) fileUrls.push({name:f.name, url:u}); 
+        }
+    }
+    
+    // Теперь собираем объект для сохранения, как в v3.7
+    const qty = parseInt(document.getElementById('productQuantity').value) || 0;
     const isDefective = document.getElementById('productDefective').checked;
     
-    const p = {
-        name: document.getElementById('productName').value,
-        date: document.getElementById('productDate').value,
-        type: type,
-        quantity: qty,
-        weight: parseFloat(document.getElementById('productWeight').value)||0,
-        length: parseFloat(document.getElementById('productLength').value)||0,
-        printTime: (parseInt(document.getElementById('productPrintTimeHours').value)||0)*60 + (parseInt(document.getElementById('productPrintTimeMinutes').value)||0),
-        note: document.getElementById('productNote').value,
+    const p = { 
+        name: document.getElementById('productName').value, 
+        systemId: eid ? document.getElementById('productModal').getAttribute('data-system-id') : document.getElementById('productSystemId').textContent, 
+        date: document.getElementById('productDate').value, 
+        link: document.getElementById('productLink').value, 
+        quantity: qty, 
+        weight: parseFloat(document.getElementById('productWeight').value) || 0, 
+        length: parseFloat(document.getElementById('productLength').value) || 0, 
+        printTime: (parseInt(document.getElementById('productPrintTimeHours').value)||0)*60 + (parseInt(document.getElementById('productPrintTimeMinutes').value)||0), 
+        printer: db.printers.find(x => x.id == document.getElementById('productPrinter').value), 
+        type: type, 
+        note: document.getElementById('productNote').value, 
         defective: isDefective,
-        imageUrl: imgUrl,
-        fileUrls: files,
-        systemId: eid ? document.getElementById('productSystemId').textContent : document.getElementById('productSystemId').textContent,
-        printer: db.printers.find(p=>p.id == document.getElementById('productPrinter').value)
+        imageUrl: imgUrl,      // Используем URL из облака
+        fileUrls: fileUrls,  // Используем URL-ы из облака
     };
     
-    const filament = db.filaments.find(f=>f.id == document.getElementById('productFilament').value);
-    if(filament) p.filament = filament;
-
     const writeoffs = db.writeoffs || [];
     const existingWriteoffs = (eid) ? writeoffs.filter(w => w.productId == eid).reduce((sum,w)=>sum+w.qty,0) : 0;
     p.inStock = isDefective ? 0 : Math.max(0, qty - existingWriteoffs);
-    p.status = isDefective ? 'Брак' : (p.inStock > 0 ? (p.inStock < qty ? 'В наличии частично' : 'В наличии полностью') : 'Нет в наличии');
+    p.status = determineProductStatus(p); 
+    p.availability = p.status;
 
-    if (type === 'Часть составного') p.parentId = parseInt(document.getElementById('productParent').value);
+    if (type === 'Часть составного') p.parentId = parseInt(document.getElementById('productParent').value); 
+    if (type === 'Составное') p.allPartsCreated = document.getElementById('productAllPartsCreated').checked;
     
-    // Cost Calculations (Restored logic)
-    let energy = 0; 
-    const costPerKw = getCostPerKwForDate(p.date);
-    if(p.printer && p.printer.power) energy = (p.printTime/60) * p.printer.power * costPerKw;
-    
-    if (type === 'Составное') {
-        const kids = eid ? db.products.filter(x => x.parentId === parseInt(eid)) : []; 
-        p.costMarketPrice = kids.reduce((s,x)=>s+(x.costMarketPrice||0),0); 
-        p.costActualPrice = kids.reduce((s,x)=>s+(x.costActualPrice||0),0); 
-    } else if (filament) {
-        const mkW = p.weight * (filament.avgCostPerGram || 0); 
-        const mkL = p.length * (filament.avgCostPerMeter || 0); 
-        const acW = p.weight * (filament.actualCostPerGram || 0); 
-        const acL = p.length * (filament.actualCostPerMeter || 0); 
-        p.costMarketPrice = Math.max(mkW, mkL) + energy; 
-        p.costActualPrice = Math.max(acW, acL) + energy; 
-    } else {
-        p.costMarketPrice = energy; p.costActualPrice = energy;
+    let filament = null; 
+    if (type !== 'Составное') { 
+        const filId = document.getElementById('productFilament').value;
+        filament = db.filaments.find(x => x.id == filId); 
+        p.filament = filament; 
     }
-    p.costPer1Market = qty > 0 ? p.costMarketPrice / qty : 0; 
+    
+    // Расчеты себестоимости
+    recalculateAllProductCosts();
+    const tempProdForCost = { ...p, costActualPrice: 0, costMarketPrice: 0 };
+    const { costActualPrice, costMarketPrice } = calculateSingleProductCost(tempProdForCost);
+    p.costActualPrice = costActualPrice;
+    p.costMarketPrice = costMarketPrice;
     p.costPer1Actual = qty > 0 ? p.costActualPrice / qty : 0;
+    p.costPer1Market = qty > 0 ? p.costMarketPrice / qty : 0;
 
-    if(eid) {
-        const idx = db.products.findIndex(x=>x.id==parseInt(eid));
-        if(idx!==-1) {
-             const old = db.products[idx];
-             // Adjust filament stock if needed logic (simplified for web)
-             Object.assign(old, p);
+
+    // Логика сохранения (добавление/обновление)
+    if (eid) {
+        const oldIndex = db.products.findIndex(x => x.id == parseInt(eid));
+        if (oldIndex !== -1) {
+            const old = db.products[oldIndex];
+            if (old.filament && old.type !== 'Составное') { 
+                const oldFil = db.filaments.find(f => f.id === old.filament.id);
+                if(oldFil) {
+                    oldFil.usedLength -= old.length || 0; 
+                    oldFil.usedWeight -= old.weight || 0; 
+                }
+            }
+            Object.assign(old, p);
+            p.id = old.id;
         }
     } else {
-        p.id = Date.now();
+        p.id = Date.now(); 
         db.products.push(p);
     }
+
+    // Обновление расхода филамента
+    if (filament && type !== 'Составное') { 
+        const currentFil = db.filaments.find(f => f.id === filament.id);
+        if (currentFil) {
+            currentFil.usedLength += p.length; 
+            currentFil.usedWeight += p.weight; 
+        }
+    }
     
-    await saveData();
-    updateProductsTable(); updateDashboard(); 
-    saveBtn.textContent = originalText; saveBtn.disabled = false;
+    // Пересчет родителя, если это дочерний элемент
+    if (type === 'Часть составного' && p.parentId) { 
+        const parent = db.products.find(x => x.id === p.parentId); 
+        if (parent) recalculateAllProductCosts(); // Пересчитываем всё для надежности
+    }
+    
+    recalculateAllProductCosts();
+    await saveData(); 
+    
+    updateAllSelects(); 
+    updateProductsTable(); 
+    updateDashboard(); 
+    updateFilamentsTable(); 
+    updateReports();
+    
+    saveBtn.textContent = 'Сохранить и закрыть'; saveBtn.disabled = false;
     
     if (andThenWriteOff) {
-        const pid = eid ? parseInt(eid) : p.id;
+        const productIdToPass = p.id;
         closeProductModal();
-        setTimeout(() => openWriteoffModalForProduct(pid), 150);
+        setTimeout(() => openWriteoffModalForProduct(productIdToPass), 150); 
     } else {
         closeProductModal();
     }
 }
+
+// Вспомогательная функция, которая должна быть где-то в коде
+function determineProductStatus(p) { 
+    if (p.defective) return 'Брак'; 
+    if (p.type === 'Часть составного') return 'Часть изделия'; 
+    if (p.inStock <= 0) return 'Нет в наличии'; 
+    if (p.inStock < p.quantity) return 'В наличии частично'; 
+    return 'В наличии полностью'; 
+}
+
+// Вспомогательная функция для расчета
+function calculateSingleProductCost(p) {
+    let costActualPrice = 0, costMarketPrice = 0;
+    const filament = p.filament ? db.filaments.find(f => f.id === p.filament.id) : null;
+    let energy = 0;
+    if (p.printer && p.printer.power) {
+        const costPerKw = getCostPerKwForDate(p.date);
+        energy = (p.printTime / 60) * p.printer.power * costPerKw;
+    }
+
+    if (filament) {
+        const acW = p.weight * (filament.actualCostPerGram || 0);
+        const acL = p.length * (filament.actualCostPerMeter || 0);
+        costActualPrice = Math.max(acW, acL) + energy;
+
+        const mkW = p.weight * (filament.avgCostPerGram || 0);
+        const mkL = p.length * (filament.avgCostPerMeter || 0);
+        costMarketPrice = Math.max(mkW, mkL) + energy;
+    } else {
+        costActualPrice = energy;
+        costMarketPrice = energy;
+    }
+    return { costActualPrice, costMarketPrice };
+}
+
+
 
 function deleteProduct(id) {
     if (db.writeoffs.some(w => w.productId === id)) { alert('Нельзя удалить: есть списания.'); return; }
@@ -837,47 +1036,98 @@ function deleteProduct(id) {
     }
 }
 
+// ЗАМЕНИТЬ эту функцию целиком
 function buildProductRow(p, isChild) {
     let weight = p.weight, length = p.length, printTime = p.printTime;
     if (p.type === 'Составное') {
         const kids = db.products.filter(k => k.parentId === p.id);
-        weight = kids.reduce((s,k) => s + (k.weight || 0), 0);
-        length = kids.reduce((s,k) => s + (k.length || 0), 0);
+        weight = kids.reduce((s,k) => s + k.weight, 0);
+        length = kids.reduce((s,k) => s + k.length, 0);
         printTime = kids.reduce((s, k) => s + (k.printTime || 0), 0); 
     }
+
     const hours = Math.floor(printTime / 60);
     const minutes = printTime % 60;
     const formattedTime = `${hours}:${String(minutes).padStart(2, '0')}`;
-    const icon = p.type === 'Составное' ? '📦' : (p.type === 'Часть составного' ? '↳' : '✓');
+
+    // ВОССТАНОВЛЕНО: Логика иконки для собранных/несобранных
+    const icon = p.type === 'Составное' 
+        ? (p.allPartsCreated ? '📦' : '🥡') 
+        : (p.type === 'Часть составного' ? '↳' : '✓');
     
     let fil = '—';
-    if (p.type !== 'Составное' && p.filament) {
+    if (p.filament && p.type !== 'Составное') {
         const fObj = (typeof p.filament === 'object') ? p.filament : db.filaments.find(f => f.id == p.filament);
         if(fObj && fObj.color) fil = `<span class="color-swatch" style="background:${fObj.color.hex}"></span>${escapeHtml(fObj.customId)}`;
     }
     const note = p.note ? `<span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text tooltip-top-right">${escapeHtml(p.note)}</span></span>` : '';
+    
     let statusClass = 'badge-secondary';
-    if (p.status === 'В наличии полностью') statusClass = 'badge-light-green';
-    else if (p.status === 'В наличии частично') statusClass = 'badge-success';
-    else if (p.status === 'Брак') statusClass = 'badge-danger';
-    else if (p.status === 'Нет в наличии') statusClass = 'badge-gray';
+    let rowBgClass = ''; 
+    
+    if (p.status === 'В наличии полностью') { statusClass = 'badge-light-green'; rowBgClass = 'row-bg-light-green'; } 
+    else if (p.status === 'В наличии частично') { statusClass = 'badge-success'; rowBgClass = 'row-bg-success'; } 
+    else if (p.status === 'Брак') { statusClass = 'badge-danger'; rowBgClass = 'row-bg-danger'; } 
+    else if (p.status === 'Нет в наличии') { statusClass = 'badge-gray'; rowBgClass = 'row-bg-gray'; }
+    else if (p.status === 'Часть изделия') { statusClass = 'badge-purple'; }
 
-    const statusHtml = `<span class="badge ${statusClass}">${escapeHtml(p.status)}</span>`;
+    let statusHtml;
+    if (isChild) {
+        let statusTextStyle = 'status-text-purple';
+        if (p.status === 'Брак') statusTextStyle = 'status-text-danger';
+        statusHtml = `<span class="${statusTextStyle}">${escapeHtml(p.status)}</span>`;
+    } else {
+        // ВОССТАНОВЛЕНО: Тултип со списком списаний
+        const productWriteoffs = db.writeoffs.filter(w => w.productId === p.id);
+        if ((p.status === 'Нет в наличии' || p.status === 'В наличии частично') && productWriteoffs.length > 0) {
+            const linksHtml = productWriteoffs
+                .sort((a, b) => new Date(b.date) - new Date(a.date))
+                .map(w => {
+                    const plainType = `<strong>${escapeHtml(w.type)}</strong>`;
+                    let linkText = w.type === 'Продажа' 
+                        ? `${w.date} ${plainType}: ${w.qty} шт. х ${w.price.toFixed(2)} ₽ = ${w.total.toFixed(2)} ₽`
+                        : `${w.date} ${plainType}: ${w.qty} шт.`;
+                    return `<a onclick="editWriteoff('${w.systemId}')">${linkText}</a>`;
+                }).join('');
+
+            statusHtml = `<div class="tooltip-container">
+                            <span class="badge ${statusClass}" style="cursor:pointer;">${escapeHtml(p.status)}</span>
+                            <span class="tooltip-text tooltip-top-right" style="text-align: left; width: auto; white-space: nowrap;">${linksHtml}</span>
+                         </div>`;
+        } else {
+            statusHtml = `<span class="badge ${statusClass}">${escapeHtml(p.status)}</span>`;
+        }
+    }
+    
     const costM = p.costPer1Market ? p.costPer1Market.toFixed(2) : '0.00';
     const costA = p.costPer1Actual ? p.costPer1Actual.toFixed(2) : '0.00';
-    const fileIconHtml = (p.fileUrls && p.fileUrls.length > 0) ? '📎' : '';
-    const linkHtml = p.link ? `<a href="${escapeHtml(p.link)}" target="_blank" style="color:#1e40af;text-decoration:underline;">Модель</a>` : '';
-    const nameEvents = `onmouseenter="showProductImagePreview(this, ${p.id})" onmousemove="moveProductImagePreview(event)" onmouseleave="hideProductImagePreview(this)"`;
     
+    const fileList = p.fileUrls || p.attachedFiles || [];
+    let fileIconHtml = '';
+    if (fileList.length > 0) {
+        fileIconHtml = `<div class="tooltip-container"><span style="font-size: 16px; cursor: default;">📎</span><span class="tooltip-text tooltip-top-right">Прикреплено ${fileList.length} файлов</span></div>`;
+    }
+    
+    const linkHtml = p.link ? `<a href="${escapeHtml(p.link)}" target="_blank" style="color:#1e40af;text-decoration:underline;">Модель</a>` : '';
+
+    const nameEvents = `onmouseenter="showProductImagePreview(this, ${p.id})" onmousemove="moveProductImagePreview(event)" onmouseleave="hideProductImagePreview(this)"`;
+
+    let nameHtml = isChild 
+        ? `<div class="product-name-cell product-child-indent"><div class="product-icon-wrapper"><strong>${icon}</strong></div><span ${nameEvents} style="cursor:default">${escapeHtml(p.name)}</span>${note}</div>`
+        : `<div class="product-name-cell"><div class="product-icon-wrapper"><strong>${icon}</strong></div><span ${nameEvents} style="cursor:default"><strong>${escapeHtml(p.name)}</strong></span>${note}</div>`;
+
+    // ВОССТАНОВЛЕНО: Логика кнопки "Добавить часть"
     let addPartButtonHtml = '';
     if (p.type === 'Составное') {
-        addPartButtonHtml = `<button class="btn-secondary btn-small" title="Добавить часть изделия" onclick="addChildPart(${p.id})">+</button>`;
+        const hasWriteoffs = db.writeoffs.some(w => w.productId === p.id);
+        const isDisabled = hasWriteoffs || p.defective || p.allPartsCreated;
+        addPartButtonHtml = `<button class="btn-secondary btn-small" title="Добавить часть изделия" onclick="addChildPart(${p.id})" ${isDisabled ? 'disabled' : ''}>+</button>`;
     }
 
-    return `<tr class="${isChild ? 'product-child-row' : ''}">
-        <td style="padding-left:12px;"><div class="product-name-cell ${isChild?'product-child-indent':''}"><div class="product-icon-wrapper"><strong>${icon}</strong></div><span ${nameEvents} style="cursor:default"><strong>${escapeHtml(p.name)}</strong></span>${note}</div></td>
+    return `<tr class="${isChild ? 'product-child-row' : rowBgClass}">
+        <td style="padding-left:12px;">${nameHtml}</td>
         <td class="text-center">${fileIconHtml}</td>
-        <td>${p.date}</td>
+        <td style="width: 110px;">${p.date}</td>
         <td>${fil}</td>
         <td>${formattedTime}</td>
         <td>${weight.toFixed(1)}</td>
@@ -898,6 +1148,8 @@ function buildProductRow(p, isChild) {
         </td>
     </tr>`;
 }
+
+
 
 function updateChildrenTable() { 
     const eid = document.getElementById('productModal').getAttribute('data-edit-id'); 
@@ -1323,6 +1575,7 @@ function moveReferenceItemDown(arrayName, index) { const arr = db[arrayName]; if
 
 // ==================== EVENT LISTENERS ====================
 
+// ЗАМЕНИТЬ эту функцию целиком
 function setupEventListeners() {
     // Nav
     document.querySelectorAll('.menu-item[data-page]').forEach(b => b.addEventListener('click', () => showPage(b.dataset.page)));
@@ -1338,24 +1591,33 @@ function setupEventListeners() {
     // Products
     document.getElementById('addProductBtn')?.addEventListener('click', openProductModal);
     document.getElementById('saveProductBtn')?.addEventListener('click', () => saveProduct(false));
-    document.getElementById('btnWriteOffProduct')?.addEventListener('click', () => saveProduct(true));
+    document.getElementById('btnWriteOffProduct')?.addEventListener('click', initiateWriteOff);
     document.getElementById('closeProductModalBtn')?.addEventListener('click', closeProductModal);
     document.getElementById('productSearch')?.addEventListener('input', filterProducts);
     document.getElementById('resetProductFiltersBtn')?.addEventListener('click', resetProductFilters);
     document.getElementById('productType')?.addEventListener('change', updateProductTypeUI);
     document.getElementById('productParent')?.addEventListener('change', onParentProductChange);
+    if(document.getElementById('showProductChildren')) {
+        document.getElementById('showProductChildren').addEventListener('change', filterProducts);
+    }
     
-    // Writeoffs
-    document.getElementById('writeoffSearch')?.addEventListener('input', filterWriteoffs);
-    document.getElementById('writeoffTypeFilter')?.addEventListener('change', filterWriteoffs);
-    document.getElementById('resetWriteoffFiltersBtn')?.addEventListener('click', resetWriteoffFilters);
-    
+    // Writeoffs (ВОССТАНОВЛЕНО)
+    // Кнопка на странице "Списания"
+    document.getElementById('addWriteoffBtn')?.addEventListener('click', openWriteoffModal);
+    // Кнопка на странице "Изделия"
+    document.getElementById('addProductPageWriteoffBtn')?.addEventListener('click', openWriteoffModal);
+    // Кнопки внутри модального окна
+    document.getElementById('saveWriteoffBtn')?.addEventListener('click', saveWriteoff);
+    document.getElementById('closeWriteoffModalBtn')?.addEventListener('click', closeWriteoffModal);
+
     // Reports
     document.getElementById('generateReportBtn')?.addEventListener('click', updateFinancialReport);
     
     // Files UI
     document.querySelector('.image-upload-container')?.addEventListener('click', () => document.getElementById('productImageInput').click());
     document.getElementById('productImageInput')?.addEventListener('change', function() { handleImageUpload(this); });
+    document.getElementById('btnDeleteImage')?.addEventListener('click', function(event) { event.stopPropagation(); removeProductImage(); });
     document.getElementById('btnAddFile')?.addEventListener('click', () => document.getElementById('productFileInput').click());
     document.getElementById('productFileInput')?.addEventListener('change', function() { handleFileUpload(this); });
 }
+
