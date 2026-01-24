@@ -257,6 +257,43 @@ function loadShowChildren() {
     if(s!==null) document.getElementById('showProductChildren').checked = (s==='true');
 }
 
+// === ВСТАВИТЬ ЭТОТ БЛОК (Функции бэкапа) ===
+
+function exportData() {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db));
+    const dl = document.createElement('a');
+    dl.setAttribute("href", dataStr);
+    dl.setAttribute("download", `3d_filament_backup_${new Date().toISOString().split('T')[0]}.json`);
+    document.body.appendChild(dl); dl.click(); dl.remove();
+}
+
+function importData(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const r = new FileReader();
+    r.onload = async (e) => {
+        try {
+            const loaded = JSON.parse(e.target.result);
+            if (loaded.filaments && loaded.products) {
+                if (confirm('Внимание! Текущие данные будут заменены. Продолжить?')) {
+                    Object.assign(db, loaded);
+                    await saveData();
+                    alert('База восстановлена!');
+                    window.location.reload();
+                }
+            } else {
+                alert('Ошибка формата файла.');
+            }
+        } catch(err) { 
+            alert('Ошибка чтения: ' + err); 
+        }
+    };
+    r.readAsText(file);
+    input.value = ''; 
+}
+// ===========================================
+
+
 function updateAllSelects() {
     document.querySelectorAll('#filamentBrand').forEach(s => s.innerHTML = db.brands.map((b, i) => `<option value="${i}">${escapeHtml(b)}</option>`).join(''));
     document.querySelectorAll('#filamentColor').forEach(s => { const editId = document.getElementById('filamentModal')?.getAttribute('data-edit-id'); let opts = !editId ? [`<option value="">-- Выберите цвет --</option>`] : []; opts.push(...db.colors.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`)); s.innerHTML = opts.join(''); });
@@ -613,24 +650,128 @@ async function saveProduct() {
     closeProductModal();
 }
 
+// === ЗАМЕНИТЬ ФУНКЦИЮ buildProductRow НА ЭТУ ===
+
 function buildProductRow(p, isChild) {
-    const imgUrl = p.imageUrl || (p.imageBlob instanceof Blob ? URL.createObjectURL(p.imageBlob) : '');
-    const nameEvents = `onmouseenter="showProductImagePreview(this, ${p.id})" onmousemove="moveProductImagePreview(event)" onmouseleave="hideProductImagePreview(this)"`;
-    const indent = isChild ? 'padding-left:20px' : '';
-    const fileIcon = (p.fileUrls && p.fileUrls.length) ? '📎' : '';
-    const badgeClass = p.defective ? 'badge-danger' : 'badge-success';
+    let weight = p.weight, length = p.length, printTime = p.printTime;
     
-    return `<tr data-preview-url="${imgUrl}">
-        <td style="${indent}">
-            <span ${nameEvents}>${escapeHtml(p.name)}</span>
-        </td>
-        <td>${fileIcon}</td>
-        <td>${p.date}</td>
+    // Если составное - считаем сумму детей
+    if (p.type === 'Составное') {
+        const kids = db.products.filter(k => k.parentId === p.id);
+        weight = kids.reduce((s,k) => s + (k.weight || 0), 0);
+        length = kids.reduce((s,k) => s + (k.length || 0), 0);
+        printTime = kids.reduce((s, k) => s + (k.printTime || 0), 0); 
+    }
+
+    const hours = Math.floor(printTime / 60);
+    const minutes = printTime % 60;
+    const formattedTime = `${hours}:${String(minutes).padStart(2, '0')}`;
+
+    const icon = p.type === 'Составное' 
+        ? (p.allPartsCreated ? '📦' : '🥡') 
+        : (p.type === 'Часть составного' ? '↳' : '✓');
+    
+    // Логика отображения филамента (цвет + название)
+    let fil = '—';
+    if (p.type !== 'Составное' && p.filament) {
+        // Защита: иногда p.filament может быть просто ID, ищем объект
+        const fObj = (typeof p.filament === 'object') ? p.filament : db.filaments.find(f => f.id == p.filament);
+        if(fObj && fObj.color) {
+             fil = `<span class="color-swatch" style="background:${fObj.color.hex}"></span>${escapeHtml(fObj.customId)}`;
+        }
+    }
+
+    const note = p.note ? `<span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text tooltip-top-right">${escapeHtml(p.note)}</span></span>` : '';
+    
+    let statusClass = 'badge-secondary';
+    let rowBgClass = ''; 
+    
+    if (p.status === 'В наличии полностью') { statusClass = 'badge-light-green'; rowBgClass = 'row-bg-light-green'; } 
+    else if (p.status === 'В наличии частично') { statusClass = 'badge-success'; rowBgClass = 'row-bg-success'; } 
+    else if (p.status === 'Брак') { statusClass = 'badge-danger'; rowBgClass = 'row-bg-danger'; } 
+    else if (p.status === 'Нет в наличии') { statusClass = 'badge-gray'; rowBgClass = 'row-bg-gray'; }
+    else if (p.status === 'Часть изделия') { statusClass = 'badge-purple'; }
+
+    let statusHtml;
+    if (isChild) {
+        let statusTextStyle = 'status-text-purple';
+        if (p.status === 'Брак') statusTextStyle = 'status-text-danger';
+        statusHtml = `<span class="${statusTextStyle}">${escapeHtml(p.status)}</span>`;
+    } else {
+        // Логика списаний для тултипа
+        const productWriteoffs = db.writeoffs.filter(w => w.productId === p.id);
+        if ((p.status === 'Нет в наличии' || p.status === 'В наличии частично') && productWriteoffs.length > 0) {
+            const linksHtml = productWriteoffs
+                .sort((a, b) => new Date(b.date) - new Date(a.date))
+                .map(w => {
+                    const plainType = `<strong>${escapeHtml(w.type)}</strong>`;
+                    let linkText = w.type === 'Продажа' 
+                        ? `${w.date} ${plainType}: ${w.qty} шт. х ${w.price.toFixed(2)} ₽ = ${w.total.toFixed(2)} ₽`
+                        : `${w.date} ${plainType}: ${w.qty} шт.`;
+                    return `<a onclick="editWriteoff('${w.systemId}')">${linkText}</a>`;
+                }).join('');
+
+            statusHtml = `<div class="tooltip-container">
+                            <span class="badge ${statusClass}" style="cursor:pointer;">${escapeHtml(p.status)}</span>
+                            <span class="tooltip-text tooltip-top-right" style="text-align: left; width: auto; white-space: nowrap;">${linksHtml}</span>
+                         </div>`;
+        } else {
+            statusHtml = `<span class="badge ${statusClass}">${escapeHtml(p.status)}</span>`;
+        }
+    }
+    
+    const costM = p.costPer1Market ? p.costPer1Market.toFixed(2) : '0.00';
+    const costA = p.costPer1Actual ? p.costPer1Actual.toFixed(2) : '0.00';
+    
+    // Скрепка
+    const fileList = p.fileUrls || p.attachedFiles || [];
+    let fileIconHtml = '';
+    if (fileList.length > 0) {
+        fileIconHtml = `<div class="tooltip-container"><span style="font-size: 16px; cursor: default;">📎</span><span class="tooltip-text tooltip-top-right">Прикреплено ${fileList.length} файлов</span></div>`;
+    }
+    
+    const linkHtml = p.link ? `<a href="${escapeHtml(p.link)}" target="_blank" style="color:#1e40af;text-decoration:underline;">Модель</a>` : '';
+
+    const nameEvents = `onmouseenter="showProductImagePreview(this, ${p.id})" onmousemove="moveProductImagePreview(event)" onmouseleave="hideProductImagePreview(this)"`;
+
+    let nameHtml = isChild 
+        ? `<div class="product-name-cell product-child-indent"><div class="product-icon-wrapper"><strong>${icon}</strong></div><span ${nameEvents} style="cursor:default">${escapeHtml(p.name)}</span>${note}</div>`
+        : `<div class="product-name-cell"><div class="product-icon-wrapper"><strong>${icon}</strong></div><span ${nameEvents} style="cursor:default"><strong>${escapeHtml(p.name)}</strong></span>${note}</div>`;
+
+    // Кнопка "Добавить часть"
+    let addPartButtonHtml = '';
+    if (p.type === 'Составное') {
+        const hasWriteoffs = db.writeoffs.some(w => w.productId === p.id);
+        const isDisabled = hasWriteoffs || p.defective || p.allPartsCreated;
+        addPartButtonHtml = `<button class="btn-secondary btn-small" title="Добавить часть изделия" onclick="addChildPart(${p.id})" ${isDisabled ? 'disabled' : ''}>+</button>`;
+    }
+
+    // Возвращаем полный HTML строки
+    return `<tr class="${isChild ? 'product-child-row' : rowBgClass}">
+        <td style="padding-left:12px;">${nameHtml}</td>
+        <td class="text-center">${fileIconHtml}</td>
+        <td style="width: 110px;">${p.date}</td>
+        <td>${fil}</td>
+        <td>${formattedTime}</td>
+        <td>${weight.toFixed(1)}</td>
+        <td>${length.toFixed(2)}</td>
         <td>${p.quantity}</td>
-        <td><span class="badge ${badgeClass}">${escapeHtml(p.status)}</span></td>
-        <td><button class="btn-secondary btn-small" onclick="editProduct(${p.id})">✎</button></td>
+        <td>${p.inStock !== undefined ? p.inStock : p.quantity}</td>
+        <td>${costM} ₽</td>
+        <td>${costA} ₽</td>
+        <td>${statusHtml}</td>
+        <td class="text-center">${linkHtml}</td>
+        <td class="text-center">
+            <div class="action-buttons">
+                ${addPartButtonHtml} 
+                <button class="btn-secondary btn-small" title="Редактировать" onclick="editProduct(${p.id})">✎</button>
+                <button class="btn-secondary btn-small" title="Копировать" onclick="copyProduct(${p.id})">❐</button>
+                <button class="btn-danger btn-small" title="Удалить" onclick="deleteProduct(${p.id})">✕</button>
+            </div>
+        </td>
     </tr>`;
 }
+
 
 function updateProductsTable() {
     const tbody = document.querySelector('#productsTable tbody');
