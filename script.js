@@ -246,34 +246,89 @@
         window.addEventListener('DOMContentLoaded', initializeApp);
 
 
-        async function initializeApp() {
-			try {
-                // Ждем загрузки данных из IndexedDB
-                await loadData();
-                
-                // После загрузки выполняем все расчеты и рендер
-                recalculateAllProductCosts(); 
-                loadShowChildren();
-                updateAllDates();
-                updateAllSelects();
-                
-                // Рендеринг и сортировка
-                try {
-                    updateFilamentsTable();
-                } catch(e) { console.warn('Filament render issue', e); }
+	// ==================== АВТОРИЗАЦИЯ И ЗАПУСК ====================
 
-                try { updateProductsTable(); } catch(e) { console.warn('Product render issue', e); }
-                try { updateWriteoffTable(); } catch(e) { console.warn('Writeoff render issue', e); }
-                try { updateReports(); } catch(e) { console.warn('Reports render issue', e); }
-                try { updateDashboard(); } catch(e) { console.warn('Dashboard render issue', e); }
+	// Слушатель кнопки "Войти"
+	document.getElementById('loginBtn')?.addEventListener('click', () => {
+		const email = document.getElementById('emailInput').value;
+		const pass = document.getElementById('passwordInput').value;
+		const err = document.getElementById('loginError');
+		const btn = document.getElementById('loginBtn');
+
+		btn.textContent = "Вход...";
+		btn.disabled = true;
+		err.style.display = 'none';
+
+		firebase.auth().signInWithEmailAndPassword(email, pass)
+			.catch((error) => {
+				btn.textContent = "Войти";
+				btn.disabled = false;
+				err.textContent = "Ошибка: Неверный email или пароль";
+				err.style.display = 'block';
+				console.error(error);
+			});
+	});
+
+	// Главная точка входа
+	window.addEventListener('DOMContentLoaded', () => {
+		// Слушаем состояние входа (Firebase сам помнит, если вы вошли ранее)
+		firebase.auth().onAuthStateChanged(async (user) => {
+			const overlay = document.getElementById('loginOverlay');
+			
+			if (user) {
+				// ПОЛЬЗОВАТЕЛЬ ВОШЕЛ
+				console.log("User logged in:", user.email);
+				if(overlay) overlay.style.display = 'none'; // Скрываем экран входа
 				
+				// Добавляем кнопку "Выйти" в сайдбар (если её нет)
+				addLogoutButton();
+
+				// Загружаем данные ТОЛЬКО сейчас
+				await loadData();
+				
+				// Инициализируем UI
+				recalculateAllProductCosts(); 
+				loadShowChildren();
+				updateAllDates();
+				updateAllSelects();
+				
+				try { updateFilamentsTable(); } catch(e) {}
+				try { updateProductsTable(); } catch(e) {}
+				try { updateWriteoffTable(); } catch(e) {}
+				try { updateReports(); } catch(e) {}
+				try { updateDashboard(); } catch(e) {}
+
 				setupEventListeners();
-                
-            } catch (e) {
-                console.error("Critical initialization error:", e);
-                alert("Ошибка инициализации приложения. Данные могут отображаться некорректно.");
-            }
-        }
+			} else {
+				// ПОЛЬЗОВАТЕЛЬ НЕ ВОШЕЛ
+				console.log("User not logged in");
+				if(overlay) overlay.style.display = 'flex'; // Показываем экран входа
+			}
+		});
+	});
+
+	function addLogoutButton() {
+		const sidebar = document.querySelector('.sidebar');
+		if (document.getElementById('logoutBtn')) return; // Уже есть
+
+		const btn = document.createElement('button');
+		btn.className = 'menu-item';
+		btn.id = 'logoutBtn';
+		btn.innerHTML = '🚪 Выйти';
+		btn.style.marginTop = '20px';
+		btn.style.borderTop = '1px solid rgba(255,255,255,0.1)';
+		
+		btn.onclick = () => {
+			if(confirm('Выйти из системы?')) {
+				firebase.auth().signOut().then(() => window.location.reload());
+			}
+		};
+		
+		// Вставляем перед копирайтом
+		const copyright = sidebar.lastElementChild;
+		sidebar.insertBefore(btn, copyright);
+	}
+
 
 
 
@@ -2973,6 +3028,7 @@
 	try {
 		firebase.initializeApp(firebaseConfig);
 		const database = firebase.database();
+		const auth = firebase.auth();
 		dbRef = database.ref('filament_manager_data'); // Название "папки" в облаке
 		console.log("Firebase initialized");
 	} catch (e) {
