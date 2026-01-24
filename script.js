@@ -1784,125 +1784,124 @@
 
 
 
-         function buildProductRow(p, isChild) {
-            let weight = p.weight, length = p.length, printTime = p.printTime;
-            if (p.type === 'Составное') {
-                const kids = db.products.filter(k => k.parentId === p.id);
-                weight = kids.reduce((s,k) => s + k.weight, 0);
-                length = kids.reduce((s,k) => s + k.length, 0);
-                printTime = kids.reduce((s, k) => s + (k.printTime || 0), 0); 
-            }
+	 // --- ГЕНЕРАЦИЯ СТРОКИ ТАБЛИЦЫ (ИСПРАВЛЕНО) ---
+	function buildProductRow(p, isChild) {
+		let weight = p.weight, length = p.length, printTime = p.printTime;
+		
+		// Если составное - считаем сумму детей
+		if (p.type === 'Составное') {
+			const kids = db.products.filter(k => k.parentId === p.id);
+			weight = kids.reduce((s,k) => s + (k.weight || 0), 0);
+			length = kids.reduce((s,k) => s + (k.length || 0), 0);
+			printTime = kids.reduce((s, k) => s + (k.printTime || 0), 0); 
+		}
 
-            const hours = Math.floor(printTime / 60);
-            const minutes = printTime % 60;
-            const formattedTime = `${hours}:${String(minutes).padStart(2, '0')}`;
+		const hours = Math.floor(printTime / 60);
+		const minutes = printTime % 60;
+		const formattedTime = `${hours}:${String(minutes).padStart(2, '0')}`;
 
-            const icon = p.type === 'Составное' 
-                ? (p.allPartsCreated ? '📦' : '🥡') 
-                : (p.type === 'Часть составного' ? '↳' : '✓');
-            
-            const fil = p.filament && p.type !== 'Составное' ? `<span class="color-swatch" style="background:${p.filament.color.hex}"></span>${escapeHtml(p.filament.customId)}` : '—';
-            const note = p.note ? `<span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text tooltip-top-right">${escapeHtml(p.note)}</span></span>` : '';
-            
-            let statusClass = 'badge-secondary';
-            let rowBgClass = ''; 
-            
-            if (p.status === 'В наличии полностью') { statusClass = 'badge-light-green'; rowBgClass = 'row-bg-light-green'; } 
-            else if (p.status === 'В наличии частично') { statusClass = 'badge-success'; rowBgClass = 'row-bg-success'; } 
-            else if (p.status === 'Брак') { statusClass = 'badge-danger'; rowBgClass = 'row-bg-danger'; } 
-            else if (p.status === 'Нет в наличии') { statusClass = 'badge-gray'; rowBgClass = 'row-bg-gray'; }
-            else if (p.status === 'Часть изделия') { statusClass = 'badge-purple'; }
+		const icon = p.type === 'Составное' 
+			? (p.allPartsCreated ? '📦' : '🥡') 
+			: (p.type === 'Часть составного' ? '↳' : '✓');
+		
+		const fil = p.filament && p.type !== 'Составное' ? `<span class="color-swatch" style="background:${p.filament.color.hex}"></span>${escapeHtml(p.filament.customId)}` : '—';
+		const note = p.note ? `<span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text tooltip-top-right">${escapeHtml(p.note)}</span></span>` : '';
+		
+		let statusClass = 'badge-secondary';
+		let rowBgClass = ''; 
+		
+		if (p.status === 'В наличии полностью') { statusClass = 'badge-light-green'; rowBgClass = 'row-bg-light-green'; } 
+		else if (p.status === 'В наличии частично') { statusClass = 'badge-success'; rowBgClass = 'row-bg-success'; } 
+		else if (p.status === 'Брак') { statusClass = 'badge-danger'; rowBgClass = 'row-bg-danger'; } 
+		else if (p.status === 'Нет в наличии') { statusClass = 'badge-gray'; rowBgClass = 'row-bg-gray'; }
+		else if (p.status === 'Часть изделия') { statusClass = 'badge-purple'; }
 
-            let statusHtml;
-            if (isChild) {
-                let statusTextStyle = 'status-text-purple';
-                if (p.status === 'Брак') statusTextStyle = 'status-text-danger';
-                statusHtml = `<span class="${statusTextStyle}">${escapeHtml(p.status)}</span>`;
-            } else {
-                const productWriteoffs = db.writeoffs.filter(w => w.productId === p.id);
-                if ((p.status === 'Нет в наличии' || p.status === 'В наличии частично') && productWriteoffs.length > 0) {
-                    
-					const linksHtml = productWriteoffs
-                        .sort((a, b) => new Date(b.date) - new Date(a.date))
-                        .map(w => {
-                            // --- ИСПРАВЛЕНИЕ 2: Убираем цвет из тултипа, оставляем только жирный текст ---
-                            const plainType = `<strong>${escapeHtml(w.type)}</strong>`;
-                            // -------------------------------------------------------------------------
-                            
-                            let linkText = '';
-                            if (w.type === 'Продажа') {
-                                linkText = `${w.date} ${plainType}: ${w.qty} шт. х ${w.price.toFixed(2)} ₽ = ${w.total.toFixed(2)} ₽`;
-                            } else {
-                                linkText = `${w.date} ${plainType}: ${w.qty} шт.`;
-                            }
-                            return `<a onclick="editWriteoff('${w.systemId}')">${linkText}</a>`;
-                        }).join('');
+		let statusHtml;
+		if (isChild) {
+			let statusTextStyle = 'status-text-purple';
+			if (p.status === 'Брак') statusTextStyle = 'status-text-danger';
+			statusHtml = `<span class="${statusTextStyle}">${escapeHtml(p.status)}</span>`;
+		} else {
+			const productWriteoffs = db.writeoffs.filter(w => w.productId === p.id);
+			if ((p.status === 'Нет в наличии' || p.status === 'В наличии частично') && productWriteoffs.length > 0) {
+				const linksHtml = productWriteoffs
+					.sort((a, b) => new Date(b.date) - new Date(a.date))
+					.map(w => {
+						const plainType = `<strong>${escapeHtml(w.type)}</strong>`;
+						let linkText = w.type === 'Продажа' 
+							? `${w.date} ${plainType}: ${w.qty} шт. х ${w.price.toFixed(2)} ₽ = ${w.total.toFixed(2)} ₽`
+							: `${w.date} ${plainType}: ${w.qty} шт.`;
+						return `<a onclick="editWriteoff('${w.systemId}')">${linkText}</a>`;
+					}).join('');
 
-                    statusHtml = `<div class="tooltip-container">
-                                    <span class="badge ${statusClass}" style="cursor:pointer;">${escapeHtml(p.status)}</span>
-                                    <span class="tooltip-text tooltip-top-right" style="text-align: left; width: auto; white-space: nowrap;">${linksHtml}</span>
-                                 </div>`;
-                } else {
-                    statusHtml = `<span class="badge ${statusClass}">${escapeHtml(p.status)}</span>`;
-                }
-            }
-            
-            const costM = p.costPer1Market ? p.costPer1Market.toFixed(2) : '0.00';
-            const costA = p.costPer1Actual ? p.costPer1Actual.toFixed(2) : '0.00';
-			
-            let fileIconHtml = '';
-            if (p.attachedFiles && p.attachedFiles.length > 0) {
-                const fileCount = p.attachedFiles.length;
-                fileIconHtml = `
-                    <div class="tooltip-container">
-                        <span style="font-size: 16px; cursor: default;">📎</span>
-                        <span class="tooltip-text tooltip-top-right">Прикреплено ${fileCount} файлов</span>
-                    </div>
-                `;
-            }
-            
-            const linkHtml = p.link ? `<a href="${escapeHtml(p.link)}" target="_blank" style="color:#1e40af;text-decoration:underline;">Модель</a>` : '';
+				statusHtml = `<div class="tooltip-container">
+								<span class="badge ${statusClass}" style="cursor:pointer;">${escapeHtml(p.status)}</span>
+								<span class="tooltip-text tooltip-top-right" style="text-align: left; width: auto; white-space: nowrap;">${linksHtml}</span>
+							 </div>`;
+			} else {
+				statusHtml = `<span class="badge ${statusClass}">${escapeHtml(p.status)}</span>`;
+			}
+		}
+		
+		const costM = p.costPer1Market ? p.costPer1Market.toFixed(2) : '0.00';
+		const costA = p.costPer1Actual ? p.costPer1Actual.toFixed(2) : '0.00';
+		
+		// --- ИСПРАВЛЕНИЕ: ПРОВЕРКА ФАЙЛОВ ---
+		// Проверяем и новые URL (облако), и старые attachedFiles (локально)
+		const fileList = p.fileUrls || p.attachedFiles || [];
+		let fileIconHtml = '';
+		
+		if (fileList.length > 0) {
+			fileIconHtml = `
+				<div class="tooltip-container">
+					<span style="font-size: 16px; cursor: default;">📎</span>
+					<span class="tooltip-text tooltip-top-right">Прикреплено ${fileList.length} файлов</span>
+				</div>
+			`;
+		}
+		// ------------------------------------
+		
+		const linkHtml = p.link ? `<a href="${escapeHtml(p.link)}" target="_blank" style="color:#1e40af;text-decoration:underline;">Модель</a>` : '';
 
-            // Hover events for preview
-            const nameEvents = `onmouseenter="showProductImagePreview(this, ${p.id})" onmousemove="moveProductImagePreview(event)" onmouseleave="hideProductImagePreview(this)"`;
+		// События для превью
+		const nameEvents = `onmouseenter="showProductImagePreview(this, ${p.id})" onmousemove="moveProductImagePreview(event)" onmouseleave="hideProductImagePreview(this)"`;
 
-            let nameHtml = isChild 
-                ? `<div class="product-name-cell product-child-indent"><div class="product-icon-wrapper"><strong>${icon}</strong></div><span ${nameEvents} style="cursor:default">${escapeHtml(p.name)}</span>${note}</div>`
-                : `<div class="product-name-cell"><div class="product-icon-wrapper"><strong>${icon}</strong></div><span ${nameEvents} style="cursor:default"><strong>${escapeHtml(p.name)}</strong></span>${note}</div>`;
+		let nameHtml = isChild 
+			? `<div class="product-name-cell product-child-indent"><div class="product-icon-wrapper"><strong>${icon}</strong></div><span ${nameEvents} style="cursor:default">${escapeHtml(p.name)}</span>${note}</div>`
+			: `<div class="product-name-cell"><div class="product-icon-wrapper"><strong>${icon}</strong></div><span ${nameEvents} style="cursor:default"><strong>${escapeHtml(p.name)}</strong></span>${note}</div>`;
 
-            // --- ИЗМЕНЕНИЕ 1: Логика кнопки "Добавить часть" ---
-            let addPartButtonHtml = '';
-            if (p.type === 'Составное') {
-                const hasWriteoffs = db.writeoffs.some(w => w.productId === p.id);
-                const isDisabled = hasWriteoffs || p.defective || p.allPartsCreated;
-                addPartButtonHtml = `<button class="btn-secondary btn-small" title="Добавить часть изделия" onclick="addChildPart(${p.id})" ${isDisabled ? 'disabled' : ''}>+</button>`;
-            }
-            // ------------------------------------------------
+		let addPartButtonHtml = '';
+		if (p.type === 'Составное') {
+			const hasWriteoffs = db.writeoffs.some(w => w.productId === p.id);
+			const isDisabled = hasWriteoffs || p.defective || p.allPartsCreated;
+			addPartButtonHtml = `<button class="btn-secondary btn-small" title="Добавить часть изделия" onclick="addChildPart(${p.id})" ${isDisabled ? 'disabled' : ''}>+</button>`;
+		}
 
-            return `<tr class="${isChild ? 'product-child-row' : rowBgClass}">
-                <td style="padding-left:12px;">${nameHtml}</td>
-                <td class="text-center">${fileIconHtml}</td>
-                <td style="width: 110px;">${p.date}</td>
-                <td>${fil}</td>
-                <td>${formattedTime}</td>
-                <td>${weight.toFixed(1)}</td>
-                <td>${length.toFixed(2)}</td>
-                <td>${p.quantity}</td>
-                <td>${p.inStock !== undefined ? p.inStock : p.quantity}</td>
-                <td>${costM} ₽</td>
-                <td>${costA} ₽</td>
-                <td>${statusHtml}</td>
-                <td class="text-center">${linkHtml}</td>
-                <td class="text-center">
-                    <div class="action-buttons">
-                        ${addPartButtonHtml} 
-                        <button class="btn-secondary btn-small" title="Редактировать" onclick="editProduct(${p.id})">✎</button>
-                        <button class="btn-secondary btn-small" title="Копировать" onclick="copyProduct(${p.id})">❐</button>
-                        <button class="btn-danger btn-small" title="Удалить" onclick="deleteProduct(${p.id})">✕</button>
-                    </div>
-                </td>
-            </tr>`;
-        }
+		return `<tr class="${isChild ? 'product-child-row' : rowBgClass}">
+			<td style="padding-left:12px;">${nameHtml}</td>
+			<td class="text-center">${fileIconHtml}</td>
+			<td style="width: 110px;">${p.date}</td>
+			<td>${fil}</td>
+			<td>${formattedTime}</td>
+			<td>${weight.toFixed(1)}</td>
+			<td>${length.toFixed(2)}</td>
+			<td>${p.quantity}</td>
+			<td>${p.inStock !== undefined ? p.inStock : p.quantity}</td>
+			<td>${costM} ₽</td>
+			<td>${costA} ₽</td>
+			<td>${statusHtml}</td>
+			<td class="text-center">${linkHtml}</td>
+			<td class="text-center">
+				<div class="action-buttons">
+					${addPartButtonHtml} 
+					<button class="btn-secondary btn-small" title="Редактировать" onclick="editProduct(${p.id})">✎</button>
+					<button class="btn-secondary btn-small" title="Копировать" onclick="copyProduct(${p.id})">❐</button>
+					<button class="btn-danger btn-small" title="Удалить" onclick="deleteProduct(${p.id})">✕</button>
+				</div>
+			</td>
+		</tr>`;
+	}
+
 
 
 		function onParentProductChange() {
@@ -3126,9 +3125,43 @@
 	}
 
 	// Картинки (пока заглушки, т.к. база хранит только текст)
-	function showProductImagePreview(element, productId) {}
 	function moveProductImagePreview(event) {}
 	function hideProductImagePreview(element) {}
+
+
+	// --- ПРЕВЬЮ КАРТИНКИ В ТАБЛИЦЕ (ИСПРАВЛЕНО) ---
+	function showProductImagePreview(element, productId) {
+		const product = db.products.find(p => p.id === productId);
+		if (!product) return;
+
+		// Проверяем: есть ли ссылка (облако) ИЛИ есть ли блоб (локально)
+		const hasImage = product.imageUrl || (product.imageBlob instanceof Blob);
+		
+		if (!hasImage) return;
+
+		const tooltip = document.getElementById('globalImageTooltip');
+		const img = document.getElementById('globalImageTooltipImg');
+		
+		if (tooltip && img) {
+			let src = '';
+			
+			if (product.imageUrl) {
+				// Если это ссылка из ImgBB
+				src = product.imageUrl;
+			} else if (product.imageBlob instanceof Blob) {
+				// Если это локальный файл (только что создали, но не обновили страницу)
+				src = URL.createObjectURL(product.imageBlob);
+				element.dataset.previewUrl = src; // Сохраняем, чтобы потом очистить память
+			}
+
+			img.src = src;
+			
+			// Показываем тултип только когда картинка загрузилась (чтобы не мигало)
+			img.onload = () => {
+				tooltip.style.display = 'block';
+			};
+		}
+	}
 
 
 
