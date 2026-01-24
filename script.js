@@ -1,4 +1,4 @@
-console.log("Version: 4.1");
+console.log("Version: 4.2");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1126,6 +1126,15 @@ function hideProductImagePreview(element) {
 }
 
 function filterProducts() {
+    updateProductsTable();
+}
+
+function resetProductFilters() {
+    document.getElementById('productSearch').value = '';
+    document.getElementById('productAvailabilityFilter').value = '';
+    document.getElementById('productSortBy').value = 'systemId-desc';
+    const childrenCheck = document.getElementById('showProductChildren');
+    if(childrenCheck) childrenCheck.checked = true;
     updateProductsTable();
 }
 
