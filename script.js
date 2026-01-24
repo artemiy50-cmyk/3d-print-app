@@ -220,17 +220,7 @@ const s = localStorage.getItem('showProductChildren');
 if(s!==null) document.getElementById('showProductChildren').checked = (s==='true');
 }
 
-// === ВАЖНАЯ ФУНКЦИЯ, КОТОРУЮ Я ПРОПУСТИЛ ===
-function updateAllSelects() {
-document.querySelectorAll('#filamentBrand').forEach(s => s.innerHTML = db.brands.map((b, i) => <option value="${i}">${escapeHtml(b)}</option>).join(''));
-document.querySelectorAll('#filamentColor').forEach(s => { const editId = document.getElementById('filamentModal')?.getAttribute('data-edit-id'); let opts = !editId ? [<option value="">-- Выберите цвет --</option>] : []; opts.push(...db.colors.map(c => <option value="${c.id}">${escapeHtml(c.name)}</option>)); s.innerHTML = opts.join(''); });
-document.querySelectorAll('#filamentType').forEach(s => s.innerHTML = db.plasticTypes.map(p => <option value="${p}">${escapeHtml(p)}</option>).join(''));
-document.querySelectorAll('#filamentAvailability').forEach(s => s.innerHTML = db.filamentStatuses.map(s => <option value="${s}">${escapeHtml(s)}</option>).join(''));
-const fs = document.getElementById('filamentStatusFilter'); if(fs) { const v=fs.value; fs.innerHTML = '— Все статусы —' + db.filamentStatuses.map(s => <option value="${s}">${escapeHtml(s)}</option>).join(''); fs.value=v; }
-document.querySelectorAll('#productPrinter').forEach(s => s.innerHTML = db.printers.map(p => <option value="${p.id}">${escapeHtml(p.model)}</option>).join(''));
 
-updateProductFilamentSelect(); updateBrandsList(); updateColorsList(); updateFilamentTypeList(); updateFilamentStatusList(); updatePrintersList(); updateElectricityCostList();
-}
 
 // ==================== DASHBOARD ====================
 
@@ -555,6 +545,49 @@ tbody.innerHTML = db.writeoffs.map(w => {
 return <tr><td>${w.date}</td><td>${w.productName}</td><td>${w.type}</td><td>${w.total}</td></tr>;
 }).join('');
 }
+
+
+
+function updateAllSelects() {
+    // 1. Бренды
+    document.querySelectorAll('#filamentBrand').forEach(s => s.innerHTML = db.brands.map((b, i) => `<option value="${i}">${escapeHtml(b)}</option>`).join(''));
+    
+    // 2. Цвета
+    document.querySelectorAll('#filamentColor').forEach(s => { 
+        const editId = document.getElementById('filamentModal')?.getAttribute('data-edit-id'); 
+        let opts = !editId ? [`<option value="">-- Выберите цвет --</option>`] : []; 
+        opts.push(...db.colors.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`)); 
+        s.innerHTML = opts.join(''); 
+    });
+
+    // 3. Типы и Статусы
+    document.querySelectorAll('#filamentType').forEach(s => s.innerHTML = db.plasticTypes.map(p => `<option value="${p}">${escapeHtml(p)}</option>`).join(''));
+    document.querySelectorAll('#filamentAvailability').forEach(s => s.innerHTML = db.filamentStatuses.map(s => `<option value="${s}">${escapeHtml(s)}</option>`).join(''));
+    
+    // 4. Фильтр статусов
+    const fs = document.getElementById('filamentStatusFilter'); 
+    if(fs) { 
+        const v = fs.value; 
+        fs.innerHTML = '<option value="">— Все статусы —</option>' + db.filamentStatuses.map(s => `<option value="${s}">${escapeHtml(s)}</option>`).join(''); 
+        fs.value = v; 
+    }
+
+    // 5. Принтеры
+    document.querySelectorAll('#productPrinter').forEach(s => s.innerHTML = db.printers.map(p => `<option value="${p.id}">${escapeHtml(p.model)}</option>`).join(''));
+
+    // 6. Обновление списков в разделе "Справочники" и зависимых полей
+    if(typeof updateProductFilamentSelect === 'function') updateProductFilamentSelect(); 
+    if(typeof updateBrandsList === 'function') updateBrandsList(); 
+    if(typeof updateColorsList === 'function') updateColorsList(); 
+    if(typeof updateFilamentTypeList === 'function') updateFilamentTypeList(); 
+    if(typeof updateFilamentStatusList === 'function') updateFilamentStatusList(); 
+    if(typeof updatePrintersList === 'function') updatePrintersList(); 
+    if(typeof updateElectricityCostList === 'function') updateElectricityCostList();
+}
+
+// ========================================================
+
+
 
 // ==================== EVENT LISTENERS ====================
 
