@@ -1,3 +1,5 @@
+console.log("Version: 4.1");
+
 // ==================== КОНФИГУРАЦИЯ ====================
 
 // 1. Firebase (База данных + Авторизация)
@@ -1121,6 +1123,10 @@ function hideProductImagePreview(element) {
             if(img) img.src = ''; 
         }
     }
+}
+
+function filterProducts() {
+    updateProductsTable();
 }
 
 // ==================== WRITEOFF ====================
