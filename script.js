@@ -1,4 +1,4 @@
-console.log("Version: 4.6 (Restored Logic21-23)");
+console.log("Version: 4.6 (Restored Logic21-38)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -866,6 +866,48 @@ function editProduct(id) {
 }
 
 
+// ДОБАВЬТЕ ЭТУ ФУНКЦИЮ
+function validateProductForm() {
+    let valid = true;
+    const t = document.getElementById('productType').value;
+    const req = ['productDate', 'productQuantity', 'productName'];
+    if (t !== 'Составное') {
+        req.push('productFilament', 'productPrinter', 'productWeight', 'productLength');
+    }
+    if (t === 'Часть составного') {
+        req.push('productParent');
+    }
+
+    document.getElementById('productValidationMessage').classList.add('hidden');
+    document.querySelectorAll('#productModal input, #productModal select').forEach(el => el.classList.remove('error'));
+
+    req.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el.value || (el.type === 'number' && parseFloat(el.value) === 0)) {
+            el.classList.add('error');
+            valid = false;
+        }
+    });
+
+    if (t !== 'Составное') {
+        const h = parseInt(document.getElementById('productPrintTimeHours').value) || 0;
+        const m = parseInt(document.getElementById('productPrintTimeMinutes').value) || 0;
+        if (h === 0 && m === 0) {
+            document.getElementById('productPrintTimeHours').classList.add('error');
+            document.getElementById('productPrintTimeMinutes').classList.add('error');
+            valid = false;
+        }
+    }
+
+    if (!valid) {
+        document.getElementById('productValidationMessage').textContent = 'Не все обязательные поля заполнены';
+        document.getElementById('productValidationMessage').classList.remove('hidden');
+    }
+    return valid;
+}
+
+
+
 
 // ЗАМЕНИТЬ эту функцию целиком
 async function saveProduct(andThenWriteOff = false) {
@@ -1153,12 +1195,29 @@ function buildProductRow(p, isChild) {
 
 
 
+// ЗАМЕНИТЕ ЭТУ ФУНКЦИЮ ЦЕЛИКОМ
 function updateChildrenTable() { 
     const eid = document.getElementById('productModal').getAttribute('data-edit-id'); 
     if(!eid) return; 
     const kids = db.products.filter(p => p.parentId === parseInt(eid)); 
-    document.querySelector('#childrenTable tbody').innerHTML = kids.map(k => `<tr><td>${k.name}</td><td>${k.quantity}</td><td>${k.weight}</td><td>${k.costActualPrice.toFixed(2)}</td></tr>`).join('');
+    
+    document.querySelector('#childrenTable tbody').innerHTML = kids.map(k => {
+        const colorHex = k.filament && k.filament.color ? k.filament.color.hex : '#eee';
+        const colorName = k.filament && k.filament.color ? escapeHtml(k.filament.color.name) : 'Нет цвета';
+        
+        return `<tr>
+            <td>${k.defective?'❌ ':''}${escapeHtml(k.name)}</td>
+            <td><span class="color-swatch" style="background:${colorHex}" title="${colorName}"></span></td>
+            <td>${k.quantity}</td>
+            <td>${(k.weight || 0).toFixed(1)}</td>
+            <td>${(k.length || 0).toFixed(2)}</td>
+            <td>${(k.costMarketPrice || 0).toFixed(2)}</td>
+            <td>${(k.costActualPrice || 0).toFixed(2)}</td>
+        </tr>`;
+    }).join(''); 
 }
+
+
 
 function updateProductsTable() {
     const tbody = document.querySelector('#productsTable tbody');
@@ -1239,6 +1298,29 @@ function updateProductFilamentSelect() {
     if (currentFilament && !available.find(f => f.id === currentFilament.id)) { const currentRemaining = Math.max(0, currentFilament.length - (currentFilament.usedLength||0)); options.push(`<option value="${currentFilament.id}">${escapeHtml(currentFilament.customId)} (ост. ${currentRemaining.toFixed(1)} м.) - текущий</option>`); }
     options.push(...available.map(f => { const remaining = Math.max(0, f.length - (f.usedLength||0)); return `<option value="${f.id}">${escapeHtml(f.customId)} (ост. ${remaining.toFixed(1)} м.)</option>`; })); filamentSelect.innerHTML = options.join(''); if (currentFilament) filamentSelect.value = currentFilament.id;
 }
+
+
+// ДОБАВЬТЕ ЭТУ ФУНКЦИЮ
+function updateProductColorDisplay() {
+    const filamentSelect = document.getElementById('productFilament');
+    const previewBox = document.getElementById('productColorSwatch');
+    const colorName = document.getElementById('productColorName');
+    
+    if (!filamentSelect || !previewBox || !colorName) return;
+    
+    const filId = filamentSelect.value;
+    const filament = db.filaments.find(f => f.id == filId);
+
+    if (filament && filament.color) {
+        previewBox.style.backgroundColor = filament.color.hex;
+        colorName.textContent = escapeHtml(filament.color.name);
+    } else {
+        previewBox.style.backgroundColor = '#ffffff';
+        colorName.textContent = '—';
+    }
+}
+
+
 
 // ==================== WRITEOFFS (RESTORED LOGIC) ====================
 
@@ -1497,6 +1579,7 @@ function calcWriteoffTotal() {
     document.getElementById('writeoffTotalProfit').textContent = `${totalProfit.toFixed(2)} ₽`;
 }
 
+// ЗАМЕНИТЕ ЭТУ ФУНКЦИЮ ЦЕЛИКОМ
 function saveWriteoff() {
     const systemId = document.getElementById('writeoffSystemId').textContent;
     const date = document.getElementById('writeoffDate').value;
@@ -1506,51 +1589,143 @@ function saveWriteoff() {
 
     const sections = document.querySelectorAll('.writeoff-item-section');
     const newItems = [];
+    let globalValid = true; 
     
-    // Проверка
-    let valid = true;
+    document.getElementById('writeoffValidationMessage').classList.add('hidden');
+    document.getElementById('writeoffValidationMessage').textContent = 'Не все обязательные поля заполнены';
+    
     sections.forEach(sec => {
+        sec.querySelector('.writeoff-product-select').classList.remove('error');
+        sec.querySelector('.section-qty').classList.remove('error');
+        sec.querySelector('.section-price').classList.remove('error');
+    });
+
+    if (sections.length === 0) {
+        globalValid = false;
+    }
+    
+    const productUsageMap = {}; 
+
+    for (let i = 0; i < sections.length; i++) {
+        const sec = sections[i];
+        let sectionValid = true;
+
         const pid = sec.querySelector('.writeoff-product-select').value;
-        const qty = parseInt(sec.querySelector('.section-qty').value);
-        if(!pid || !qty || qty<=0) valid = false;
-        else {
+        if (!pid) {
+            sec.querySelector('.writeoff-product-select').classList.add('error');
+            sectionValid = false;
+        }
+        
+        const qtyInput = sec.querySelector('.section-qty');
+        const qty = parseInt(qtyInput.value);
+        
+        if (!qty || qty <= 0) { 
+            qtyInput.classList.add('error');
+            sectionValid = false;
+        }
+        
+        if (pid && qty > 0) {
+            const product = db.products.find(p => p.id == parseInt(pid));
+            if (!product) { 
+                sectionValid = false; 
+            } else {
+                if (!productUsageMap[pid]) productUsageMap[pid] = 0;
+                productUsageMap[pid] += qty;
+                
+                const editGroup = document.getElementById('writeoffModal').getAttribute('data-edit-group');
+                const usedElsewhere = getWriteoffQuantityForProduct(parseInt(pid), editGroup);
+                const currentStock = Math.max(0, product.quantity - usedElsewhere);
+                
+                if (productUsageMap[pid] > currentStock) {
+                    const msg = `Ошибка: Попытка списать (${productUsageMap[pid]}) больше доступного остатка (${currentStock}) для "${product.name}"`;
+                    document.getElementById('writeoffValidationMessage').textContent = msg;
+                    document.getElementById('writeoffValidationMessage').classList.remove('hidden');
+                    qtyInput.classList.add('error');
+                    sectionValid = false;
+                }
+            }
+        }
+
+        let price = 0;
+        if (type === 'Продажа') {
+            const priceInput = sec.querySelector('.section-price');
+            const priceVal = priceInput.value.trim(); 
+            const priceNum = parseFloat(priceVal);
+            
+            if (priceVal === '' || isNaN(priceNum) || priceNum <= 0) { 
+                priceInput.classList.add('error');
+                sectionValid = false; 
+            } else {
+                price = priceNum;
+            }
+        }
+
+        if (sectionValid) {
             const product = db.products.find(p => p.id == parseInt(pid));
             newItems.push({
-                id: Date.now() + Math.random(), 
-                systemId: systemId, date: date, productId: parseInt(pid), productName: product.name,
-                type: type, qty: qty, price: parseFloat(sec.querySelector('.section-price').value)||0,
-                total: qty * (parseFloat(sec.querySelector('.section-price').value)||0),
-                note: note
+                id: Date.now() + i, 
+                systemId: systemId,
+                date: date,
+                productId: parseInt(pid),
+                productName: product ? product.name : 'Unknown',
+                type: type,
+                qty: qty,
+                price: price,
+                total: qty * price,
+                note: note,
+                hasDeductedParts: (product && product.type === 'Составное') 
             });
+        } else {
+            globalValid = false;
         }
-    });
-
-    if(!valid || newItems.length === 0) { alert('Заполните все поля!'); return; }
-
-    // Возврат на склад старых
-    if (isEdit) {
-        const oldItems = db.writeoffs.filter(w => w.systemId === systemId);
-        db.writeoffs = db.writeoffs.filter(w => w.systemId !== systemId);
-        oldItems.forEach(old => {
-            const p = db.products.find(x => x.id === old.productId);
-            if(p) { p.inStock += old.qty; p.status = (p.inStock > 0 ? (p.inStock < p.quantity ? 'В наличии частично' : 'В наличии полностью') : 'Нет в наличии'); }
-        });
     }
 
-    // Списание новых
-    newItems.forEach(item => {
-        db.writeoffs.push(item);
-        const p = db.products.find(x => x.id === item.productId);
-        if(p) { 
-            p.inStock -= item.qty; 
-            p.status = (p.inStock > 0 ? (p.inStock < p.quantity ? 'В наличии частично' : 'В наличии полностью') : 'Нет в наличии');
+    if (!globalValid) {
+        if(document.getElementById('writeoffValidationMessage').classList.contains('hidden')) {
+             document.getElementById('writeoffValidationMessage').classList.remove('hidden');
         }
-    });
+        return;
+    }
+    
+    if (newItems.length === 0) { alert('Нет данных для сохранения'); return; }
 
-    saveToLocalStorage();
-    updateWriteoffTable(); updateProductsTable(); updateDashboard(); updateReports();
-    closeWriteoffModal();
+    try {
+        if (isEdit) {
+            const oldItems = db.writeoffs.filter(w => w.systemId === systemId);
+            db.writeoffs = db.writeoffs.filter(w => w.systemId !== systemId);
+            oldItems.forEach(old => {
+                const p = db.products.find(x => x.id === old.productId);
+                if(p) { 
+                    p.inStock += old.qty; 
+                    p.status = determineProductStatus(p); 
+                    p.availability = p.status; 
+                }
+            });
+        }
+
+        newItems.forEach(item => {
+            db.writeoffs.push(item);
+            const p = db.products.find(x => x.id === item.productId);
+            if(p) { 
+                p.inStock -= item.qty; 
+                p.status = determineProductStatus(p); 
+                p.availability = p.status; 
+            }
+        });
+
+        saveToLocalStorage();
+        updateWriteoffTable(); 
+        updateProductsTable(); 
+        updateDashboard(); 
+        updateReports(); 
+        
+        closeWriteoffModal();
+    } catch (e) {
+        alert("Ошибка при сохранении: " + e.message);
+        console.error(e);
+    }
 }
+
 
 function deleteWriteoff(systemId) {
     if (!confirm('Удалить списание?')) return;
@@ -1694,7 +1869,7 @@ function moveReferenceItemDown(arrayName, index) { const arr = db[arrayName]; if
 
 // ==================== EVENT LISTENERS ====================
 
-// ЗАМЕНИТЕ эту функцию целиком
+// ЗАМЕНИТЕ ЭТУ ФУНКЦИЮ ЦЕЛИКОМ
 function setupEventListeners() {
     // Nav
     document.querySelectorAll('.menu-item[data-page]').forEach(b => b.addEventListener('click', () => showPage(b.dataset.page)));
@@ -1718,15 +1893,21 @@ function setupEventListeners() {
     if(document.getElementById('showProductChildren')) {
         document.getElementById('showProductChildren').addEventListener('change', filterProducts);
     }
-    // ИСПРАВЛЕНИЕ: Добавлен обработчик для чек-бокса "Брак"
     document.getElementById('productDefective')?.addEventListener('change', updateProductAvailability);
-    
+    // ИСПРАВЛЕНИЕ: Добавлен обработчик для авто-заполнения цвета
+    document.getElementById('productFilament')?.addEventListener('change', () => {
+        updateProductColorDisplay();
+        updateProductCosts();
+    });
+
     // Writeoffs
     document.getElementById('addWriteoffBtn')?.addEventListener('click', () => openWriteoffModal());
     document.getElementById('addProductPageWriteoffBtn')?.addEventListener('click', () => openWriteoffModal());
     document.getElementById('saveWriteoffBtn')?.addEventListener('click', saveWriteoff);
     document.getElementById('closeWriteoffModalBtn')?.addEventListener('click', closeWriteoffModal);
-    
+    // ИСПРАВЛЕНИЕ: Добавлен обработчик для кнопки "добавить изделие к списанию"
+    document.getElementById('addWriteoffItemBtn')?.addEventListener('click', () => addWriteoffItemSection());
+
     // Reports
     document.getElementById('generateReportBtn')?.addEventListener('click', updateFinancialReport);
     
@@ -1737,6 +1918,7 @@ function setupEventListeners() {
     document.getElementById('btnAddFile')?.addEventListener('click', () => document.getElementById('productFileInput').click());
     document.getElementById('productFileInput')?.addEventListener('change', function() { handleFileUpload(this); });
 }
+
 
 
 
