@@ -1,4 +1,4 @@
-console.log("Version: 4.2");
+console.log("Version update: 2026-01-24 15:20");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1506,6 +1506,111 @@ function updateReports() {
     if (endInput && !endInput.value) {
         endInput.value = new Date().toISOString().split('T')[0];
     }
+	
+	// === ВСТАВИТЬ ЭТОТ БЛОК (Логика финансового отчета) ===
+function updateFinancialReport() {
+    const startInput = document.getElementById('reportStartDate');
+    const endInput = document.getElementById('reportEndDate');
+    if (!startInput || !endInput) return;
+
+    const dStart = new Date(startInput.value);
+    const dEnd = new Date(endInput.value);
+    dEnd.setHours(23, 59, 59, 999); 
+
+    // 1. Сбор данных
+    const filamentsBought = db.filaments.filter(f => {
+        const d = new Date(f.date); return d >= dStart && d <= dEnd;
+    });
+    const sumExpenses = filamentsBought.reduce((sum, f) => sum + (f.actualPrice || 0), 0);
+
+    const writeoffsInRange = db.writeoffs.filter(w => {
+        const d = new Date(w.date); return d >= dStart && d <= dEnd;
+    });
+
+    const sumRevenue = writeoffsInRange
+        .filter(w => w.type === 'Продажа')
+        .reduce((sum, w) => sum + (w.total || 0), 0);
+
+    let sumCOGS = 0; 
+    let sumCostUsedDefect = 0; 
+
+    writeoffsInRange.forEach(w => {
+        const product = db.products.find(p => p.id === w.productId);
+        const costOne = product ? (product.costPer1Actual || 0) : 0;
+        const totalCost = costOne * w.qty;
+        if (w.type === 'Продажа') sumCOGS += totalCost;
+        else if (w.type === 'Использовано' || w.type === 'Брак') sumCostUsedDefect += totalCost;
+    });
+
+    const defectiveProducts = db.products.filter(p => {
+        const d = new Date(p.date); return p.defective === true && d >= dStart && d <= dEnd;
+    });
+    defectiveProducts.forEach(p => sumCostUsedDefect += (p.costActualPrice || 0));
+
+    // 2. Генерация HTML
+    const createRowHtml = (title, desc, expenses, costUsed, revenue, cogs, profit) => {
+        const ros = revenue > 0 ? (profit / revenue) * 100 : 0;
+        const markup = cogs > 0 ? (profit / cogs) * 100 : 0;
+        const fmtMoney = (v) => v !== null ? v.toLocaleString('ru-RU', {style: 'currency', currency: 'RUB'}) : '';
+        const fmt = (v) => v ? v.toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '';
+        const pColor = profit > 0 ? 'val-positive' : (profit < 0 ? 'val-negative' : 'val-neutral');
+
+        return `
+        <tr>
+            <td style="text-align:left; padding: 12px 16px;">
+                <div class="tooltip-container" style="display: inline-block; position: relative;">
+                    <div class="report-row-title">${title}</div>
+                    <span class="tooltip-text">${desc}</span>
+                </div>
+            </td>
+            <td class="report-val val-neutral">${expenses !== null ? fmtMoney(expenses) : ''}</td>
+            <td class="report-val val-neutral">${costUsed !== null ? fmtMoney(costUsed) : ''}</td>
+            <td class="report-val val-neutral">${revenue !== null ? fmtMoney(revenue) : ''}</td>
+            <td class="report-val val-neutral">${cogs !== null ? fmtMoney(cogs) : ''}</td>
+            <td class="report-val ${pColor} col-profit">${fmtMoney(profit)}</td>
+            <td class="report-val col-ros">${revenue !== null && cogs !== null ? fmt(ros) : ''}</td>
+            <td class="report-val col-markup">${cogs !== null ? fmt(markup) : ''}</td>
+        </tr>
+        `;
+    };
+
+    const tbody = document.querySelector('#financialTable tbody');
+    if (!tbody) return;
+    
+    let html = '';
+
+    const profit1 = -sumExpenses + sumRevenue;
+    html += createRowHtml(
+        'Прибыль (Cash Flow)',
+        '<b>Формула:</b><br>Выручка с продаж<br>− Затраты на покупку филамента (в этот период)<br><br>Сколько денег пришло минус сколько ушло на закупку.',
+        sumExpenses, null, sumRevenue, null, profit1
+    );
+
+    const profit2 = -sumExpenses + sumRevenue + sumCostUsedDefect;
+    html += createRowHtml(
+        'Прибыль (Скорректированная)',
+        '<b>Формула:</b><br>Cash Flow + Себестоимость (Использовано для себя + Брак)<br><br>Показывает реальный результат, если бы вы не тратили пластик на себя.',
+        sumExpenses, sumCostUsedDefect, sumRevenue, null, profit2
+    );
+
+    const profit3 = sumRevenue - sumCOGS;
+    html += createRowHtml(
+        'Валовая прибыль (Торговая)',
+        '<b>Формула:</b><br>Выручка с продаж<br>− Себестоимость проданных товаров<br><br>Эффективность именно продаж (без учета закупок на склад).',
+        null, null, sumRevenue, sumCOGS, profit3
+    );
+
+    const profit4 = sumRevenue - sumCOGS - sumCostUsedDefect;
+    html += createRowHtml(
+        'Чистая прибыль (Операционная)',
+        '<b>Формула:</b><br>Валовая прибыль<br>− Убытки (Использовано + Брак)<br><br>Итоговый финансовый результат деятельности.',
+        null, sumCostUsedDefect, sumRevenue, sumCOGS, profit4
+    );
+
+    tbody.innerHTML = html;
+}
+	// =========================================================
+
 
     // 2. Генерация отчета
     updateFinancialReport();
