@@ -3124,19 +3124,17 @@
 		});
 	}
 
-	// Картинки (пока заглушки, т.к. база хранит только текст)
-	function moveProductImagePreview(event) {}
-	function hideProductImagePreview(element) {}
+	// ==================== ПРЕВЬЮ КАРТИНКИ (TOOLTIP) ====================
 
+	// Глобальная переменная для отслеживания загрузки
+	let isImageLoading = false;
 
-	// --- ПРЕВЬЮ КАРТИНКИ В ТАБЛИЦЕ (ИСПРАВЛЕНО) ---
 	function showProductImagePreview(element, productId) {
 		const product = db.products.find(p => p.id === productId);
 		if (!product) return;
 
 		// Проверяем: есть ли ссылка (облако) ИЛИ есть ли блоб (локально)
 		const hasImage = product.imageUrl || (product.imageBlob instanceof Blob);
-		
 		if (!hasImage) return;
 
 		const tooltip = document.getElementById('globalImageTooltip');
@@ -3144,24 +3142,83 @@
 		
 		if (tooltip && img) {
 			let src = '';
-			
 			if (product.imageUrl) {
-				// Если это ссылка из ImgBB
 				src = product.imageUrl;
 			} else if (product.imageBlob instanceof Blob) {
-				// Если это локальный файл (только что создали, но не обновили страницу)
 				src = URL.createObjectURL(product.imageBlob);
-				element.dataset.previewUrl = src; // Сохраняем, чтобы потом очистить память
+				// Сохраняем URL в элементе (строке таблицы), а не в глобальной переменной
+				element.dataset.previewUrl = src; 
 			}
 
-			img.src = src;
-			
-			// Показываем тултип только когда картинка загрузилась (чтобы не мигало)
-			img.onload = () => {
+			// Если картинка та же самая, не перезагружаем
+			if (img.src !== src) {
+				img.style.display = 'none'; // Скрываем старую пока грузится новая
+				isImageLoading = true;
+				img.src = src;
+				
+				img.onload = () => {
+					isImageLoading = false;
+					img.style.display = 'block';
+					tooltip.style.display = 'block'; // Показываем контейнер только после загрузки
+				};
+			} else {
+				// Если картинка уже загружена
+				img.style.display = 'block';
 				tooltip.style.display = 'block';
-			};
+			}
 		}
 	}
+
+	function moveProductImagePreview(event) {
+		const tooltip = document.getElementById('globalImageTooltip');
+		if (tooltip && tooltip.style.display === 'block') {
+			const offset = 20; // Отступ от курсора
+			let top = event.clientY + offset;
+			let left = event.clientX + offset;
+			
+			// Получаем размеры окна
+			const winWidth = window.innerWidth;
+			const winHeight = window.innerHeight;
+			const tipWidth = tooltip.offsetWidth || 200; // Примерная ширина если скрыт
+			const tipHeight = tooltip.offsetHeight || 200;
+
+			// Если уходит за правый край -> показываем слева от курсора
+			if (left + tipWidth > winWidth) {
+				left = event.clientX - tipWidth - offset;
+			}
+
+			// Если уходит за нижний край -> показываем НАД курсором
+			if (top + tipHeight > winHeight) {
+				top = event.clientY - tipHeight - offset;
+			}
+			
+			// Финальные проверки, чтобы не ушло в минус (за верхний/левый край)
+			if (top < 0) top = 10;
+			if (left < 0) left = 10;
+
+			tooltip.style.top = top + 'px';
+			tooltip.style.left = left + 'px';
+		}
+	}
+
+	function hideProductImagePreview(element) {
+		const tooltip = document.getElementById('globalImageTooltip');
+		const img = document.getElementById('globalImageTooltipImg');
+		
+		if (tooltip) {
+			tooltip.style.display = 'none';
+			
+			// Не очищаем src сразу, чтобы при быстром возврате не было мигания
+			// Но если это был Blob URL, его нужно освободить
+			if (element && element.dataset.previewUrl) {
+				URL.revokeObjectURL(element.dataset.previewUrl);
+				delete element.dataset.previewUrl;
+				img.src = ''; // Очищаем только если это был Blob
+			}
+		}
+	}
+
+
 
 
 

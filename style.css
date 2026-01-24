@@ -948,13 +948,14 @@
             padding: 4px;
             border-radius: var(--radius);
             box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-            display: none;
-            pointer-events: none;
+            display: none; /* <--- ЭТО ВАЖНО */
+            pointer-events: none; /* Чтобы мышка не "спотыкалась" об картинку */
             width: 200px;
             height: 200px;
             object-fit: contain;
             background-color: #fff;
         }
+		
         #globalImageTooltip img {
             width: 100%;
             height: 100%;
