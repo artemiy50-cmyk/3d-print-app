@@ -191,7 +191,14 @@
         .btn-danger { background: var(--color-danger); color: white; }
         .btn-danger:hover { background: #b91c1c; }
 
-        .search-input { padding: 10px 14px; border: 1px solid var(--color-border); border-radius: var(--radius); font-size: 14px; width: 250px; }
+        .search-input { 
+			padding: 10px 14px; 
+			border: 1px solid var(--color-border); 
+			border-radius: var(--radius); 
+			font-size: 14px; 
+			width: 335px; /* Увеличено на ~33% */
+		}
+
         .search-input:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1); }
         input, textarea, select { width: 100%; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: var(--radius); font-size: 14px; font-family: inherit; color: var(--color-text); }
         input:focus, textarea:focus, select:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1); }

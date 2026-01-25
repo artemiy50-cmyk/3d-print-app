@@ -1,4 +1,4 @@
-console.log("Version: 4.0 (2026-01-25 19-38)");
+console.log("Version: 4.0 (2026-01-25 19-57)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1574,16 +1574,45 @@ function updateChildrenTable() {
 function updateProductsTable() {
     const tbody = document.querySelector('#productsTable tbody');
     const term = document.getElementById('productSearch').value.toLowerCase();
-    const filtered = db.products.filter(p => !p.parentId && p.name.toLowerCase().includes(term));
-    const showChildren = document.getElementById('showProductChildren')?.checked;
-    
-    tbody.innerHTML = filtered.map(p => {
-        let html = buildProductRow(p, false);
-        if(showChildren) {
-            db.products.filter(c => c.parentId == p.id).forEach(c => html += buildProductRow(c, true));
+    const availFilter = document.getElementById('productAvailabilityFilter').value;
+    const sortBy = document.getElementById('productSortBy').value;
+    const showChildren = document.getElementById('showProductChildren').checked;
+
+    const sortFn = (a, b) => {
+        if (sortBy === 'systemId-desc') return (b.systemId||'').localeCompare(a.systemId||'');
+        if (sortBy === 'systemId-asc') return (a.systemId||'').localeCompare(b.systemId||'');
+        if (sortBy === 'date-desc') return new Date(b.date) - new Date(a.date);
+        if (sortBy === 'date-asc') return new Date(a.date) - new Date(b.date);
+        if (sortBy === 'name') return a.name.localeCompare(b.name);
+        if (sortBy === 'weight') return (b.weight||0) - (a.weight||0);
+        if (sortBy === 'length') return (b.length||0) - (a.length||0);
+        if (sortBy === 'quantity') return (b.quantity||0) - (a.quantity||0);
+        return 0;
+    };
+
+    let rootProducts = db.products.filter(p => {
+        if (p.type === 'Часть составного') return false; 
+        if (term && !p.name.toLowerCase().includes(term)) return false;
+        if (availFilter) {
+            if (availFilter === 'Брак') { if (!p.defective) return false; }
+            else if (availFilter === 'InStock') { if ((p.inStock || 0) <= 0) return false; }
+            else if (p.status !== availFilter) return false;
         }
-        return html;
-    }).join('');
+        return true;
+    });
+    
+    rootProducts.sort(sortFn);
+
+    let html = '';
+    rootProducts.forEach(root => {
+        html += buildProductRow(root, false);
+        if (root.type === 'Составное' && showChildren) {
+            const children = db.products.filter(k => k.parentId === root.id);
+            children.sort((a, b) => (a.systemId || '').localeCompare(b.systemId || ''));
+            children.forEach(child => html += buildProductRow(child, true));
+        }
+    });
+    tbody.innerHTML = html;
 }
 
 function filterProducts() { updateProductsTable(); }
@@ -1669,18 +1698,119 @@ function updateProductAvailability() {
     const def = document.getElementById('productDefective').checked;
     const statusField = document.getElementById('productAvailabilityField');
     const type = document.getElementById('productType').value;
-    let statusText = def ? 'Брак' : 'В наличии полностью'; let statusClass = 'status-field-stocked';
-    if (type === 'Часть составного') { statusText = def ? 'Брак' : 'Часть изделия'; statusClass = def ? 'status-field-defective' : 'status-field-part'; } else if (statusText === 'Брак') { statusClass = 'status-field-defective'; }
-    statusField.textContent = statusText; statusField.className = 'calc-field ' + statusClass;
+    
+    // Авто-активация признака сборки для составного при браке
+    if (type === 'Составное' && def) {
+        const allPartsCb = document.getElementById('productAllPartsCreated');
+        if(allPartsCb) allPartsCb.checked = true;
+    }
+
+    let statusText = def ? 'Брак' : 'В наличии полностью'; 
+    let statusClass = 'status-field-stocked';
+    if (type === 'Часть составного') { 
+        statusText = def ? 'Брак' : 'Часть изделия'; 
+        statusClass = def ? 'status-field-defective' : 'status-field-part'; 
+    } else if (statusText === 'Брак') { 
+        statusClass = 'status-field-defective'; 
+    }
+    statusField.textContent = statusText; 
+    statusField.className = 'calc-field ' + statusClass;
     updateProductStockDisplay();
 }
 
+// Пункт 2: Сортировка выпадающего списка по ID
 function updateProductFilamentSelect() {
-    const productModal = document.getElementById('productModal'); const editId = productModal.getAttribute('data-edit-id'); const currentProduct = editId ? db.products.find(p => p.id == parseInt(editId)) : null; const currentFilament = currentProduct?.filament; const filamentSelect = document.getElementById('productFilament'); if (!filamentSelect) return;
-    const available = db.filaments.filter(f => f.availability === 'В наличии'); let options = []; if (!editId) options.push(`<option value="">-- Выберите филамент --</option>`);
-    if (currentFilament && !available.find(f => f.id === currentFilament.id)) { const currentRemaining = Math.max(0, currentFilament.length - (currentFilament.usedLength||0)); options.push(`<option value="${currentFilament.id}">${escapeHtml(currentFilament.customId)} (ост. ${currentRemaining.toFixed(1)} м.) - текущий</option>`); }
-    options.push(...available.map(f => { const remaining = Math.max(0, f.length - (f.usedLength||0)); return `<option value="${f.id}">${escapeHtml(f.customId)} (ост. ${remaining.toFixed(1)} м.)</option>`; })); filamentSelect.innerHTML = options.join(''); if (currentFilament) filamentSelect.value = currentFilament.id;
+    const productModal = document.getElementById('productModal'); 
+    const editId = productModal.getAttribute('data-edit-id'); 
+    const currentProduct = editId ? db.products.find(p => p.id == parseInt(editId)) : null; 
+    const currentFilament = currentProduct?.filament; 
+    const filamentSelect = document.getElementById('productFilament'); 
+    if (!filamentSelect) return;
+
+    // Добавлена сортировка .sort() по customId
+    const available = db.filaments
+        .filter(f => f.availability === 'В наличии')
+        .sort((a, b) => (a.customId || '').localeCompare(b.customId || ''));
+
+    let options = []; 
+    if (!editId) options.push(`<option value="">-- Выберите филамент --</option>`);
+    
+    if (currentFilament && !available.find(f => f.id === currentFilament.id)) {
+        const currentRemaining = Math.max(0, currentFilament.length - (currentFilament.usedLength||0));
+        options.push(`<option value="${currentFilament.id}">${escapeHtml(currentFilament.customId)} (ост. ${currentRemaining.toFixed(1)} м.) - текущий</option>`);
+    }
+    
+    options.push(...available.map(f => {
+        const remaining = Math.max(0, f.length - (f.usedLength||0));
+        return `<option value="${f.id}">${escapeHtml(f.customId)} (ост. ${remaining.toFixed(1)} м.)</option>`;
+    }));
+    filamentSelect.innerHTML = options.join(''); 
+    if (currentFilament) filamentSelect.value = currentFilament.id;
 }
+
+// Пункт 1: Значки катушек с хинтом
+function updateFilamentsTable() {
+    const tbody = document.querySelector('#filamentsTable tbody');
+    const sortBy = document.getElementById('filamentSortBy').value;
+
+    const sortedFilaments = [...db.filaments].sort((a, b) => {
+        switch (sortBy) {
+            case 'date-desc': return new Date(b.date) - new Date(a.date);
+            case 'date-asc': return new Date(a.date) - new Date(b.date);
+            case 'availability': return (a.availability || '').localeCompare(b.availability || '');
+            case 'brand': return (a.brand || '').localeCompare(b.brand || '');
+            case 'color': return (a.color?.name || '').localeCompare(b.color?.name || '');
+            case 'id': return (a.customId || '').localeCompare(b.customId || '');
+            case 'length': return (b.remainingLength || 0) - (a.remainingLength || 0);
+            case 'price': return (b.actualPrice || 0) - (a.actualPrice || 0);
+            default: return 0;
+        }
+    });
+
+    tbody.innerHTML = sortedFilaments.map(f => {
+        const badge = f.availability === 'В наличии' ? 'badge-success' : 'badge-gray';
+        const note = f.note ? `<span class="tooltip-container" style="display:inline-flex; vertical-align:middle;"><span class="tooltip-icon">ℹ</span><span class="tooltip-text tooltip-top-left" style="width:200px; white-space:normal; line-height:1.2;">${escapeHtml(f.note)}</span></span>` : '';
+        const link = f.link ? `<a href="${escapeHtml(f.link)}" target="_blank" style="color:#1e40af;text-decoration:underline;">Товар</a>` : '';
+        
+        // ВОССТАНОВЛЕНО: Иконка катушки с хинтом (название филамента)
+        const iconHtml = `<span class="tooltip-container" style="margin-right:6px; cursor:default;"><span style="font-size:16px;">🧵</span><span class="tooltip-text tooltip-top-right">${escapeHtml(f.name)}</span></span>`;
+
+        let rowClass = '';
+        if (f.availability === 'Израсходовано') rowClass = 'row-bg-gray';
+        
+        let remainingHtml = f.remainingLength.toFixed(1);
+        if (f.availability === 'В наличии' && f.remainingLength < 50) {
+            remainingHtml = `<span class="badge badge-danger">${remainingHtml}</span>`;
+            rowClass = 'row-bg-danger';
+        }
+
+        return `<tr class="${rowClass}">
+            <td>${iconHtml}<strong>${escapeHtml(f.customId)}</strong></td>
+            <td>${f.date}</td>
+            <td><span class="badge ${badge}">${escapeHtml(f.availability)}</span></td>
+            <td><span class="color-swatch" style="background:${f.color.hex}"></span>${escapeHtml(f.color.name)}</td>
+            <td>${escapeHtml(f.brand)}</td>
+            <td>${escapeHtml(f.type)}</td>
+            <td>${f.length.toFixed(1)}</td>
+            <td>${remainingHtml} ${note}</td>
+            <td>${(f.usedLength||0).toFixed(1)}</td>
+            <td>${(f.usedWeight||0).toFixed(1)}</td>
+            <td>${f.actualPrice.toFixed(2)}</td>
+            <td>${f.avgPrice.toFixed(2)}</td>
+            <td class="text-center">${link}</td>
+            <td class="text-center">
+                <div class="action-buttons">
+                    <button class="btn-secondary btn-small" title="Редактировать" onclick="editFilament(${f.id})">✎</button>
+                    <button class="btn-secondary btn-small" title="Копировать" onclick="copyFilament(${f.id})">❐</button>
+                    <button class="btn-danger btn-small" title="Удалить" onclick="deleteFilament(${f.id})">✕</button>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+    
+    filterFilaments();
+}
+
 
 
 
@@ -2612,6 +2742,24 @@ function setupEventListeners() {
         document.getElementById('writeoffTypeFilter').value = '';
         document.getElementById('writeoffSortBy').value = 'systemId-desc';
         updateWriteoffTable();
+    });
+
+    ['filamentSearch', 'productSearch', 'writeoffSearch'].forEach(id => {
+        const input = document.getElementById(id);
+        if (input) {
+            const clearBtn = input.nextElementSibling; // Это наш span.search-clear
+            
+            // Показ/скрытие крестика при вводе
+            input.addEventListener('input', () => toggleClearButton(input));
+            
+            // Назначение функции фильтрации для каждого поля
+            let filterFunc;
+            if (id === 'filamentSearch') filterFunc = 'filterFilaments';
+            else if (id === 'productSearch') filterFunc = 'filterProducts';
+            else if (id === 'writeoffSearch') filterFunc = 'updateWriteoffTable';
+
+            clearBtn.addEventListener('click', () => clearSearch(id, filterFunc));
+        }
     });
 
     // --- REPORTS ---
