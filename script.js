@@ -1,4 +1,4 @@
-console.log("Version: 4.6 (Restored Logic10-03)");
+console.log("Version: 4.6 (Restored Logic10-29)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1147,6 +1147,7 @@ function deleteProduct(id) {
     }
     if (!confirm(`Удалить изделие "${p.name}" и вернуть филамент?`)) return;
     
+    // Возврат филамента для простого или дочернего изделия
     if (p.filament && p.type !== 'Составное') { 
         const dbFilament = db.filaments.find(f => f.id === p.filament.id);
         if (dbFilament) {
@@ -1157,6 +1158,7 @@ function deleteProduct(id) {
         }
     }
     
+    // Возврат филамента для всех частей составного изделия
     if (p.type === 'Составное') { 
         const kids = db.products.filter(k => k.parentId === id); 
         kids.forEach(k => { 
@@ -1170,25 +1172,27 @@ function deleteProduct(id) {
                 }
             } 
         }); 
+        // Удаляем и родителя, и всех детей
         db.products = db.products.filter(x => x.parentId !== id && x.id !== id); 
     } else { 
+        // Удаляем простое или дочернее изделие
         db.products = db.products.filter(x => x.id !== id); 
     }
     
+    // Пересчет родителя, если удалялась его часть
     if (p.type === 'Часть составного' && p.parentId) { 
-        const parent = db.products.find(x => x.id === p.parentId); 
-        if (parent) { 
-            recalculateAllProductCosts();
-        } 
+        recalculateAllProductCosts();
     }
     
     saveToLocalStorage(); 
+    // Полное обновление UI
     updateAllSelects(); 
     updateProductsTable(); 
     updateDashboard(); 
     updateReports(); 
     updateFilamentsTable();
 }
+
 
 
 
@@ -1674,10 +1678,15 @@ function updateWriteoffSection(index) {
     const product = db.products.find(p => p.id === pid);
     
     if (!product) {
-        section.querySelector('.section-stock').textContent = '-';
-        section.querySelector('.section-remaining').textContent = '-';
-        section.querySelector('.section-cost').textContent = '-';
+        // Сброс полей, если продукт не выбран
+        section.querySelector('.section-stock').textContent = '0 шт.';
+        section.querySelector('.section-remaining').textContent = '0 шт.';
+        section.querySelector('.section-cost').textContent = '0.00 ₽';
+        section.querySelector('.section-total').textContent = '0.00 ₽';
         section.querySelector('.section-tooltip').textContent = 'Расчет с реальной стоимостью: -';
+        section.querySelector('.markup-info').classList.add('hidden');
+        section.querySelector('.profit-info').classList.add('hidden');
+        calcWriteoffTotal();
         return;
     }
 
@@ -1704,8 +1713,8 @@ function updateWriteoffSection(index) {
 	const profitContainer = section.querySelector('.profit-info');
     
     if (type === 'Продажа') {
-        if (markupContainer) markupContainer.classList.remove('hidden');
-		if (profitContainer) profitContainer.classList.remove('hidden');
+        markupContainer.classList.remove('hidden');
+		profitContainer.classList.remove('hidden');
         
         const markupM_money = price - costM;
         const markupM_percent = costM > 0 ? (markupM_money / costM) * 100 : 0;
@@ -1720,18 +1729,17 @@ function updateWriteoffSection(index) {
 
         const itemProfit = (price * qty) - (costA * qty);
         const profitValSpan = section.querySelector('.profit-val');
-        if (profitValSpan) {
-            profitValSpan.textContent = `${itemProfit.toFixed(2)} ₽`;
-            profitValSpan.style.color = itemProfit < 0 ? 'var(--color-danger)' : 'var(--color-success)';
-        }
+        profitValSpan.textContent = `${itemProfit.toFixed(2)} ₽`;
+        profitValSpan.style.color = itemProfit < 0 ? 'var(--color-danger)' : 'var(--color-success)';
 
     } else {
-        if (markupContainer) markupContainer.classList.add('hidden');
-		if (profitContainer) profitContainer.classList.add('hidden');
+        markupContainer.classList.add('hidden');
+		profitContainer.classList.add('hidden');
     }
     
     calcWriteoffTotal();
 }
+
 
 
 function updateWriteoffSection(index) {
@@ -2127,31 +2135,62 @@ function updateReports() {
 
 // ==================== REFERENCES UI ====================
 
-function updateBrandsList(){ 
-    const list = document.getElementById('brandsList');
-    if(!list) return;
-    list.innerHTML = db.brands.map((b,i)=>`<div style="display:flex;justify-content:space-between;padding:8px 4px;border-bottom:1px solid #eee;align-items:center;"><span>${escapeHtml(b)}</span><div class="action-buttons"><button class="btn-secondary btn-small" onclick="editBrand(${i})">✎</button><button class="btn-danger btn-small" onclick="removeBrand(${i})">✕</button></div></div>`).join(''); 
-}
-function updateColorsList(){ 
-    const list = document.getElementById('colorsList');
-    if(!list) return;
-    list.innerHTML = db.colors.map((c,i)=>`<div style="display:flex;justify-content:space-between;padding:8px 4px;border-bottom:1px solid #eee;align-items:center;"><span><span class="color-swatch" style="background:${c.hex}"></span>${escapeHtml(c.name)}</span><div class="action-buttons"><button class="btn-secondary btn-small" onclick="editColor(${c.id})">✎</button><button class="btn-danger btn-small" onclick="removeColor(${c.id})">✕</button></div></div>`).join(''); 
-}
-function updateFilamentTypeList(){ 
-    const list = document.getElementById('filamentTypeList');
-    if(!list) return;
-    list.innerHTML = db.plasticTypes.map((t,i)=>`<div style="display:flex;justify-content:space-between;padding:8px 4px;border-bottom:1px solid #eee;align-items:center;"><span>${escapeHtml(t)}</span><div class="action-buttons"><button class="btn-secondary btn-small" onclick="editFilamentType(${i})">✎</button><button class="btn-danger btn-small" onclick="removeFilamentType(${i})">✕</button></div></div>`).join(''); 
-}
-function updateFilamentStatusList(){ 
-    const list = document.getElementById('filamentStatusList');
-    if(!list) return;
-    list.innerHTML = db.filamentStatuses.map((s,i)=>`<div style="display:flex;justify-content:space-between;padding:8px 4px;border-bottom:1px solid #eee;align-items:center;"><span>${escapeHtml(s)}</span><div class="action-buttons"><button class="btn-secondary btn-small" onclick="editFilamentStatus(${i})">✎</button><button class="btn-danger btn-small" onclick="removeFilamentStatus(${i})">✕</button></div></div>`).join(''); 
-}
-function updatePrintersList(){ 
-    const list = document.getElementById('printersList');
-    if(!list) return;
-    list.innerHTML = db.printers.map((p,i)=>`<div style="display:flex;justify-content:space-between;padding:8px 4px;border-bottom:1px solid #eee;align-items:center;"><span>${escapeHtml(p.model)} (${p.power}кВт)</span><div class="action-buttons"><button class="btn-secondary btn-small" onclick="editPrinter(${p.id})">✎</button><button class="btn-danger btn-small" onclick="removePrinter(${p.id})">✕</button></div></div>`).join(''); 
-}
+function updateBrandsList(){ document.getElementById('brandsList').innerHTML = db.brands.map((b,i)=>`<div style="display:flex;justify-content:space-between;padding:8px 4px;border-bottom:1px solid #eee;align-items:center;">
+    <div style="display:flex; align-items:center;">
+        <div class="sort-buttons">
+            <button class="btn-sort" onclick="moveReferenceItemUp('brands', ${i})" ${i===0?'disabled':''}>▲</button>
+            <button class="btn-sort" onclick="moveReferenceItemDown('brands', ${i})" ${i===db.brands.length-1?'disabled':''}>▼</button>
+        </div>
+        <span>${escapeHtml(b)}</span>
+    </div>
+    <div class="action-buttons"><button class="btn-secondary btn-small" onclick="editBrand(${i})">✎</button><button class="btn-danger btn-small" onclick="removeBrand(${i})">✕</button></div>
+</div>`).join(''); }
+
+function updateColorsList(){ document.getElementById('colorsList').innerHTML = db.colors.map((c,i)=>`<div style="display:flex;justify-content:space-between;padding:8px 4px;border-bottom:1px solid #eee;align-items:center;">
+    <div style="display:flex; align-items:center;">
+        <div class="sort-buttons">
+            <button class="btn-sort" onclick="moveReferenceItemUp('colors', ${i})" ${i===0?'disabled':''}>▲</button>
+            <button class="btn-sort" onclick="moveReferenceItemDown('colors', ${i})" ${i===db.colors.length-1?'disabled':''}>▼</button>
+        </div>
+        <span><span class="color-swatch" style="background:${c.hex}"></span>${escapeHtml(c.name)}</span>
+    </div>
+    <div class="action-buttons"><button class="btn-secondary btn-small" onclick="editColor(${c.id})">✎</button><button class="btn-danger btn-small" onclick="removeColor(${c.id})">✕</button></div>
+</div>`).join(''); }
+
+function updateFilamentTypeList(){ document.getElementById('filamentTypeList').innerHTML = db.plasticTypes.map((t,i)=>`<div style="display:flex;justify-content:space-between;padding:8px 4px;border-bottom:1px solid #eee;align-items:center;">
+    <div style="display:flex; align-items:center;">
+        <div class="sort-buttons">
+            <button class="btn-sort" onclick="moveReferenceItemUp('plasticTypes', ${i})" ${i===0?'disabled':''}>▲</button>
+            <button class="btn-sort" onclick="moveReferenceItemDown('plasticTypes', ${i})" ${i===db.plasticTypes.length-1?'disabled':''}>▼</button>
+        </div>
+        <span>${escapeHtml(t)}</span>
+    </div>
+    <div class="action-buttons"><button class="btn-secondary btn-small" onclick="editFilamentType(${i})">✎</button><button class="btn-danger btn-small" onclick="removeFilamentType(${i})">✕</button></div>
+</div>`).join(''); }
+
+function updateFilamentStatusList(){ document.getElementById('filamentStatusList').innerHTML = db.filamentStatuses.map((s,i)=>`<div style="display:flex;justify-content:space-between;padding:8px 4px;border-bottom:1px solid #eee;align-items:center;">
+    <div style="display:flex; align-items:center;">
+        <div class="sort-buttons">
+            <button class="btn-sort" onclick="moveReferenceItemUp('filamentStatuses', ${i})" ${i===0?'disabled':''}>▲</button>
+            <button class="btn-sort" onclick="moveReferenceItemDown('filamentStatuses', ${i})" ${i===db.filamentStatuses.length-1?'disabled':''}>▼</button>
+        </div>
+        <span>${escapeHtml(s)}</span>
+    </div>
+    <div class="action-buttons"><button class="btn-secondary btn-small" onclick="editFilamentStatus(${i})">✎</button><button class="btn-danger btn-small" onclick="removeFilamentStatus(${i})">✕</button></div>
+</div>`).join(''); }
+
+function updatePrintersList(){ document.getElementById('printersList').innerHTML = db.printers.map((p,i)=>`<div style="display:flex;justify-content:space-between;padding:8px 4px;border-bottom:1px solid #eee;align-items:center;">
+    <div style="display:flex; align-items:center;">
+        <div class="sort-buttons">
+            <button class="btn-sort" onclick="moveReferenceItemUp('printers', ${i})" ${i===0?'disabled':''}>▲</button>
+            <button class="btn-sort" onclick="moveReferenceItemDown('printers', ${i})" ${i===db.printers.length-1?'disabled':''}>▼</button>
+        </div>
+        <span>${escapeHtml(p.model)} (${p.power}кВт)</span>
+    </div>
+    <div class="action-buttons"><button class="btn-secondary btn-small" onclick="editPrinter(${p.id})">✎</button><button class="btn-danger btn-small" onclick="removePrinter(${p.id})">✕</button></div>
+</div>`).join(''); }
+
+
 function updateElectricityCostList() {
     const listDiv = document.getElementById('electricityCostList'); 
     if (!listDiv) return; 
@@ -2188,56 +2227,117 @@ function moveReferenceItemDown(arrayName, index) { const arr = db[arrayName]; if
 
 // ==================== EVENT LISTENERS ====================
 
-// ЗАМЕНИТЕ ЭТУ ФУНКЦИЮ
 function setupEventListeners() {
     // Nav
     document.querySelectorAll('.menu-item[data-page]').forEach(b => b.addEventListener('click', () => showPage(b.dataset.page)));
     document.getElementById('exportBtn')?.addEventListener('click', exportData);
+    document.getElementById('importBtn')?.addEventListener('click', () => document.getElementById('importFile').click());
     document.getElementById('importFile')?.addEventListener('change', function() { importData(this); });
     
-    // Filament
+    // --- FILAMENT ---
     document.getElementById('addFilamentBtn')?.addEventListener('click', openFilamentModal);
     document.getElementById('saveFilamentBtn')?.addEventListener('click', saveFilament);
     document.getElementById('closeFilamentModalBtn')?.addEventListener('click', closeFilamentModal);
+    // Filters & Sort
     document.getElementById('filamentSearch')?.addEventListener('input', filterFilaments);
+    document.getElementById('filamentSearch')?.nextElementSibling.addEventListener('click', () => clearSearch('filamentSearch', 'filterFilaments'));
+    document.getElementById('filamentStatusFilter')?.addEventListener('change', filterFilaments);
+    document.getElementById('filamentSortBy')?.addEventListener('change', updateFilamentsTable);
+    document.getElementById('resetFilamentFiltersBtn')?.addEventListener('click', resetFilamentFilters);
+    // Modal
     document.getElementById('filamentAvailability')?.addEventListener('change', updateFilamentStatusUI);
     document.getElementById('filamentColor')?.addEventListener('change', updateFilamentColorPreview);
+    ['filamentActualPrice', 'filamentAvgPrice', 'filamentWeight', 'filamentLength'].forEach(id => {
+        const el = document.getElementById(id);
+        if(el) {
+            el.addEventListener('input', updatePriceTooltip);
+            el.addEventListener('input', updateWeightTooltip);
+        }
+    });
 
-    // Products
+    // --- PRODUCTS ---
     document.getElementById('addProductBtn')?.addEventListener('click', openProductModal);
     document.getElementById('saveProductBtn')?.addEventListener('click', () => saveProduct(false));
     document.getElementById('closeProductModalBtn')?.addEventListener('click', closeProductModal);
+    document.getElementById('btnWriteOffProduct')?.addEventListener('click', initiateWriteOff);
+    // Filters & Sort
     document.getElementById('productSearch')?.addEventListener('input', filterProducts);
+    document.getElementById('productSearch')?.nextElementSibling.addEventListener('click', () => clearSearch('productSearch', 'filterProducts'));
+    document.getElementById('productAvailabilityFilter')?.addEventListener('change', filterProducts);
+    document.getElementById('productSortBy')?.addEventListener('change', filterProducts);
     document.getElementById('resetProductFiltersBtn')?.addEventListener('click', resetProductFilters);
+    document.getElementById('showProductChildren')?.addEventListener('change', filterProducts);
+    // Modal
     document.getElementById('productType')?.addEventListener('change', updateProductTypeUI);
     document.getElementById('productParent')?.addEventListener('change', onParentProductChange);
-    if(document.getElementById('showProductChildren')) {
-        document.getElementById('showProductChildren').addEventListener('change', filterProducts);
-    }
     document.getElementById('productDefective')?.addEventListener('change', updateProductAvailability);
     document.getElementById('productFilament')?.addEventListener('change', () => {
         updateProductColorDisplay();
         updateProductCosts();
     });
+    ['productQuantity', 'productPrintTimeHours', 'productPrintTimeMinutes', 'productWeight', 'productLength', 'productAllPartsCreated'].forEach(id => {
+        const el = document.getElementById(id);
+        if(el) el.addEventListener('input', updateProductCosts);
+    });
 
-    // Writeoffs
+    // --- WRITEOFFS ---
     document.getElementById('addWriteoffBtn')?.addEventListener('click', () => openWriteoffModal());
     document.getElementById('addProductPageWriteoffBtn')?.addEventListener('click', () => openWriteoffModal());
     document.getElementById('saveWriteoffBtn')?.addEventListener('click', saveWriteoff);
     document.getElementById('closeWriteoffModalBtn')?.addEventListener('click', closeWriteoffModal);
     document.getElementById('addWriteoffItemBtn')?.addEventListener('click', () => addWriteoffItemSection());
     document.getElementById('writeoffType')?.addEventListener('change', updateWriteoffTypeUI);
-    
-    // Reports
+    // Filters & Sort
+    document.getElementById('writeoffSearch')?.addEventListener('input', updateWriteoffTable);
+    document.getElementById('writeoffSearch')?.nextElementSibling.addEventListener('click', () => clearSearch('writeoffSearch', 'updateWriteoffTable'));
+    document.getElementById('writeoffTypeFilter')?.addEventListener('change', updateWriteoffTable);
+    document.getElementById('writeoffSortBy')?.addEventListener('change', updateWriteoffTable);
+    document.getElementById('resetWriteoffFiltersBtn')?.addEventListener('click', () => {
+        document.getElementById('writeoffSearch').value = '';
+        document.getElementById('writeoffTypeFilter').value = '';
+        document.getElementById('writeoffSortBy').value = 'systemId-desc';
+        updateWriteoffTable();
+    });
+
+    // --- REPORTS ---
     document.getElementById('generateReportBtn')?.addEventListener('click', updateFinancialReport);
     
-    // Files UI
+    // --- REFERENCES ---
+    document.getElementById('addBrandBtn')?.addEventListener('click', addBrand);
+    document.getElementById('addColorBtn')?.addEventListener('click', addColor);
+    document.getElementById('addFilamentTypeBtn')?.addEventListener('click', addFilamentType);
+    document.getElementById('addFilamentStatusBtn')?.addEventListener('click', addFilamentStatus);
+    document.getElementById('addPrinterBtn')?.addEventListener('click', addPrinter);
+    document.getElementById('addElectricityCostBtn')?.addEventListener('click', addElectricityCost);
+
+    // --- FILES UI (Product Modal) ---
     document.querySelector('.image-upload-container')?.addEventListener('click', () => document.getElementById('productImageInput').click());
     document.getElementById('productImageInput')?.addEventListener('change', function() { handleImageUpload(this); });
     document.getElementById('btnDeleteImage')?.addEventListener('click', function(event) { event.stopPropagation(); removeProductImage(); });
     document.getElementById('btnAddFile')?.addEventListener('click', () => document.getElementById('productFileInput').click());
     document.getElementById('productFileInput')?.addEventListener('change', function() { handleFileUpload(this); });
 }
+
+
+
+
+
+function moveReferenceItemUp(arrayName, index) {
+    if (index === 0) return; // Already at the top
+    const arr = db[arrayName];
+    [arr[index], arr[index - 1]] = [arr[index - 1], arr[index]]; // Swap
+    saveToLocalStorage();
+    updateAllSelects();
+}
+
+function moveReferenceItemDown(arrayName, index) {
+    const arr = db[arrayName];
+    if (index >= arr.length - 1) return; // Already at the bottom
+    [arr[index], arr[index + 1]] = [arr[index + 1], arr[index]]; // Swap
+    saveToLocalStorage();
+    updateAllSelects();
+}
+
 
 
 
