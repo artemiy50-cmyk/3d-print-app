@@ -1,4 +1,4 @@
-console.log("Version: 4.6 (Restored Logic 15-33)");
+console.log("Version: 4.6 (Restored Logic 15-52)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1698,14 +1698,14 @@ function addWriteoffItemSection(data = null) {
         const isSelected = data && data.productId === p.id;
         return (p.type !== 'Часть составного') && (isSelected || (!p.defective && hasStock)); 
     }).sort((a, b) => (b.systemId || '').localeCompare(a.systemId || ''));
-
+    
     const options = availableProducts.map(p => {
         const isSelected = data && data.productId === p.id;
         const label = generateProductOptionLabel(p);
-        return `<option value="${p.id}" ${isSelected?'selected':''}>${label}</option>`;
+        return `<option value="${p.id}" ${isSelected ? 'selected' : ''}>${label}</option>`;
     }).join('');
 
-    // --- ВОССТАНОВЛЕННЫЙ HTML-БЛОК ---
+    // ЭТОТ HTML-БЛОК ПОЛНОСТЬЮ СООТВЕТСТВУЕТ ВЕРСИИ 3.7
     div.innerHTML = `
         <div class="writeoff-item-header">
             <span class="section-title">ИЗДЕЛИЕ ${index}</span>
@@ -1764,10 +1764,11 @@ function addWriteoffItemSection(data = null) {
     container.appendChild(div);
     
     updateRemoveButtons();
-    updateWriteoffSection(index);
+    updateWriteoffSection(index); 
     
     const type = document.getElementById('writeoffType').value;
-    div.querySelector('.section-price').disabled = (type !== 'Продажа');
+    const priceInput = div.querySelector('.section-price');
+    priceInput.disabled = (type !== 'Продажа');
 }
 
 
