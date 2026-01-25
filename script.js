@@ -1,4 +1,4 @@
-console.log("Version: 4.6 (Restored Logic9-32)");
+console.log("Version: 4.6 (Restored Logic9-55)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1138,14 +1138,59 @@ function calculateSingleProductCost(p) {
 }
 
 
-
 function deleteProduct(id) {
-    if (db.writeoffs.some(w => w.productId === id)) { alert('Нельзя удалить: есть списания.'); return; }
-    if(confirm('Удалить изделие?')) {
-        db.products = db.products.filter(p => p.id !== id && p.parentId !== id);
-        saveToLocalStorage(); updateProductsTable(); updateDashboard();
+    const p = db.products.find(x => x.id === id); 
+    if (!p) return;
+    if (db.writeoffs && db.writeoffs.some(w => w.productId === id)) { 
+        alert('Нельзя удалить изделие, по которому уже есть списания!'); 
+        return; 
     }
+    if (!confirm(`Удалить изделие "${p.name}" и вернуть филамент?`)) return;
+    
+    if (p.filament && p.type !== 'Составное') { 
+        const dbFilament = db.filaments.find(f => f.id === p.filament.id);
+        if (dbFilament) {
+            dbFilament.usedLength -= p.length; 
+            dbFilament.usedWeight -= p.weight; 
+            dbFilament.remainingLength = Math.max(0, dbFilament.length - dbFilament.usedLength); 
+            if (dbFilament.remainingLength > 0) dbFilament.availability = 'В наличии'; 
+        }
+    }
+    
+    if (p.type === 'Составное') { 
+        const kids = db.products.filter(k => k.parentId === id); 
+        kids.forEach(k => { 
+            if (k.filament) { 
+                const dbFilament = db.filaments.find(f => f.id === k.filament.id);
+                if (dbFilament) {
+                    dbFilament.usedLength -= k.length; 
+                    dbFilament.usedWeight -= k.weight; 
+                    dbFilament.remainingLength = Math.max(0, dbFilament.length - dbFilament.usedLength); 
+                    if (dbFilament.remainingLength > 0) dbFilament.availability = 'В наличии'; 
+                }
+            } 
+        }); 
+        db.products = db.products.filter(x => x.parentId !== id && x.id !== id); 
+    } else { 
+        db.products = db.products.filter(x => x.id !== id); 
+    }
+    
+    if (p.type === 'Часть составного' && p.parentId) { 
+        const parent = db.products.find(x => x.id === p.parentId); 
+        if (parent) { 
+            recalculateAllProductCosts(); // Пересчитываем все для надежности
+        } 
+    }
+    
+    saveToLocalStorage(); 
+    updateAllSelects(); 
+    updateProductsTable(); 
+    updateDashboard(); 
+    updateReports(); 
+    updateFilamentsTable();
 }
+
+
 
 // ЗАМЕНИТЬ эту функцию целиком
 function buildProductRow(p, isChild) {
@@ -1416,6 +1461,25 @@ function generateProductOptionLabel(product) {
 }
 
 
+function renumberWriteoffSections() {
+    writeoffSectionCount = 0; // Reset counter
+    const sections = document.querySelectorAll('.writeoff-item-section');
+    sections.forEach((sec, i) => {
+        writeoffSectionCount++;
+        const newIndex = writeoffSectionCount;
+        sec.id = `writeoffSection_${newIndex}`;
+        sec.querySelector('.section-title').textContent = `ИЗДЕЛИЕ ${newIndex}`;
+        
+        const btn = sec.querySelector('.btn-remove-section');
+        btn.setAttribute('onclick', `removeWriteoffSection(${newIndex})`);
+        
+        sec.querySelector('.writeoff-product-select').setAttribute('onchange', `updateWriteoffSection(${newIndex})`);
+        sec.querySelector('.section-qty').setAttribute('oninput', `updateWriteoffSection(${newIndex})`);
+        sec.querySelector('.section-price').setAttribute('oninput', `updateWriteoffSection(${newIndex})`);
+    });
+}
+
+
 
 function renumberWriteoffSections() {
     writeoffSectionCount = 0; // Reset counter
@@ -1606,7 +1670,13 @@ function updateWriteoffSection(index) {
     
     const product = db.products.find(p => p.id === pid);
     
-    if (!product) { /* ... сброс полей ... */ return; }
+    if (!product) {
+        section.querySelector('.section-stock').textContent = '-';
+        section.querySelector('.section-remaining').textContent = '-';
+        section.querySelector('.section-cost').textContent = '-';
+        section.querySelector('.section-tooltip').textContent = 'Расчет с реальной стоимостью: -';
+        return;
+    }
 
     const editGroup = document.getElementById('writeoffModal').getAttribute('data-edit-group');
     const usedElsewhere = getWriteoffQuantityForProduct(pid, editGroup);
@@ -1615,7 +1685,8 @@ function updateWriteoffSection(index) {
     section.querySelector('.section-stock').textContent = currentStock + ' шт.';
     
     const qty = parseInt(qtyInput.value) || 0;
-    section.querySelector('.section-remaining').textContent = Math.max(0, currentStock - qty) + ' шт.';
+    const remaining = Math.max(0, currentStock - qty); 
+    section.querySelector('.section-remaining').textContent = remaining + ' шт.';
     
     const costM = product.costPer1Market || 0;
     const costA = product.costPer1Actual || 0;
@@ -1625,13 +1696,14 @@ function updateWriteoffSection(index) {
     const price = parseFloat(priceInput.value) || 0;
     section.querySelector('.section-total').textContent = (price * qty).toFixed(2) + ' ₽';
     
+    // Markup Calculation
     const type = document.getElementById('writeoffType').value;
     const markupContainer = section.querySelector('.markup-info');
-    const profitContainer = section.querySelector('.profit-info');
+	const profitContainer = section.querySelector('.profit-info');
     
     if (type === 'Продажа') {
-        markupContainer.classList.remove('hidden');
-        profitContainer.classList.remove('hidden');
+        if (markupContainer) markupContainer.classList.remove('hidden');
+		if (profitContainer) profitContainer.classList.remove('hidden');
         
         const markupM_money = price - costM;
         const markupM_percent = costM > 0 ? (markupM_money / costM) * 100 : 0;
@@ -1646,12 +1718,14 @@ function updateWriteoffSection(index) {
 
         const itemProfit = (price * qty) - (costA * qty);
         const profitValSpan = section.querySelector('.profit-val');
-        profitValSpan.textContent = `${itemProfit.toFixed(2)} ₽`;
-        profitValSpan.style.color = itemProfit < 0 ? 'var(--color-danger)' : 'var(--color-success)';
+        if (profitValSpan) {
+            profitValSpan.textContent = `${itemProfit.toFixed(2)} ₽`;
+            profitValSpan.style.color = itemProfit < 0 ? 'var(--color-danger)' : 'var(--color-success)';
+        }
 
     } else {
-        markupContainer.classList.add('hidden');
-        profitContainer.classList.add('hidden');
+        if (markupContainer) markupContainer.classList.add('hidden');
+		if (profitContainer) profitContainer.classList.add('hidden');
     }
     
     calcWriteoffTotal();
@@ -1659,11 +1733,16 @@ function updateWriteoffSection(index) {
 
 
 
+
 function removeWriteoffSection(index) {
     const el = document.getElementById(`writeoffSection_${index}`);
     if (el) el.remove();
+    renumberWriteoffSections();
+    updateRemoveButtons();
     calcWriteoffTotal();
 }
+
+
 
 function updateWriteoffSection(index) {
     const section = document.getElementById(`writeoffSection_${index}`);
@@ -1863,15 +1942,41 @@ function saveWriteoff() {
 
 
 function deleteWriteoff(systemId) {
-    if (!confirm('Удалить списание?')) return;
+    if (!confirm('Удалить списание? Изделия будут возвращены на склад.')) return;
+    
     const items = db.writeoffs.filter(w => w.systemId === systemId);
+    
     items.forEach(item => {
         const p = db.products.find(x => x.id === item.productId);
-        if(p) { p.inStock += item.qty; p.status = (p.inStock > 0 ? 'В наличии частично/полностью' : 'Нет в наличии'); } // Упрощенно
+        if(p) {
+            p.inStock += item.qty;
+            p.status = determineProductStatus(p); // Использование правильной функции
+            p.availability = p.status;
+
+            if (p.type === 'Составное' && item.hasDeductedParts === true) {
+                const children = db.products.filter(child => child.parentId == p.id && !child.defective);
+                const parentTotalQty = p.quantity || 1; 
+
+                children.forEach(child => {
+                    const ratio = (child.quantity || 1) / parentTotalQty;
+                    child.inStock += (ratio * item.qty);
+                    child.status = determineProductStatus(child);
+                    child.availability = child.status;
+                });
+            }
+        }
     });
+    
     db.writeoffs = db.writeoffs.filter(w => w.systemId !== systemId);
-    saveToLocalStorage(); updateWriteoffTable(); updateProductsTable(); updateDashboard();
+    
+    saveToLocalStorage();
+    updateWriteoffTable();
+    updateProductsTable();
+    updateDashboard();
+    updateReports();
 }
+
+
 
 function openWriteoffModalForProduct(pid) {
     if (!pid) return;
