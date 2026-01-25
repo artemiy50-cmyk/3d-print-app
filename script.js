@@ -1,4 +1,4 @@
-console.log("Version: 4.6 (Restored Logic9-55)");
+console.log("Version: 4.6 (Restored Logic10-03)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1178,7 +1178,7 @@ function deleteProduct(id) {
     if (p.type === 'Часть составного' && p.parentId) { 
         const parent = db.products.find(x => x.id === p.parentId); 
         if (parent) { 
-            recalculateAllProductCosts(); // Пересчитываем все для надежности
+            recalculateAllProductCosts();
         } 
     }
     
@@ -1189,6 +1189,7 @@ function deleteProduct(id) {
     updateReports(); 
     updateFilamentsTable();
 }
+
 
 
 
@@ -1454,12 +1455,9 @@ function generateProductOptionLabel(product) {
     } else if (product.filament && product.filament.color) {
         colorText = ` (${escapeHtml(product.filament.color.name)})`;
     }
-
     const infoText = `. Изготовлено: ${product.date}, в кол-ве: ${product.quantity}, остаток: ${product.inStock}`;
-    
     return `${escapeHtml(product.name)}${colorText}${infoText}`;
 }
-
 
 function renumberWriteoffSections() {
     writeoffSectionCount = 0; // Reset counter
@@ -1470,15 +1468,24 @@ function renumberWriteoffSections() {
         sec.id = `writeoffSection_${newIndex}`;
         sec.querySelector('.section-title').textContent = `ИЗДЕЛИЕ ${newIndex}`;
         
+        // Update onclick handlers
         const btn = sec.querySelector('.btn-remove-section');
         btn.setAttribute('onclick', `removeWriteoffSection(${newIndex})`);
         
+        // Update onchange handlers
         sec.querySelector('.writeoff-product-select').setAttribute('onchange', `updateWriteoffSection(${newIndex})`);
         sec.querySelector('.section-qty').setAttribute('oninput', `updateWriteoffSection(${newIndex})`);
         sec.querySelector('.section-price').setAttribute('oninput', `updateWriteoffSection(${newIndex})`);
     });
 }
 
+function removeWriteoffSection(index) {
+    const el = document.getElementById(`writeoffSection_${index}`);
+    if (el) el.remove();
+    renumberWriteoffSections();
+    updateRemoveButtons();
+    calcWriteoffTotal();
+}
 
 
 function renumberWriteoffSections() {
@@ -1510,7 +1517,6 @@ function updateRemoveButtons() {
         }
     });
 }
-
 
 
 function openWriteoffModal(systemId = null) {
@@ -1657,9 +1663,6 @@ function addWriteoffItemSection(data = null) {
 }
 
 
-
-
-
 function updateWriteoffSection(index) {
     const section = document.getElementById(`writeoffSection_${index}`);
     if (!section) return;
@@ -1696,7 +1699,6 @@ function updateWriteoffSection(index) {
     const price = parseFloat(priceInput.value) || 0;
     section.querySelector('.section-total').textContent = (price * qty).toFixed(2) + ' ₽';
     
-    // Markup Calculation
     const type = document.getElementById('writeoffType').value;
     const markupContainer = section.querySelector('.markup-info');
 	const profitContainer = section.querySelector('.profit-info');
@@ -1730,18 +1732,6 @@ function updateWriteoffSection(index) {
     
     calcWriteoffTotal();
 }
-
-
-
-
-function removeWriteoffSection(index) {
-    const el = document.getElementById(`writeoffSection_${index}`);
-    if (el) el.remove();
-    renumberWriteoffSections();
-    updateRemoveButtons();
-    calcWriteoffTotal();
-}
-
 
 
 function updateWriteoffSection(index) {
@@ -1940,7 +1930,6 @@ function saveWriteoff() {
 }
 
 
-
 function deleteWriteoff(systemId) {
     if (!confirm('Удалить списание? Изделия будут возвращены на склад.')) return;
     
@@ -1950,7 +1939,7 @@ function deleteWriteoff(systemId) {
         const p = db.products.find(x => x.id === item.productId);
         if(p) {
             p.inStock += item.qty;
-            p.status = determineProductStatus(p); // Использование правильной функции
+            p.status = determineProductStatus(p); 
             p.availability = p.status;
 
             if (p.type === 'Составное' && item.hasDeductedParts === true) {
