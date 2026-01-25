@@ -1,4 +1,4 @@
-console.log("Version: 4.0 (2026-01-25 19-57)");
+console.log("Version: 4.0 (2026-01-25 20-43)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -424,6 +424,7 @@ function updateAllSelects() {
 function updateDashboard() {
     const nameEvents = (id) => id ? `onmouseenter="showProductImagePreview(this, ${id})" onmousemove="moveProductImagePreview(event)" onmouseleave="hideProductImagePreview(this)"` : '';
 
+    // --- 1. ФИЛАМЕНТЫ ---
     const filamentsInStock = db.filaments.filter(f => f.availability === 'В наличии');
     document.getElementById('dashFilamentCount').textContent = filamentsInStock.length;
     
@@ -432,7 +433,10 @@ function updateDashboard() {
     if (lowStock.length > 0) {
         warning.innerHTML = lowStock.map(f => `<div class="warning-item"><span>⚠️</span><span>Филамента <b>${escapeHtml(f.customId)}</b> осталось всего <b>${f.remainingLength.toFixed(1)}</b> метров.</span></div>`).join('');
         warning.classList.remove('hidden');
-    } else { warning.innerHTML = ''; warning.classList.add('hidden'); }
+    } else { 
+        warning.innerHTML = ''; 
+        warning.classList.add('hidden'); 
+    }
 
     const filamentsSorted = [...filamentsInStock].sort((a, b) => new Date(a.date) - new Date(b.date));
     document.querySelector('#dashFilamentTable tbody').innerHTML = filamentsSorted.map(f => {
@@ -440,25 +444,64 @@ function updateDashboard() {
         return `<tr class="${rowClass}"><td><span class="color-swatch" style="background:${f.color.hex}"></span>${escapeHtml(f.color.name)}</td><td>${f.date}</td><td>${escapeHtml(f.brand)}</td><td>${escapeHtml(f.type)}</td><td>${f.remainingLength.toFixed(1)}</td><td>${f.actualPrice.toFixed(2)} ₽</td></tr>`;
     }).join('');
 
-    const indepProds = db.products.filter(p => p.type !== 'Часть составного');
-    const stockProds = indepProds.filter(p => p.status === 'В наличии полностью' || p.status === 'В наличии частично');
-    document.getElementById('dashProductCountRecord').textContent = stockProds.length;
-    document.getElementById('dashProductCountStock').textContent = stockProds.reduce((sum, p) => sum + (p.inStock || 0), 0);
 
-    const lastProds = [...indepProds].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
+    // --- 2. ИЗДЕЛИЯ (ЛОГИКА v3.7 + ВАШИ ПРАВКИ) ---
+    // Берем только "корневые" записи (не части)
+    const rootProducts = db.products.filter(p => p.type !== 'Часть составного');
+    
+    // Фильтруем те, что физически есть на остатке (полностью или частично)
+    const stockProducts = rootProducts.filter(p => p.status === 'В наличии полностью' || p.status === 'В наличии частично');
+
+    // Счетчик "Изделий" = количество моделей/записей в наличии
+    document.getElementById('dashProductCountRecord').textContent = stockProducts.length;
+    
+    // Счетчик "В наличии" = сумма всех штук (inStock) этих моделей
+    const totalInStock = stockProducts.reduce((sum, p) => sum + (p.inStock || 0), 0);
+    document.getElementById('dashProductCountStock').textContent = totalInStock;
+
+    // Таблица последних 10 напечатанных (среди всех самостоятельных и составных)
+    const lastProds = [...rootProducts].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
+    
     document.querySelector('#dashProductTable tbody').innerHTML = lastProds.map(p => {
         let badgeClass = 'badge-secondary', statusStyle = 'font-weight: 400;';
         if (p.status === 'В наличии полностью') { badgeClass = 'badge-light-green'; statusStyle = 'font-weight: 700;'; }
         else if (p.status === 'В наличии частично') { badgeClass = 'badge-success'; statusStyle = 'font-weight: 700;'; }
-        else if (p.status === 'Брак') badgeClass = 'badge-danger'; 
-        else if (p.status === 'Нет в наличии') badgeClass = 'badge-gray'; 
-        
+        else if (p.status === 'Брак') badgeClass = 'badge-danger';
+        else if (p.status === 'Нет в наличии') badgeClass = 'badge-gray';
+
+        // ВОССТАНОВЛЕНИЕ ЦВЕТОВ (Логика из v3.7)
         let colorHtml = '—';
-        if (p.filament) colorHtml = `<span class="color-swatch" style="background:${p.filament.color.hex}"></span>${escapeHtml(p.filament.color.name)}`;
-        
-        return `<tr><td ${nameEvents(p.id)}><strong>${escapeHtml(p.name)}</strong></td><td>${p.date}</td><td>${colorHtml}</td><td>${p.inStock}</td><td><span class="badge ${badgeClass}" style="${statusStyle}">${escapeHtml(p.status)}</span></td></tr>`;
+        if (p.type === 'Составное') {
+            const children = db.products.filter(k => k.parentId === p.id);
+            const uniqueColors = new Map();
+            children.forEach(child => {
+                // В v4.0 filament может быть объектом или ID, делаем проверку
+                const f = (child.filament && child.filament.color) ? child.filament : db.filaments.find(fil => fil.id == child.filament);
+                if (f && f.color) uniqueColors.set(f.color.id, f.color);
+            });
+            if (uniqueColors.size > 0) {
+                colorHtml = Array.from(uniqueColors.values())
+                    .map(c => `<span class="color-swatch" style="background:${c.hex}" title="${escapeHtml(c.name)}"></span>`)
+                    .join('');
+            }
+        } else if (p.filament) {
+            const f = (p.filament.color) ? p.filament : db.filaments.find(fil => fil.id == p.filament);
+            if(f && f.color) {
+                colorHtml = `<span class="color-swatch" style="background:${f.color.hex}"></span>${escapeHtml(f.color.name)}`;
+            }
+        }
+
+        return `<tr>
+            <td ${nameEvents(p.id)}><strong>${escapeHtml(p.name)}</strong></td>
+            <td>${p.date}</td>
+            <td>${colorHtml}</td>
+            <td>${p.inStock}</td>
+            <td><span class="badge ${badgeClass}" style="${statusStyle}">${escapeHtml(p.status)}</span></td>
+        </tr>`;
     }).join('');
 
+
+    // --- 3. ПРОДАЖИ, ИСПОЛЬЗОВАНО, БРАК ---
     const sales = db.writeoffs.filter(w => w.type === 'Продажа');
     document.getElementById('dashSoldCount').textContent = sales.reduce((sum, w) => sum + w.qty, 0);
     const lastSales = [...sales].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
@@ -469,12 +512,14 @@ function updateDashboard() {
     const lastUsed = [...used].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
     document.querySelector('#dashUsedTable tbody').innerHTML = lastUsed.map(w => `<tr><td ${nameEvents(w.productId)}>${escapeHtml(w.productName)}</td><td>${w.date}</td><td>${w.qty}</td><td>${escapeHtml(w.note || '')}</td><td><span class="badge badge-purple">Использовано</span></td></tr>`).join('');
 
+    const indepProds = db.products.filter(p => p.type !== 'Часть составного');
     const defProds = indepProds.filter(p => p.defective).map(p=>({productId: p.id, name: p.name, date: p.date, qty: p.quantity, note: p.note, ts: new Date(p.date).getTime()}));
     const defWrites = db.writeoffs.filter(w => w.type === 'Брак').map(w=>({productId: w.productId, name: w.productName, date: w.date, qty: w.qty, note: w.note, ts: new Date(w.date).getTime()}));
     const allDef = [...defProds, ...defWrites].sort((a, b) => b.ts - a.ts).slice(0, 5);
     document.getElementById('dashDefectiveCount').textContent = allDef.reduce((s, i) => s + i.qty, 0);
     document.querySelector('#dashDefectiveTable tbody').innerHTML = allDef.map(i => `<tr><td ${nameEvents(i.productId)}>${escapeHtml(i.name)}</td><td>${i.date}</td><td>${i.qty}</td><td>${escapeHtml(i.note || '')}</td><td><span class="badge badge-danger">Брак</span></td></tr>`).join('');
 }
+
 
 // ==================== FILAMENTS ====================
 
@@ -1073,7 +1118,7 @@ function addChildPart(parentId) {
     if (parent) document.getElementById('productQuantity').value = parent.quantity;
 }
 
-// ЗАМЕНИТЬ эту функцию целиком
+
 function editProduct(id) {
     const productId = parseInt(id);
     const p = db.products.find(x => x.id === productId);
@@ -1094,7 +1139,8 @@ function editProduct(id) {
         updateProductAvailability();
     }
 
-    document.getElementById('productValidationMessage').classList.add('hidden');
+    const validationMessage = document.getElementById('productValidationMessage');
+    if (validationMessage) validationMessage.classList.add('hidden');
     document.querySelectorAll('#productModal input, #productModal select').forEach(el => el.classList.remove('error'));
 
     const fieldsToFill = [ { id: 'productName', value: p.name }, { id: 'productLink', value: p.link || '' }, { id: 'productDate', value: p.date }, { id: 'productQuantity', value: p.quantity }, { id: 'productWeight', value: p.weight || '' }, { id: 'productLength', value: p.length || '' }, { id: 'productPrintTimeHours', value: Math.floor((p.printTime || 0) / 60) }, { id: 'productPrintTimeMinutes', value: (p.printTime || 0) % 60 }, { id: 'productNote', value: p.note || '' }, { id: 'productType', value: p.type || 'Самостоятельное' } ];
@@ -1142,29 +1188,68 @@ function editProduct(id) {
 
     updateProductCosts();
 
-    // ВОССТАНОВЛЕНА ЛОГИКА БЛОКИРОВКИ ПОЛЕЙ
+    // --- ВОССТАНОВЛЕННАЯ ЛОГИКА БЛОКИРОВКИ (v3.7) ---
     const allInputs = document.querySelectorAll('#productModal input, #productModal select, #productModal textarea');
-    const validationMessage = document.getElementById('productValidationMessage');
     allInputs.forEach(el => el.disabled = false);
 
-    let hasWriteoffs = db.writeoffs && db.writeoffs.some(w => w.productId === id);
+    // Техническая блокировка расчетных полей для Составного (они суммируются автоматически)
+    if (p.type === 'Составное') {
+        const compositeLockedFields = ['productFilament','productPrinter','productPrintTimeHours','productPrintTimeMinutes','productWeight','productLength'];
+        compositeLockedFields.forEach(id => {
+            const el = document.getElementById(id);
+            if(el) el.disabled = true;
+        });
+    }
+
+    let hasWriteoffs = db.writeoffs && db.writeoffs.some(w => w.productId === productId);
+    // Проверка списаний у родителя, если это часть
+    if (!hasWriteoffs && p.type === 'Часть составного' && p.parentId) {
+        if (db.writeoffs.some(w => w.productId === p.parentId)) hasWriteoffs = true;
+    }
+
+    let isChildOfDefectiveParent = false;
+    let isChildOfCompletedParent = false; 
+
+    if (p.type === 'Часть составного' && p.parentId) {
+        const parent = db.products.find(x => x.id === p.parentId);
+        if (parent) {
+            if(parent.defective) isChildOfDefectiveParent = true;
+            if(parent.allPartsCreated) isChildOfCompletedParent = true;
+        }
+    }
+
+    let fieldsToEnable = [];
     let lockReason = '';
+    const mediaFields = ['productImageInput', 'productFileInput'];
 
     if (hasWriteoffs) {
-        lockReason = 'Редактирование ограничено: есть списания.';
-        allInputs.forEach(el => { if (el.id !== 'productNote') el.disabled = true; });
+        fieldsToEnable = ['productNote', ...mediaFields]; 
+        lockReason = 'Редактирование ограничено: есть списания. Можно изменить примечание, фото и файлы.';
     } else if (p.defective) {
+        fieldsToEnable = ['productNote', 'productDefective', ...mediaFields];
         lockReason = 'Редактирование ограничено: изделие в браке.';
-        allInputs.forEach(el => { if (el.id !== 'productNote' && el.id !== 'productDefective') el.disabled = true; });
+    } else if (isChildOfDefectiveParent) {
+        fieldsToEnable = ['productNote', ...mediaFields];
+        lockReason = 'Редактирование ограничено: родительское изделие в браке.';
+    } else if (isChildOfCompletedParent) {
+        fieldsToEnable = ['productNote', 'productDefective', ...mediaFields];
+        lockReason = 'Редактирование ограничено: родительское изделие завершено.';
     }
 
-    if(lockReason) {
-        validationMessage.textContent = lockReason;
-        validationMessage.classList.remove('hidden');
+    if (lockReason) {
+        allInputs.forEach(el => {
+            if (!fieldsToEnable.includes(el.id)) el.disabled = true;
+        });
+        if (validationMessage) {
+            validationMessage.textContent = lockReason;
+            validationMessage.classList.remove('hidden');
+        }
     }
+    // ------------------------------------------------
 
     productSnapshotForDirtyCheck = captureProductSnapshot();
 }
+
 
 
 // ДОБАВЬТЕ ЭТУ ФУНКЦИЮ
