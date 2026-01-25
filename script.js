@@ -1,4 +1,4 @@
-console.log("Version: 4.6 (Restored Logic22-16)");
+console.log("Version: 4.6 (Restored Logic9-32)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1368,7 +1368,7 @@ function updateProductFilamentSelect() {
 }
 
 
-// ДОБАВЬТЕ ЭТУ ФУНКЦИЮ
+
 function updateProductColorDisplay() {
     const filamentSelect = document.getElementById('productFilament');
     const previewBox = document.getElementById('productColorSwatch');
@@ -1392,7 +1392,31 @@ function updateProductColorDisplay() {
 
 // ==================== WRITEOFFS (RESTORED LOGIC) ====================
 
-// ДОБАВЬТЕ ЭТИ 2 ФУНКЦИИ
+function generateProductOptionLabel(product) {
+    let colorText = '';
+    if (product.type === 'Составное') {
+        const uniqueColors = new Map();
+        const children = db.products.filter(child => child.parentId == product.id);
+        children.forEach(child => {
+            if (child.filament && child.filament.color) {
+                uniqueColors.set(child.filament.color.id, child.filament.color);
+            }
+        });
+        if (uniqueColors.size > 0) {
+            const colorNames = Array.from(uniqueColors.values()).map(color => escapeHtml(color.name));
+            colorText = ` (${colorNames.join(' / ')})`;
+        }
+    } else if (product.filament && product.filament.color) {
+        colorText = ` (${escapeHtml(product.filament.color.name)})`;
+    }
+
+    const infoText = `. Изготовлено: ${product.date}, в кол-ве: ${product.quantity}, остаток: ${product.inStock}`;
+    
+    return `${escapeHtml(product.name)}${colorText}${infoText}`;
+}
+
+
+
 function renumberWriteoffSections() {
     writeoffSectionCount = 0; // Reset counter
     const sections = document.querySelectorAll('.writeoff-item-section');
@@ -1480,7 +1504,6 @@ function updateWriteoffTypeUI() {
 }
 
 
-// ЗАМЕНИТЕ эту функцию целиком
 function addWriteoffItemSection(data = null) {
     writeoffSectionCount++;
     const index = writeoffSectionCount;
@@ -1501,28 +1524,74 @@ function addWriteoffItemSection(data = null) {
 
     const options = availableProducts.map(p => {
         const isSelected = data && data.productId === p.id;
-        return `<option value="${p.id}" ${isSelected?'selected':''}>${escapeHtml(p.name)} (${p.inStock} шт.)</option>`;
+        const label = generateProductOptionLabel(p);
+        return `<option value="${p.id}" ${isSelected?'selected':''}>${label}</option>`;
     }).join('');
 
     div.innerHTML = `
-        <div class="writeoff-item-header"><span class="section-title">ИЗДЕЛИЕ ${index}</span><button class="btn-remove-section" onclick="removeWriteoffSection(${index})">✕</button></div>
-        <div class="form-group"><label>Изделие:</label><select class="writeoff-product-select" onchange="updateWriteoffSection(${index})"><option value="">-- Выберите --</option>${options}</select></div>
+        <div class="writeoff-item-header">
+            <span class="section-title">ИЗДЕЛИЕ ${index}</span>
+            <button class="btn-remove-section" onclick="removeWriteoffSection(${index})">✕</button>
+        </div>
+        <div class="form-group">
+            <label>Наименование изделия:</label>
+            <select class="writeoff-product-select" onchange="updateWriteoffSection(${index})">
+                <option value="">-- Выберите изделие --</option>
+                ${options}
+            </select>
+        </div>
         <div class="form-row-3">
-            <div class="form-group"><label>Наличие:</label><div class="calc-field section-stock">0</div></div>
-            <div class="form-group"><label>Списать (шт):</label><input type="number" class="section-qty" value="${data ? data.qty : ''}" min="1" oninput="updateWriteoffSection(${index})"></div>
-            <div class="form-group"><label>Остаток:</label><div class="calc-field section-remaining">0</div></div>
+            <div class="form-group">
+                <label>Наличие (шт):</label>
+                <div class="calc-field section-stock">0 шт.</div>
+            </div>
+            <div class="form-group">
+                <label>Количество списания (шт):</label>
+                <input type="number" class="section-qty" value="${data ? data.qty : ''}" min="1" oninput="updateWriteoffSection(${index})">
+            </div>
+            <div class="form-group">
+                <label>Остаток (шт):</label>
+                <div class="calc-field section-remaining">0 шт.</div>
+            </div>
         </div>
         <div class="form-row-3 writeoff-price-row">
-            <div class="form-group"><label>Себест.:</label><div class="calc-field section-cost">0.00</div></div>
-            <div class="form-group"><label>Цена (шт):</label><input type="number" class="section-price" value="${data ? data.price : ''}" step="0.01" oninput="updateWriteoffSection(${index})"></div>
-            <div class="form-group"><label>Итого:</label><div class="calc-field section-total">0.00</div></div>
-        </div>`;
+            <div class="form-group">
+                <label class="label-with-tooltip" style="justify-content:center;">
+                    Рынок. себест. за 1 шт.
+                    <span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text tooltip-top-center section-tooltip">Расчет с реальной стоимостью: -</span></span>
+                </label>
+                <div class="calc-field section-cost">0.00 ₽</div>
+            </div>
+            <div class="form-group">
+                <label>Цена продажи за 1 шт. (₽)</label>
+                <input type="number" class="section-price" value="${data ? data.price : ''}" step="0.01" oninput="updateWriteoffSection(${index})">
+            </div>
+            <div class="form-group">
+                <label>Стоимость продажи общая (₽)</label>
+                <div class="calc-field section-total">0.00 ₽</div>
+            </div>
+        </div>
+        <div class="markup-info hidden" style="margin-top: 8px; padding: 0 4px;">
+            <div style="font-size: 12px; color: var(--color-text-light); margin-bottom: 4px;">
+                Наценка для рыночной себестоимости = <span class="markup-market-val" style="font-weight:600; color: var(--color-text);">0 ₽ (0%)</span>
+            </div>
+            <div style="font-size: 12px; color: var(--color-text-light);">
+                Наценка для реальной себестоимости = <span class="markup-actual-val" style="font-weight:600; color: var(--color-text);">0 ₽ (0%)</span>
+            </div>
+        </div>
+        <div class="profit-info hidden" style="margin-top: 12px; padding: 0 4px; font-weight: bold; font-size: 13px;">
+            Прибыль с продажи Изделия: <span class="profit-val">0.00 ₽</span>
+        </div>
+    `;
     container.appendChild(div);
     
-    // ИСПРАВЛЕНИЕ: Добавлен вызов недостающей функции
     updateRemoveButtons();
     updateWriteoffSection(index);
+    
+    const type = document.getElementById('writeoffType').value;
+    div.querySelector('.section-price').disabled = (type !== 'Продажа');
 }
+
 
 
 
@@ -1817,14 +1886,68 @@ function editWriteoff(systemId) { openWriteoffModal(systemId); }
 
 function updateWriteoffTable() {
     const tbody = document.querySelector('#writeoffTable tbody');
+    // Используем slice() для создания копии массива перед сортировкой
     const sorted = [...db.writeoffs].sort((a,b) => b.systemId.localeCompare(a.systemId));
-    // Группировка для отображения не нужна, так как таблица плоская, но для логики важно
+    
     tbody.innerHTML = sorted.map(w => {
-        return `<tr><td>${w.date}</td><td><small>${w.systemId}</small></td><td>${escapeHtml(w.productName)}</td><td>${w.type}</td><td>-</td><td>${w.qty}</td><td>${w.price.toFixed(2)}</td><td>${w.total.toFixed(2)}</td><td>${w.note}</td><td class="text-center"><button class="btn-secondary btn-small" onclick="editWriteoff('${w.systemId}')">✎</button><button class="btn-danger btn-small" onclick="deleteWriteoff('${w.systemId}')">✕</button></td></tr>`;
+        let statusBadge = 'badge-secondary';
+        if (w.type === 'Продажа') statusBadge = 'badge-success';
+        else if (w.type === 'Использовано') statusBadge = 'badge-purple';
+        else if (w.type === 'Брак') statusBadge = 'badge-danger';
+
+        // Находим продукт для отображения себестоимости (как в эталоне)
+        const product = db.products.find(p => p.id === w.productId);
+        const actualCost = product ? (product.costPer1Actual || 0).toFixed(2) : '0.00';
+
+        return `<tr>
+            <td>${w.date}</td>
+            <td><small>${w.systemId}</small></td>
+            <td><strong>${escapeHtml(w.productName)}</strong></td>
+            <td><span class="badge ${statusBadge}">${escapeHtml(w.type)}</span></td>
+            <td>${actualCost} ₽</td>
+            <td>${w.qty}</td>
+            <td>${w.type === 'Продажа' ? w.price.toFixed(2) : '-'}</td>
+            <td>${w.type === 'Продажа' ? w.total.toFixed(2) : '-'}</td>
+            <td>${escapeHtml(w.note || '')}</td>
+            <td class="text-center">
+                <div class="action-buttons">
+                    <button class="btn-secondary btn-small" title="Редактировать группу" onclick="editWriteoff('${w.systemId}')">✎</button>
+                    <button class="btn-secondary btn-small" title="Копировать строку" onclick="copyWriteoffItem(${w.id})">❐</button>
+                    <button class="btn-danger btn-small" title="Удалить группу" onclick="deleteWriteoff('${w.systemId}')">✕</button>
+                </div>
+            </td>
+        </tr>`;
     }).join('');
 }
-function filterWriteoffs() { updateWriteoffTable(); } 
-function resetWriteoffFilters() { updateWriteoffTable(); }
+
+
+function copyWriteoffItem(rowId) {
+    const item = db.writeoffs.find(w => w.id === rowId); 
+    if (!item) return;
+
+    openWriteoffModal(); 
+    
+    const container = document.getElementById('writeoffItemsContainer');
+    container.innerHTML = '';
+    writeoffSectionCount = 0;
+
+    document.getElementById('writeoffType').value = item.type;
+    document.getElementById('writeoffNote').value = item.note || '';
+    document.getElementById('writeoffDate').value = new Date().toISOString().split('T')[0];
+    
+    updateWriteoffTypeUI();
+
+    addWriteoffItemSection({
+        productId: item.productId,
+        qty: item.qty,
+        price: item.price
+    });
+    
+    document.querySelector('#writeoffModal .modal-header-title').textContent = 'Копирование записи списания';
+}
+
+
+
 
 // ==================== REPORTS (FIXED LOGIC) ====================
 

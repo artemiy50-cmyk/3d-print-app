@@ -671,10 +671,16 @@
                 <div class="form-section"><div class="form-group"><label>Примечание:</label><textarea id="productNote" placeholder="Дополнительная информация..."></textarea></div></div>
             </div>
 
-            <div class="modal-footer">
-                <button id="closeProductModalBtn" class="btn-secondary">Отмена</button>
-                <button id="saveProductBtn" class="btn-primary">Сохранить и закрыть</button>
+            <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <button id="btnWriteOffProduct" class="btn-primary" onclick="initiateWriteOff()" style="display: none;">Списать</button>
+                </div>
+                <div style="display: flex; gap: var(--spacing);">
+                    <button id="closeProductModalBtn" class="btn-secondary">Отмена</button>
+                    <button id="saveProductBtn" class="btn-primary">Сохранить и закрыть</button>
+                </div>
             </div>
+
         </div>
     </div>
 
