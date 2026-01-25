@@ -1,4 +1,4 @@
-console.log("Version: 4.6 (Restored Logic 11-12)");
+console.log("Version: 4.6 (Restored Logic 14-56)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -581,11 +581,12 @@ function deleteFilament(id) {
     updateDashboard();
 }
 
-}
 function updateFilamentStatusUI() {
     const el = document.getElementById('filamentAvailability');
     el.className = el.value === 'В наличии' ? 'select-status-stock' : 'select-status-used';
 }
+
+
 
 // ==================== PRODUCTS ====================
 
@@ -731,60 +732,60 @@ function updateProductCosts() {
     document.getElementById('productCostMarketPerUnitCalc').textContent = (costMarket / qty).toFixed(2);
     document.getElementById('productCostPerUnitActualTooltip').textContent = `Расчет с реальной стоимостью: ${(costActual / qty).toFixed(2)} ₽`;
 
-    // --- ВОССТАНОВЛЕННЫЙ БЛОК ДЛЯ ФОРМУЛ ---
     const tooltipEl = document.getElementById('costsDetailTooltip');
     let tooltipContent = '';
     const hr = '<hr style="margin: 4px 0; border-color: rgba(255,255,255,0.2); border-style: dashed;">';
 
     if (type === 'Составное') {
         const eid = document.getElementById('productModal').getAttribute('data-edit-id');
-        const kids = eid ? db.products.filter(p => p.parentId == parseInt(eid)) : [];
+		const kids = eid ? db.products.filter(p => p.parentId == parseInt(eid)) : [];
         const totalWeight = kids.reduce((sum, k) => sum + (k.weight || 0), 0);
         const totalLength = kids.reduce((sum, k) => sum + (k.length || 0), 0);
 
         tooltipContent = [
-            '<b>Расчет для составного изделия (суммирование частей):</b>',
-            hr,
-            `<b>Программный вес (г):</b> ${totalWeight.toFixed(1)} г`,
-            `<b>Программная длина (м):</b> ${totalLength.toFixed(2)} м`,
-            hr,
-            `<b>Стоимость энергии:</b> ${energy.toFixed(2)} ₽`,
-            `<b>Стоим. фил. (рынок/вес):</b> ${mkW.toFixed(2)} ₽`,
-            `<b>Стоим. фил. (реальн/вес):</b> ${acW.toFixed(2)} ₽`,
-            `<b>Стоим. фил. (рынок/длина):</b> ${mkL.toFixed(2)} ₽`,
-            `<b>Стоим. фил. (реальн/длина):</b> ${acL.toFixed(2)} ₽`,
-            hr,
-            `<b>Себест. изделия (рынок):</b> ${costMarket.toFixed(2)} ₽`,
-            `<b>Себест. изделия (реальн):</b> ${costActual.toFixed(2)} ₽`,
-            hr,
-            `<b>Себест. за 1 шт. (рынок):</b> ${costMarket.toFixed(2)} ₽ / ${qty} = <b>${(costMarket/qty).toFixed(2)} ₽</b>`,
-            `<b>Себест. за 1 шт. (реальн):</b> ${costActual.toFixed(2)} ₽ / ${qty} = <b>${(costActual/qty).toFixed(2)} ₽</b>`
-        ].join('<br>');
+			'<b>Расчет для составного изделия (суммирование частей):</b>',
+			hr,
+			`<b>Программный вес (г):</b> ${totalWeight.toFixed(1)} г`,
+			`<b>Программная длина (м):</b> ${totalLength.toFixed(2)} м`,
+			hr,
+			`<b>Стоимость энергии:</b> ${energy.toFixed(2)} ₽`,
+			`<b>Стоим. фил. (рынок/вес):</b> ${mkW.toFixed(2)} ₽`,
+			`<b>Стоим. фил. (реальн/вес):</b> ${acW.toFixed(2)} ₽`,
+			`<b>Стоим. фил. (рынок/длина):</b> ${mkL.toFixed(2)} ₽`,
+			`<b>Стоим. фил. (реальн/длина):</b> ${acL.toFixed(2)} ₽`,
+			hr,
+			`<b>Себест. изделия (рынок):</b> ${costMarket.toFixed(2)} ₽`,
+			`<b>Себест. изделия (реальн):</b> ${costActual.toFixed(2)} ₽`,
+			hr,
+			`<b>Себест. за 1 шт. (рынок):</b> ${costMarket.toFixed(2)} ₽ / ${qty} = <b>${(costMarket/qty).toFixed(2)} ₽</b>`,
+			`<b>Себест. за 1 шт. (реальн):</b> ${costActual.toFixed(2)} ₽ / ${qty} = <b>${(costActual/qty).toFixed(2)} ₽</b>`
+		].join('<br>');
 
     } else {
         const timeH = time / 60;
         const printerP = printer ? printer.power : 0;
         
         tooltipContent = [
-            '<b>Стоимость энергии:</b> ' + `(${timeH.toFixed(2)} ч * ${printerP.toFixed(2)} кВт) * ${currentCostPerKw.toFixed(2)} ₽/кВтч = <b>${energy.toFixed(2)} ₽</b>`,
-            hr,
-            '<b>Стоим. фил. (рынок/вес):</b> ' + `${w.toFixed(1)} г * ${(f ? f.avgCostPerGram : 0).toFixed(2)} ₽/г = <b>${mkW.toFixed(2)} ₽</b>`,
-            '<b>Стоим. фил. (реальн/вес):</b> ' + `${w.toFixed(1)} г * ${(f ? f.actualCostPerGram : 0).toFixed(2)} ₽/г = <b>${acW.toFixed(2)} ₽</b>`,
-            '<b>Стоим. фил. (рынок/длина):</b> ' + `${l.toFixed(2)} м * ${(f ? f.avgCostPerMeter : 0).toFixed(2)} ₽/м = <b>${mkL.toFixed(2)} ₽</b>`,
-            '<b>Стоим. фил. (реальн/длина):</b> ' + `${l.toFixed(2)} м * ${(f ? f.actualCostPerMeter : 0).toFixed(2)} ₽/м = <b>${acL.toFixed(2)} ₽</b>`,
-            hr,
-            '<b>Себест. изделия (рынок):</b> ' + `MAX(${mkW.toFixed(2)}, ${mkL.toFixed(2)}) + ${energy.toFixed(2)} = <b>${costMarket.toFixed(2)} ₽</b>`,
-            '<b>Себест. изделия (реальн):</b> ' + `MAX(${acW.toFixed(2)}, ${acL.toFixed(2)}) + ${energy.toFixed(2)} = <b>${costActual.toFixed(2)} ₽</b>`,
-            hr,
-            '<b>Себест. за 1 шт. (рынок):</b> ' + `${costMarket.toFixed(2)} ₽ / ${qty} = <b>${(costMarket/qty).toFixed(2)} ₽</b>`,
-            '<b>Себест. за 1 шт. (реальн):</b> ' + `${costActual.toFixed(2)} ₽ / ${qty} = <b>${(costActual/qty).toFixed(2)} ₽</b>`
-        ].join('<br>');
+			'<b>Стоимость энергии:</b> ' + `(${timeH.toFixed(2)} ч * ${printerP.toFixed(2)} кВт) * ${currentCostPerKw.toFixed(2)} ₽/кВтч = <b>${energy.toFixed(2)} ₽</b>`,
+			hr,
+			'<b>Стоим. фил. (рынок/вес):</b> ' + `${w.toFixed(1)} г * ${(f ? f.avgCostPerGram : 0).toFixed(2)} ₽/г = <b>${mkW.toFixed(2)} ₽</b>`,
+			'<b>Стоим. фил. (реальн/вес):</b> ' + `${w.toFixed(1)} г * ${(f ? f.actualCostPerGram : 0).toFixed(2)} ₽/г = <b>${acW.toFixed(2)} ₽</b>`,
+			'<b>Стоим. фил. (рынок/длина):</b> ' + `${l.toFixed(2)} м * ${(f ? f.avgCostPerMeter : 0).toFixed(2)} ₽/м = <b>${mkL.toFixed(2)} ₽</b>`,
+			'<b>Стоим. фил. (реальн/длина):</b> ' + `${l.toFixed(2)} м * ${(f ? f.actualCostPerMeter : 0).toFixed(2)} ₽/м = <b>${acL.toFixed(2)} ₽</b>`,
+			hr,
+			'<b>Себест. изделия (рынок):</b> ' + `MAX(${mkW.toFixed(2)}, ${mkL.toFixed(2)}) + ${energy.toFixed(2)} = <b>${costMarket.toFixed(2)} ₽</b>`,
+			'<b>Себест. изделия (реальн):</b> ' + `MAX(${acW.toFixed(2)}, ${acL.toFixed(2)}) + ${energy.toFixed(2)} = <b>${costActual.toFixed(2)} ₽</b>`,
+			hr,
+			'<b>Себест. за 1 шт. (рынок):</b> ' + `${costMarket.toFixed(2)} ₽ / ${qty} = <b>${(costMarket/qty).toFixed(2)} ₽</b>`,
+			'<b>Себест. за 1 шт. (реальн):</b> ' + `${costActual.toFixed(2)} ₽ / ${qty} = <b>${(costActual/qty).toFixed(2)} ₽</b>`
+		].join('<br>');
     }
 
     if (tooltipEl) {
         tooltipEl.innerHTML = tooltipContent;
     }
 }
+
 
 
 
@@ -1782,7 +1783,7 @@ function updateWriteoffSection(index) {
     const product = db.products.find(p => p.id === pid);
     
     if (!product) {
-        // Сброс полей, если продукт не выбран
+        // Сброс полей
         section.querySelector('.section-stock').textContent = '0 шт.';
         section.querySelector('.section-remaining').textContent = '0 шт.';
         section.querySelector('.section-cost').textContent = '0.00 ₽';
@@ -1843,6 +1844,7 @@ function updateWriteoffSection(index) {
     
     calcWriteoffTotal();
 }
+
 
 
 
