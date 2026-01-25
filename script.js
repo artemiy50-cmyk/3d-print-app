@@ -1,4 +1,4 @@
-console.log("Version: 4.0 (2026-01-25 17-30)");
+console.log("Version: 4.0 (2026-01-25 19-38)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -567,7 +567,6 @@ function saveFilament() {
 }
 
 
-// ЗАМЕНИТЕ ЭТУ ФУНКЦИЮ
 function updateFilamentsTable() {
     const tbody = document.querySelector('#filamentsTable tbody');
     const sortBy = document.getElementById('filamentSortBy').value;
@@ -576,6 +575,12 @@ function updateFilamentsTable() {
         switch (sortBy) {
             case 'date-desc': return new Date(b.date) - new Date(a.date);
             case 'date-asc': return new Date(a.date) - new Date(b.date);
+            case 'availability': return (a.availability || '').localeCompare(b.availability || '');
+            case 'brand': return (a.brand || '').localeCompare(b.brand || '');
+            case 'color': return (a.color?.name || '').localeCompare(b.color?.name || '');
+            case 'id': return (a.customId || '').localeCompare(b.customId || '');
+            case 'length': return (b.remainingLength || 0) - (a.remainingLength || 0);
+            case 'price': return (b.actualPrice || 0) - (a.actualPrice || 0);
             default: return 0;
         }
     });
@@ -620,6 +625,7 @@ function updateFilamentsTable() {
     
     filterFilaments();
 }
+
 
 
 
@@ -2226,16 +2232,33 @@ function editWriteoff(systemId) { openWriteoffModal(systemId); }
 
 function updateWriteoffTable() {
     const tbody = document.querySelector('#writeoffTable tbody');
-    // Используем slice() для создания копии массива перед сортировкой
-    const sorted = [...db.writeoffs].sort((a,b) => b.systemId.localeCompare(a.systemId));
+    const filterType = document.getElementById('writeoffTypeFilter').value;
+    const search = document.getElementById('writeoffSearch').value.toLowerCase();
+    const sortBy = document.getElementById('writeoffSortBy').value;
     
-    tbody.innerHTML = sorted.map(w => {
+    let list = db.writeoffs || [];
+    
+    // Фильтрация
+    if (filterType) list = list.filter(w => w.type === filterType);
+    if (search) list = list.filter(w => (w.productName && w.productName.toLowerCase().includes(search)) || (w.systemId && w.systemId.includes(search)));
+
+    // Сортировка
+    list.sort((a,b) => {
+        if (sortBy === 'systemId-desc') return b.systemId.localeCompare(a.systemId);
+        if (sortBy === 'systemId-asc') return a.systemId.localeCompare(b.systemId);
+        if (sortBy === 'date-desc') return new Date(b.date) - new Date(a.date);
+        if (sortBy === 'date-asc') return new Date(a.date) - new Date(b.date);
+        if (sortBy === 'product') return a.productName.localeCompare(b.productName);
+        if (sortBy === 'total') return (b.total || 0) - (a.total || 0);
+        return 0;
+    });
+
+    tbody.innerHTML = list.map(w => {
         let statusBadge = 'badge-secondary';
         if (w.type === 'Продажа') statusBadge = 'badge-success';
         else if (w.type === 'Использовано') statusBadge = 'badge-purple';
         else if (w.type === 'Брак') statusBadge = 'badge-danger';
 
-        // Находим продукт для отображения себестоимости (как в эталоне)
         const product = db.products.find(p => p.id === w.productId);
         const actualCost = product ? (product.costPer1Actual || 0).toFixed(2) : '0.00';
 
@@ -2259,6 +2282,7 @@ function updateWriteoffTable() {
         </tr>`;
     }).join('');
 }
+
 
 
 function copyWriteoffItem(rowId) {
@@ -2477,6 +2501,42 @@ function moveReferenceItemDown(arrayName, index) {
     updateAllSelects(); // This will re-render everything
 }
 
+function recalculateFilamentUsage() {
+    if (!confirm('Пересчитать реальный расход филамента по всем существующим изделиям?\n\nЭто обнулит текущие счетчики расхода у катушек и заново просуммирует вес и длину всех изделий в базе.')) {
+        return;
+    }
+
+    // 1. Сбрасываем счетчики у всех катушек
+    db.filaments.forEach(f => {
+        f.usedLength = 0;
+        f.usedWeight = 0;
+    });
+
+    // 2. Проходим по всем изделиям и суммируем расход
+    db.products.forEach(p => {
+        if (p.type === 'Составное') return; // Пропускаем папки
+
+        if (p.filament && p.filament.id) {
+            const filamentInDb = db.filaments.find(f => f.id === p.filament.id);
+            if (filamentInDb) {
+                filamentInDb.usedLength += (p.length || 0);
+                filamentInDb.usedWeight += (p.weight || 0);
+            }
+        }
+    });
+
+    // 3. Обновляем остаток
+    db.filaments.forEach(f => {
+        f.remainingLength = Math.max(0, f.length - (f.usedLength || 0));
+    });
+
+    // 4. Сохраняем в Firebase и обновляем интерфейс
+    saveData();
+    updateFilamentsTable();
+    updateDashboard(); 
+    
+    alert('Пересчет успешно выполнен!');
+}
 
 
 // ==================== EVENT LISTENERS ====================
@@ -2492,6 +2552,7 @@ function setupEventListeners() {
     document.getElementById('addFilamentBtn')?.addEventListener('click', openFilamentModal);
     document.getElementById('saveFilamentBtn')?.addEventListener('click', saveFilament);
     document.getElementById('closeFilamentModalBtn')?.addEventListener('click', closeFilamentModal);
+	document.getElementById('recalculateFilamentBtn')?.addEventListener('click', recalculateFilamentUsage);
     // Filters & Sort
     document.getElementById('filamentSearch')?.addEventListener('input', filterFilaments);
     document.getElementById('filamentSearch')?.nextElementSibling.addEventListener('click', () => clearSearch('filamentSearch', 'filterFilaments'));

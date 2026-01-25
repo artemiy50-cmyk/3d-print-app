@@ -211,28 +211,39 @@
                     </div>
                 </div>
                 <div class="card">
-                    <div style="display: flex; gap: var(--spacing); align-items: center; margin-bottom: var(--spacing); flex-wrap: wrap;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <label style="margin: 0;">Наличие:</label>
-                            <select id="filamentStatusFilter" style="padding: 8px 12px; border: 1px solid var(--color-border); border-radius: var(--radius); font-size: 14px; width: 180px;">
-                                <option value="">— Все статусы —</option>
-                            </select>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <label style="margin: 0;">Сортировать по:</label>
-                            <select id="filamentSortBy" style="padding: 8px 12px; border: 1px solid var(--color-border); border-radius: var(--radius); font-size: 14px; width: 180px;">
-                                <option value="date-desc">Дате покупки (новые)</option>
-                                <option value="date-asc">Дате покупки (старые)</option>
-                                <option value="availability">Наличию</option>
-                                <option value="brand">Бренду</option>
-                                <option value="color">Цвету</option>
-                                <option value="id">ID</option>
-                                <option value="length">Остатку</option>
-                                <option value="price">Цене катушки</option>
-                            </select>
-                        </div>
-                        <button id="resetFilamentFiltersBtn" class="btn-secondary" style="padding: 8px 16px; font-size: 14px;">Сбросить</button>
-                    </div>
+                   <div style="display: flex; gap: var(--spacing); align-items: center; margin-bottom: var(--spacing); flex-wrap: wrap;">
+						<!-- Фильтр Наличия -->
+						<div style="display: flex; align-items: center; gap: 8px;">
+							<label style="margin: 0;">Наличие:</label>
+							<select id="filamentStatusFilter" style="padding: 0 12px; border: 1px solid var(--color-border); border-radius: var(--radius); font-size: 14px; width: 180px; height: 38px;">
+								<option value="">— Все статусы —</option>
+							</select>
+						</div>
+
+						<!-- Сортировка -->
+						<div style="display: flex; align-items: center; gap: 8px;">
+							<label style="margin: 0;">Сортировать по:</label>
+							<select id="filamentSortBy" style="padding: 0 12px; border: 1px solid var(--color-border); border-radius: var(--radius); font-size: 14px; width: 180px; height: 38px;">
+								<option value="date-desc">Дате покупки (новые)</option>
+								<option value="date-asc">Дате покупки (старые)</option>
+								<option value="availability">Наличию</option>
+								<option value="brand">Бренду</option>
+								<option value="color">Цвету</option>
+								<option value="id">ID</option>
+								<option value="length">Остатку</option>
+								<option value="price">Цене катушки</option>
+							</select>
+						</div>
+
+						<!-- Кнопка Сбросить (высота 38px) -->
+						<button id="resetFilamentFiltersBtn" class="btn-secondary" style="padding: 0 16px; font-size: 14px; height: 38px; display: flex; align-items: center; justify-content: center;">Сбросить</button>
+
+						<!-- Кнопка Пересчета (прижата вправо, высота 38px) -->
+						<button id="recalculateFilamentBtn" class="btn-secondary" title="Пересчитать фактический расход филамента по всем изделиям" style="padding: 0 12px; font-size: 18px; height: 38px; margin-left: auto; display: flex; align-items: center; justify-content: center;">
+							🔄
+						</button>
+					</div>
+
 
                     <div class="table-container">
                         <table id="filamentsTable">
