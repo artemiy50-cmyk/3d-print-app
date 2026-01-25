@@ -1,4 +1,4 @@
-console.log("Version: 4.6 (Restored Logic 15-52)");
+console.log("Version: 4.6 (Restored Logic 16-02)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1784,7 +1784,7 @@ function updateWriteoffSection(index) {
     const product = db.products.find(p => p.id === pid);
     
     if (!product) {
-        // Сброс полей
+        // Сброс полей, если продукт не выбран
         section.querySelector('.section-stock').textContent = '0 шт.';
         section.querySelector('.section-remaining').textContent = '0 шт.';
         section.querySelector('.section-cost').textContent = '0.00 ₽';
@@ -1847,32 +1847,6 @@ function updateWriteoffSection(index) {
 }
 
 
-
-
-
-function updateWriteoffSection(index) {
-    const section = document.getElementById(`writeoffSection_${index}`);
-    if (!section) return;
-    const pid = parseInt(section.querySelector('.writeoff-product-select').value);
-    const qtyInput = section.querySelector('.section-qty');
-    const priceInput = section.querySelector('.section-price');
-    const product = db.products.find(p => p.id === pid);
-    
-    if (!product) { section.querySelector('.section-stock').textContent = '-'; return; }
-
-    const editGroup = document.getElementById('writeoffModal').getAttribute('data-edit-group');
-    const usedElsewhere = getWriteoffQuantityForProduct(pid, editGroup);
-    const currentStock = Math.max(0, product.quantity - usedElsewhere);
-    section.querySelector('.section-stock').textContent = currentStock;
-    
-    const qty = parseInt(qtyInput.value) || 0;
-    section.querySelector('.section-remaining').textContent = Math.max(0, currentStock - qty);
-    
-    section.querySelector('.section-cost').textContent = (product.costPer1Actual||0).toFixed(2);
-    const price = parseFloat(priceInput.value) || 0;
-    section.querySelector('.section-total').textContent = (price * qty).toFixed(2);
-    calcWriteoffTotal();
-}
 
 function calcWriteoffTotal() {
     let totalSale = 0;
@@ -2299,6 +2273,7 @@ function updatePrintersList(){ document.getElementById('printersList').innerHTML
 </div>`).join(''); }
 
 
+
 function updateElectricityCostList() {
     const listDiv = document.getElementById('electricityCostList'); 
     if (!listDiv) return; 
@@ -2330,8 +2305,23 @@ function editPrinter(id) { const p = db.printers.find(x => x.id === id); if(!p) 
 function addElectricityCost() { const date = document.getElementById('newElectricityDate').value; const cost = parseFloat(document.getElementById('newElectricityCost').value); if (!date || isNaN(cost) || cost <= 0) { alert('Ошибка ввода.'); return; } if (db.electricityCosts.some(c => c.date === date)) { alert('Тариф на эту дату уже есть.'); return; } db.electricityCosts.push({ id: Date.now(), date: date, cost: cost }); document.getElementById('newElectricityDate').value=''; document.getElementById('newElectricityCost').value=''; recalculateAllProductCosts(); saveToLocalStorage(); updateAllSelects(); updateProductsTable(); }
 function removeElectricityCost(id) { if (db.electricityCosts.length <= 1) { alert('Нельзя удалить последний тариф.'); return; } if(confirm('Удалить?')){ db.electricityCosts = db.electricityCosts.filter(c => c.id !== id); recalculateAllProductCosts(); saveToLocalStorage(); updateAllSelects(); updateProductsTable(); } }
 
-function moveReferenceItemUp(arrayName, index) { if (index === 0) return; const arr = db[arrayName]; [arr[index], arr[index - 1]] = [arr[index - 1], arr[index]]; saveToLocalStorage(); updateAllSelects(); }
-function moveReferenceItemDown(arrayName, index) { const arr = db[arrayName]; if (index >= arr.length - 1) return; [arr[index], arr[index + 1]] = [arr[index + 1], arr[index]]; saveToLocalStorage(); updateAllSelects(); }
+function moveReferenceItemUp(arrayName, index) {
+    if (index === 0) return; // Already at the top
+    const arr = db[arrayName];
+    [arr[index], arr[index - 1]] = [arr[index - 1], arr[index]]; // Swap
+    saveToLocalStorage();
+    updateAllSelects(); // This will re-render everything
+}
+
+function moveReferenceItemDown(arrayName, index) {
+    const arr = db[arrayName];
+    if (index >= arr.length - 1) return; // Already at the bottom
+    [arr[index], arr[index + 1]] = [arr[index + 1], arr[index]]; // Swap
+    saveToLocalStorage();
+    updateAllSelects(); // This will re-render everything
+}
+
+
 
 // ==================== EVENT LISTENERS ====================
 
@@ -2426,25 +2416,6 @@ function setupEventListeners() {
     document.getElementById('productFileInput')?.addEventListener('change', function() { handleFileUpload(this); });
 }
 
-
-
-
-
-function moveReferenceItemUp(arrayName, index) {
-    if (index === 0) return; // Already at the top
-    const arr = db[arrayName];
-    [arr[index], arr[index - 1]] = [arr[index - 1], arr[index]]; // Swap
-    saveToLocalStorage();
-    updateAllSelects();
-}
-
-function moveReferenceItemDown(arrayName, index) {
-    const arr = db[arrayName];
-    if (index >= arr.length - 1) return; // Already at the bottom
-    [arr[index], arr[index + 1]] = [arr[index + 1], arr[index]]; // Swap
-    saveToLocalStorage();
-    updateAllSelects();
-}
 
 
 
