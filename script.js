@@ -1,4 +1,4 @@
-console.log("Version: 4.6 (Restored Logic 14-56)");
+console.log("Version: 4.6 (Restored Logic 15-33)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1844,6 +1844,7 @@ function updateWriteoffSection(index) {
     
     calcWriteoffTotal();
 }
+
 
 
 
