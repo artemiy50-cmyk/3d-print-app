@@ -1,4 +1,4 @@
-console.log("Version: 4.6 (Restored Logic 16-02)");
+console.log("Version: 4.0 (2026-01-25 17-10)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -286,21 +286,56 @@ function importData(input) {
             const loaded = JSON.parse(e.target.result);
             if (loaded.filaments && loaded.products) {
                 if (confirm('Внимание! Текущие данные будут заменены. Продолжить?')) {
+                    
+                    // --- Блок миграции и очистки данных ---
+                    
+                    // 1. Очистка продуктов от пустых Blob-объектов из JSON
+                    if (loaded.products) {
+                        loaded.products.forEach(p => {
+                            // Если imageBlob пришел как пустой объект {} из JSON, удаляем его
+                            if (p.imageBlob && Object.keys(p.imageBlob).length === 0) {
+                                p.imageBlob = null;
+                                p.imageUrl = null; // Сбрасываем URL
+                            }
+                            
+                            // Очистка прикрепленных файлов (также не сохраняются в JSON)
+                            if (p.attachedFiles) {
+                                p.attachedFiles = [];
+                                p.fileUrls = [];
+                            }
+
+                            // Восстановление статусов
+                            if (!p.status) p.status = determineProductStatus(p);
+                            if (p.inStock === undefined) p.inStock = p.quantity;
+                        });
+                    }
+
+                    // 2. Восстановление SystemID для списаний (если переходим со старой версии)
+                    if (loaded.writeoffs) {
+                        loaded.writeoffs.forEach(w => {
+                            if (!w.systemId) w.systemId = String(w.id);
+                        });
+                    }
+
+                    // --- Конец блока миграции ---
+
                     Object.assign(db, loaded);
                     await saveData();
-                    alert('База восстановлена!');
+                    alert('База восстановлена! Картинки необходимо загрузить заново, так как JSON не поддерживает сохранение файлов.');
                     window.location.reload();
                 }
             } else {
                 alert('Ошибка формата файла.');
             }
         } catch(err) { 
+            console.error(err);
             alert('Ошибка чтения: ' + err); 
         }
     };
     r.readAsText(file);
     input.value = ''; 
 }
+
 
 function updateAllSelects() {
     document.querySelectorAll('#filamentBrand').forEach(s => s.innerHTML = db.brands.map((b, i) => `<option value="${i}">${escapeHtml(b)}</option>`).join(''));
@@ -594,14 +629,39 @@ function renderProductImage() {
     const preview = document.getElementById('productImagePreview');
     const placeholder = document.getElementById('imagePlaceholder');
     const btnDelete = document.getElementById('btnDeleteImage');
+    
+    let src = null;
+
     if (currentProductImage) {
-        const src = (currentProductImage instanceof Blob) ? URL.createObjectURL(currentProductImage) : currentProductImage;
-        preview.src = src; preview.style.display = 'block'; placeholder.style.display = 'none'; btnDelete.style.display = 'flex';
-        if (currentProductImage instanceof Blob) preview.onload = () => URL.revokeObjectURL(src);
+        if (currentProductImage instanceof Blob) {
+            // Если это только что выбранный файл
+            src = URL.createObjectURL(currentProductImage);
+        } else if (typeof currentProductImage === 'string') {
+            // Если это URL из базы данных
+            src = currentProductImage;
+        }
+    }
+
+    if (src) {
+        preview.src = src; 
+        preview.style.display = 'block'; 
+        placeholder.style.display = 'none'; 
+        btnDelete.style.display = 'flex';
+        
+        // Очистка памяти только если это Blob
+        if (currentProductImage instanceof Blob) {
+            preview.onload = () => URL.revokeObjectURL(src);
+        }
     } else {
-        preview.src = ''; preview.style.display = 'none'; placeholder.style.display = 'block'; btnDelete.style.display = 'none';
+        preview.src = ''; 
+        preview.style.display = 'none'; 
+        placeholder.style.display = 'block'; 
+        btnDelete.style.display = 'none';
     }
 }
+
+
+
 function handleImageUpload(input) { const file = input.files[0]; if(file) { currentProductImage = file; renderProductImage(); } }
 function removeProductImage() { currentProductImage = null; renderProductImage(); }
 function handleFileUpload(input) { const file = input.files[0]; if(file) { currentProductFiles.push({name:file.name, blob:file}); renderProductFiles(); } }
@@ -1464,19 +1524,50 @@ function resetProductFilters() {
 
 function showProductImagePreview(el, pid) {
     activePreviewProductId = pid;
-    const p = db.products.find(x=>x.id==pid);
-    if(!p || (!p.imageUrl && !p.imageBlob)) return;
+    const p = db.products.find(x => x.id == pid);
+    
+    // Проверка: есть ли продукт, и есть ли у него URL или валидный Blob
+    if(!p) return;
+    
+    let src = null;
+    
+    if (p.imageUrl && typeof p.imageUrl === 'string') {
+        // Если это ссылка на облако (v4.0)
+        src = p.imageUrl;
+    } else if (p.imageBlob && p.imageBlob instanceof Blob) {
+        // Если это локальный Blob (только что загруженный, но еще не сохраненный)
+        src = URL.createObjectURL(p.imageBlob);
+    }
+
+    if (!src) return; // Если картинки нет, ничего не делаем
+
     const img = document.getElementById('globalImageTooltipImg');
     const tip = document.getElementById('globalImageTooltip');
-    const src = p.imageUrl || URL.createObjectURL(p.imageBlob);
+    
     if(img.src !== src) {
         img.style.display = 'none';
         img.src = src;
-        img.onload = () => { if(activePreviewProductId===pid) { img.style.display='block'; tip.style.display='block'; }};
+        img.onload = () => { 
+            if(activePreviewProductId === pid) { 
+                img.style.display = 'block'; 
+                tip.style.display = 'block'; 
+                
+                // Очистка памяти, если это был Blob
+                if (p.imageBlob instanceof Blob) {
+                    // Не ревокаем сразу, чтобы не пропала, но в идеале нужно следить за памятью
+                }
+            }
+        };
     } else {
-        if(activePreviewProductId===pid) { img.style.display='block'; tip.style.display='block'; }
+        if(activePreviewProductId === pid) { 
+            img.style.display = 'block'; 
+            tip.style.display = 'block'; 
+        }
     }
 }
+
+
+
 function moveProductImagePreview(e) {
     const tip = document.getElementById('globalImageTooltip');
     if(tip.style.display === 'block') {
