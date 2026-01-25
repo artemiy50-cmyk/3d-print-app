@@ -1,4 +1,4 @@
-console.log("Version: 4.0 (2026-01-25 17-10)");
+console.log("Version: 4.0 (2026-01-25 17-30)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -269,6 +269,129 @@ function loadShowChildren() {
 
 // === БЭКАП ФУНКЦИИ ===
 
+// ==================== V4.0 МИГРАЦИЯ И ИМПОРТ ====================
+
+// Вспомогательная: Base64 -> Blob (нужна для распаковки бэкапа v3.7)
+function base64ToBlob(base64) {
+    const arr = base64.split(',');
+    const mime = arr[0].match(/:(.*?);/)[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
+}
+
+// УМНЫЙ ИМПОРТ С МИГРАЦИЕЙ В ОБЛАКО
+function importData(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const r = new FileReader();
+    
+    r.onload = async (e) => {
+        try {
+            const loaded = JSON.parse(e.target.result);
+            
+            if (loaded.filaments && loaded.products) {
+                if (confirm('Внимание! Загрузка базы.\n\nЕсли это бэкап из версии 3.7 с картинками, они будут автоматически загружены в облако. Это может занять время.\n\nПродолжить?')) {
+                    
+                    const btn = document.getElementById('importBtn');
+                    if(btn) { btn.textContent = "☁️ Миграция..."; btn.disabled = true; }
+
+                    // --- МИГРАЦИЯ КАРТИНОК ---
+                    if (loaded.products) {
+                        let uploadCount = 0;
+                        
+                        // Используем for...of для последовательной обработки async/await
+                        for (let p of loaded.products) {
+                            
+                            // 1. Главное фото (из Base64 v3.7 -> в ImgBB URL v4.0)
+                            if (p._backupBase64Image) {
+                                try {
+                                    const blob = base64ToBlob(p._backupBase64Image);
+                                    // Загружаем в облако
+                                    const cloudUrl = await uploadFileToCloud(blob);
+                                    if (cloudUrl) {
+                                        p.imageUrl = cloudUrl;
+                                        p.imageBlob = null; // Очищаем локальные данные
+                                        uploadCount++;
+                                    }
+                                } catch (err) {
+                                    console.error(`Ошибка загрузки фото для ${p.name}:`, err);
+                                }
+                                delete p._backupBase64Image; // Удаляем "сырые" данные
+                            } 
+                            // Очистка старых пустых объектов, если были
+                            else if (p.imageBlob && Object.keys(p.imageBlob).length === 0) {
+                                p.imageBlob = null;
+                            }
+
+                            // 2. Файлы (из Base64 v3.7 -> в ImgBB URL v4.0)
+                            // ВНИМАНИЕ: ImgBB принимает только картинки. Если это STL, загрузка может не пройти
+                            // или ImgBB вернет ошибку.
+                            if (p._backupAttachedFiles && Array.isArray(p._backupAttachedFiles)) {
+                                p.fileUrls = []; // Новый массив для ссылок v4.0
+                                
+                                for (let f of p._backupAttachedFiles) {
+                                    if (f._contentBase64) {
+                                        try {
+                                            const blob = base64ToBlob(f._contentBase64);
+                                            // Пытаемся загрузить. Если это не картинка, ImgBB может отказать.
+                                            const cloudUrl = await uploadFileToCloud(blob);
+                                            if (cloudUrl) {
+                                                p.fileUrls.push({ name: f.name, url: cloudUrl });
+                                            } else {
+                                                // Если загрузка не удалась (например, не картинка), 
+                                                // сохраняем хотя бы имя, чтобы пользователь знал
+                                                p.fileUrls.push({ name: f.name + " (ошибка загр.)", url: null });
+                                            }
+                                        } catch (err) {
+                                            console.warn(`Не удалось загрузить файл ${f.name}`);
+                                        }
+                                    }
+                                }
+                                delete p._backupAttachedFiles;
+                                delete p.attachedFiles;
+                            }
+                        }
+                        
+                        if(uploadCount > 0) {
+                            console.log(`Успешно мигрировано ${uploadCount} изображений в облако.`);
+                        }
+                    }
+
+                    // --- Обычное восстановление данных ---
+                    // Восстановление SystemID для списаний
+                    if (loaded.writeoffs) {
+                        loaded.writeoffs.forEach(w => {
+                            if (!w.systemId) w.systemId = String(w.id);
+                        });
+                    }
+
+                    Object.assign(db, loaded);
+                    await saveData();
+                    
+                    alert('База восстановлена! Данные синхронизированы.');
+                    window.location.reload();
+                }
+            } else {
+                alert('Некорректный формат файла JSON.');
+            }
+        } catch(err) { 
+            console.error(err);
+            alert('Ошибка обработки файла: ' + err); 
+        } finally {
+            const btn = document.getElementById('importBtn');
+            if(btn) { btn.textContent = "📂 Восстановить"; btn.disabled = false; }
+        }
+    };
+    r.readAsText(file);
+    input.value = ''; 
+}
+
+
 function exportData() {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db));
     const dl = document.createElement('a');
@@ -277,64 +400,6 @@ function exportData() {
     document.body.appendChild(dl); dl.click(); dl.remove();
 }
 
-function importData(input) {
-    const file = input.files[0];
-    if (!file) return;
-    const r = new FileReader();
-    r.onload = async (e) => {
-        try {
-            const loaded = JSON.parse(e.target.result);
-            if (loaded.filaments && loaded.products) {
-                if (confirm('Внимание! Текущие данные будут заменены. Продолжить?')) {
-                    
-                    // --- Блок миграции и очистки данных ---
-                    
-                    // 1. Очистка продуктов от пустых Blob-объектов из JSON
-                    if (loaded.products) {
-                        loaded.products.forEach(p => {
-                            // Если imageBlob пришел как пустой объект {} из JSON, удаляем его
-                            if (p.imageBlob && Object.keys(p.imageBlob).length === 0) {
-                                p.imageBlob = null;
-                                p.imageUrl = null; // Сбрасываем URL
-                            }
-                            
-                            // Очистка прикрепленных файлов (также не сохраняются в JSON)
-                            if (p.attachedFiles) {
-                                p.attachedFiles = [];
-                                p.fileUrls = [];
-                            }
-
-                            // Восстановление статусов
-                            if (!p.status) p.status = determineProductStatus(p);
-                            if (p.inStock === undefined) p.inStock = p.quantity;
-                        });
-                    }
-
-                    // 2. Восстановление SystemID для списаний (если переходим со старой версии)
-                    if (loaded.writeoffs) {
-                        loaded.writeoffs.forEach(w => {
-                            if (!w.systemId) w.systemId = String(w.id);
-                        });
-                    }
-
-                    // --- Конец блока миграции ---
-
-                    Object.assign(db, loaded);
-                    await saveData();
-                    alert('База восстановлена! Картинки необходимо загрузить заново, так как JSON не поддерживает сохранение файлов.');
-                    window.location.reload();
-                }
-            } else {
-                alert('Ошибка формата файла.');
-            }
-        } catch(err) { 
-            console.error(err);
-            alert('Ошибка чтения: ' + err); 
-        }
-    };
-    r.readAsText(file);
-    input.value = ''; 
-}
 
 
 function updateAllSelects() {
