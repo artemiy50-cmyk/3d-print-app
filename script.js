@@ -1,4 +1,4 @@
-console.log("Version: 4.1 (2026-01-26 22-28)");
+console.log("Version: 4.1 (2026-01-26 22-52)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -612,67 +612,6 @@ function saveFilament() {
 }
 
 
-function updateFilamentsTable() {
-    const tbody = document.querySelector('#filamentsTable tbody');
-    const sortBy = document.getElementById('filamentSortBy').value;
-
-    const sortedFilaments = [...db.filaments].sort((a, b) => {
-        switch (sortBy) {
-            case 'date-desc': return new Date(b.date) - new Date(a.date);
-            case 'date-asc': return new Date(a.date) - new Date(b.date);
-            case 'availability': return (a.availability || '').localeCompare(b.availability || '');
-            case 'brand': return (a.brand || '').localeCompare(b.brand || '');
-            case 'color': return (a.color?.name || '').localeCompare(b.color?.name || '');
-            case 'id': return (a.customId || '').localeCompare(b.customId || '');
-            case 'length': return (b.remainingLength || 0) - (a.remainingLength || 0);
-            case 'price': return (b.actualPrice || 0) - (a.actualPrice || 0);
-            default: return 0;
-        }
-    });
-
-    tbody.innerHTML = sortedFilaments.map(f => {
-        const badge = f.availability === 'В наличии' ? 'badge-success' : 'badge-gray';
-        const note = f.note ? `<span class="tooltip-container" style="display:inline-flex; vertical-align:middle;"><span class="tooltip-icon">ℹ</span><span class="tooltip-text tooltip-top-left" style="width:200px; white-space:normal; line-height:1.2;">${escapeHtml(f.note)}</span></span>` : '';
-        const link = f.link ? `<a href="${escapeHtml(f.link)}" target="_blank" style="color:#1e40af;text-decoration:underline;">Товар</a>` : '';
-        
-        let rowClass = '';
-        if (f.availability === 'Израсходовано') rowClass = 'row-bg-gray';
-        
-        let remainingHtml = f.remainingLength.toFixed(1);
-        if (f.availability === 'В наличии' && f.remainingLength < 50) {
-            remainingHtml = `<span class="badge badge-danger">${remainingHtml}</span>`;
-            rowClass = 'row-bg-danger';
-        }
-
-        return `<tr class="${rowClass}">
-            <td><strong>${escapeHtml(f.customId)}</strong></td>
-            <td>${f.date}</td>
-            <td><span class="badge ${badge}">${escapeHtml(f.availability)}</span></td>
-            <td><span class="color-swatch" style="background:${f.color.hex}"></span>${escapeHtml(f.color.name)}</td>
-            <td>${escapeHtml(f.brand)}</td>
-            <td>${escapeHtml(f.type)}</td>
-            <td>${f.length.toFixed(1)}</td>
-            <td>${remainingHtml} ${note}</td>
-            <td>${(f.usedLength||0).toFixed(1)}</td>
-            <td>${(f.usedWeight||0).toFixed(1)}</td>
-            <td>${f.actualPrice.toFixed(2)}</td>
-            <td>${f.avgPrice.toFixed(2)}</td>
-            <td class="text-center">${link}</td>
-            <td class="text-center">
-                <div class="action-buttons">
-                    <button class="btn-secondary btn-small" title="Редактировать" onclick="editFilament(${f.id})">✎</button>
-                    <button class="btn-secondary btn-small" title="Копировать" onclick="copyFilament(${f.id})">❐</button>
-                    <button class="btn-danger btn-small" title="Удалить" onclick="deleteFilament(${f.id})">✕</button>
-                </div>
-            </td>
-        </tr>`;
-    }).join('');
-    
-    filterFilaments();
-}
-
-
-
 
 function filterFilaments() {
     const term = document.getElementById('filamentSearch').value.toLowerCase(); const status = document.getElementById('filamentStatusFilter').value;
@@ -968,7 +907,7 @@ function updateParentSelect(ensureParentId = null) {
     const eid = modal.getAttribute('data-edit-id');
     const cp = eid ? db.products.find(p => p.id == parseInt(eid)) : null;
     
-    // Определяем текущего родителя (для режима редактирования или копирования)
+    // Определяем текущего родителя (из редактирования или переданный при нажатии [+])
     let currentParentId = cp?.parentId || ensureParentId;
     let currentParent = currentParentId ? db.products.find(p => p.id == currentParentId) : null;
     
@@ -980,11 +919,13 @@ function updateParentSelect(ensureParentId = null) {
     );
     
     let opts = [];
+    // Если мы не добавляем часть по кнопке [+], добавляем пустой пункт выбора
     if (!eid && !ensureParentId) {
         opts.push('<option value="">-- Выберите родителя --</option>');
     }
 
-    // Если текущий родитель есть, но не прошел фильтр, добавляем его принудительно (чтобы не пустело поле)
+    // Если текущий родитель уже есть в базе, но не прошел фильтр (стал браком), 
+    // добавляем его принудительно с пометкой "(текущий)"
     if (currentParent && !avail.some(p => p.id === currentParent.id)) {
         opts.push(`<option value="${currentParent.id}">${escapeHtml(currentParent.name)} (текущий)</option>`);
     }
@@ -994,9 +935,12 @@ function updateParentSelect(ensureParentId = null) {
     const select = document.getElementById('productParent');
     if (select) {
         select.innerHTML = opts.join('');
-        if (currentParentId) select.value = currentParentId;
+        if (currentParentId) {
+            select.value = currentParentId;
+        }
     }
 }
+
 
 
 
@@ -1134,18 +1078,21 @@ function copyProduct(id) {
 
 function addChildPart(parentId) {
     const modal = document.getElementById('productModal');
-    // Обязательно удаляем атрибуты старого редактирования
+    // Сбрасываем флаги редактирования, чтобы форма открылась как новая
     modal.removeAttribute('data-edit-id');
     modal.removeAttribute('data-system-id');
     
-    // Открываем модалку (она сама вызовет очистку, так как мы удалили data-edit-id выше)
+    // Открываем модальное окно
     openProductModal(); 
     
-    // Устанавливаем тип
-    document.getElementById('productType').value = 'Часть составного';
-    updateProductTypeUI(); 
+    // Устанавливаем тип "Часть составного"
+    const typeSelect = document.getElementById('productType');
+    if (typeSelect) {
+        typeSelect.value = 'Часть составного';
+        updateProductTypeUI(); 
+    }
 
-    // Выбираем родителя и наследуем количество (с небольшой задержкой для надежности)
+    // Заполняем родителя и количество (через минимальную задержку для инициализации списка)
     setTimeout(() => {
         updateParentSelect(parentId);
         const parent = db.products.find(p => p.id == parentId);
@@ -1155,6 +1102,7 @@ function addChildPart(parentId) {
         document.getElementById('productName').focus();
     }, 50);
 }
+
 
 
 
