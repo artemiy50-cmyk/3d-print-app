@@ -1,4 +1,4 @@
-console.log("Version: 4.0 (2026-01-25 20-43)");
+console.log("Version: 4.1 (2026-01-26 22-28)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -963,12 +963,42 @@ function updateProductCosts() {
 }
 
 
+function updateParentSelect(ensureParentId = null) {
+    const modal = document.getElementById('productModal');
+    const eid = modal.getAttribute('data-edit-id');
+    const cp = eid ? db.products.find(p => p.id == parseInt(eid)) : null;
+    
+    // Определяем текущего родителя (для режима редактирования или копирования)
+    let currentParentId = cp?.parentId || ensureParentId;
+    let currentParent = currentParentId ? db.products.find(p => p.id == currentParentId) : null;
+    
+    // Фильтр из 3.7: только Составные, не завершенные и не в браке
+    const avail = db.products.filter(p => 
+        p.type === 'Составное' && 
+        p.allPartsCreated !== true && 
+        p.defective !== true
+    );
+    
+    let opts = [];
+    if (!eid && !ensureParentId) {
+        opts.push('<option value="">-- Выберите родителя --</option>');
+    }
 
+    // Если текущий родитель есть, но не прошел фильтр, добавляем его принудительно (чтобы не пустело поле)
+    if (currentParent && !avail.some(p => p.id === currentParent.id)) {
+        opts.push(`<option value="${currentParent.id}">${escapeHtml(currentParent.name)} (текущий)</option>`);
+    }
 
-function updateParentSelect() {
-    const avail = db.products.filter(p => p.type === 'Составное');
-    document.getElementById('productParent').innerHTML = avail.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+    opts.push(...avail.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`));
+    
+    const select = document.getElementById('productParent');
+    if (select) {
+        select.innerHTML = opts.join('');
+        if (currentParentId) select.value = currentParentId;
+    }
 }
+
+
 
 function openProductModal() {
     document.getElementById('productModal').classList.add('active');
@@ -1023,22 +1053,27 @@ function clearProductForm() {
 }
 
 
-
-// ЗАМЕНИТЕ эту функцию целиком
 function updateProductTypeUI() {
     const type = document.getElementById('productType').value;
-    const groups = { parent: document.getElementById('productParentGroup'), allParts: document.getElementById('productAllPartsCreatedContainer'), material: document.getElementById('materialSection'), children: document.getElementById('childrenTableGroup'), linkContainer: document.getElementById('productLinkFieldContainer'), fileSection: document.getElementById('fileUploadSection') };
+    const groups = { 
+        parent: document.getElementById('productParentGroup'), 
+        allParts: document.getElementById('productAllPartsCreatedContainer'), 
+        material: document.getElementById('materialSection'), 
+        children: document.getElementById('childrenTableGroup'), 
+        linkContainer: document.getElementById('productLinkFieldContainer'), 
+        fileSection: document.getElementById('fileUploadSection') 
+    };
     const inputs = ['productFilament','productPrinter','productPrintTimeHours','productPrintTimeMinutes','productWeight','productLength'];
     
-    const costNote = document.getElementById('compositeCostNote');
-    if(costNote) costNote.classList.toggle('hidden', type !== 'Составное');
+    const btnWriteOff = document.getElementById('btnWriteOffProduct');
+    const isExistingProduct = !!document.getElementById('productModal').getAttribute('data-edit-id');
+    if (btnWriteOff) btnWriteOff.style.display = (isExistingProduct && type !== 'Часть составного') ? 'flex' : 'none';
 
     groups.parent.classList.add('hidden');
     if(groups.allParts) groups.allParts.style.display = 'none';
     groups.material.classList.remove('hidden');
     groups.children.classList.add('hidden');
     groups.linkContainer.style.display = 'block';
-    if(groups.fileSection) groups.fileSection.classList.remove('hidden');
 
     if (type === 'Составное') {
         if(groups.allParts) groups.allParts.style.display = 'flex';
@@ -1053,22 +1088,10 @@ function updateProductTypeUI() {
     } else if (type === 'Часть составного') {
         groups.parent.classList.remove('hidden');
         groups.linkContainer.style.display = 'none';
-        if(groups.fileSection) groups.fileSection.classList.add('hidden');
         inputs.forEach(id => { const el = document.getElementById(id); if(el) el.disabled = false; });
-        updateParentSelect();
+        updateParentSelect(); // Используем новую версию с фильтрами
     } else {
         inputs.forEach(id => { const el = document.getElementById(id); if(el) el.disabled = false; });
-    }
-    
-    // ВОССТАНОВЛЕНА ЛОГИКА ОТОБРАЖЕНИЯ КНОПКИ "СПИСАТЬ"
-    const btnWriteOff = document.getElementById('btnWriteOffProduct');
-    if (btnWriteOff) {
-        const isExistingProduct = !!document.getElementById('productModal').getAttribute('data-edit-id');
-        if (isExistingProduct && type !== 'Часть составного') {
-            btnWriteOff.style.display = 'flex';
-        } else {
-            btnWriteOff.style.display = 'none';
-        }
     }
     
     updateProductCosts();
@@ -1110,13 +1133,29 @@ function copyProduct(id) {
 }
 
 function addChildPart(parentId) {
+    const modal = document.getElementById('productModal');
+    // Обязательно удаляем атрибуты старого редактирования
+    modal.removeAttribute('data-edit-id');
+    modal.removeAttribute('data-system-id');
+    
+    // Открываем модалку (она сама вызовет очистку, так как мы удалили data-edit-id выше)
     openProductModal(); 
+    
+    // Устанавливаем тип
     document.getElementById('productType').value = 'Часть составного';
     updateProductTypeUI(); 
-    document.getElementById('productParent').value = parentId;
-    const parent = db.products.find(p => p.id == parentId);
-    if (parent) document.getElementById('productQuantity').value = parent.quantity;
+
+    // Выбираем родителя и наследуем количество (с небольшой задержкой для надежности)
+    setTimeout(() => {
+        updateParentSelect(parentId);
+        const parent = db.products.find(p => p.id == parentId);
+        if (parent) {
+            document.getElementById('productQuantity').value = parent.quantity;
+        }
+        document.getElementById('productName').focus();
+    }, 50);
 }
+
 
 
 function editProduct(id) {
