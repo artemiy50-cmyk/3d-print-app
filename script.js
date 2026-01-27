@@ -1,3 +1,4 @@
+console.log("Version: 4.1 (2026-01-27 20-11)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1206,6 +1207,7 @@ function copyProduct(id) {
 }
 
 // === ИСПРАВЛЕННАЯ ФУНКЦИЯ ДЛЯ КНОПКИ [+] ===
+// Замените старую функцию addChildPart на эту версию
 function addChildPart(parentId) {
     const modal = document.getElementById('productModal');
     // Сбрасываем флаги редактирования, чтобы открылось как "новое"
@@ -1220,7 +1222,6 @@ function addChildPart(parentId) {
     if(typeSelect) {
         typeSelect.value = 'Часть составного';
         // Обновляем UI (показываем поле выбора родителя)
-        // Внимание: здесь updateParentSelect вызовется без аргументов
         updateProductTypeUI(); 
     }
 
@@ -1247,12 +1248,16 @@ function addChildPart(parentId) {
         updateProductCosts();
     }
 
-    // Фокус на поле названия через небольшую задержку (для визуального удобства)
+    // Фокус на поле названия через небольшую задержку (только для визуального эффекта)
     setTimeout(() => {
         const nameInput = document.getElementById('productName');
         if(nameInput) nameInput.focus();
     }, 50);
 }
+
+// Делаем функцию глобальной, чтобы кнопка в таблице могла её вызвать через onclick
+window.addChildPart = addChildPart;
+
 
 
 
