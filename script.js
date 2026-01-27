@@ -1,4 +1,4 @@
-console.log("Version: 4.1 (2026-01-27 09-05)");
+console.log("Version: 4.1 (2026-01-27 10-05)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -909,14 +909,9 @@ function updateParentSelect(ensureParentId = null) {
     const eid = modal.getAttribute('data-edit-id');
     const cp = eid ? db.products.find(p => p.id == parseInt(eid)) : null;
     
-    // 1. Определяем, кого мы хотим выбрать
-    // Если редактируем - берем текущего родителя
-    // Если создаем новую часть (ensureParentId) - берем его
     let currentParentId = cp?.parentId || ensureParentId;
     let currentParent = currentParentId ? db.products.find(p => p.id == currentParentId) : null;
     
-    // 2. Фильтр доступных родителей (как в v3.7)
-    // Показываем только составные, которые НЕ завершены и НЕ в браке
     const avail = db.products.filter(p => 
         p.type === 'Составное' && 
         p.allPartsCreated !== true && 
@@ -924,22 +919,16 @@ function updateParentSelect(ensureParentId = null) {
     );
     
     let opts = [];
-    // Пункт "Выберите" добавляем только если мы не в режиме принудительного выбора (не нажали +)
     if (!eid && !ensureParentId) {
         opts.push('<option value="">-- Выберите родителя --</option>');
     }
 
-    // 3. Защита от потери связи:
-    // Если текущий родитель есть, но он скрыт фильтром (например, стал браком), 
-    // принудительно добавляем его в список, чтобы поле не сбросилось
     if (currentParent && !avail.some(p => p.id === currentParent.id)) {
         opts.push(`<option value="${currentParent.id}">${escapeHtml(currentParent.name)} (текущий)</option>`);
     }
 
-    // Добавляем остальные доступные варианты
     opts.push(...avail.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`));
     
-    // 4. Рендерим и выбираем
     const select = document.getElementById('productParent');
     if (select) {
         select.innerHTML = opts.join('');
@@ -948,6 +937,7 @@ function updateParentSelect(ensureParentId = null) {
         }
     }
 }
+
 
 function openProductModal() {
     const modal = document.getElementById('productModal');
@@ -978,7 +968,8 @@ function closeProductModal() {
 function clearProductForm() {
     const setVal = (id, v) => { const el = document.getElementById(id); if(el) el.value = v; };
     const setCheck = (id, v) => { const el = document.getElementById(id); if(el) el.checked = v; };
-    
+    const setText = (id, v) => { const el = document.getElementById(id); if(el) el.textContent = v; }; // Добавлено для текстовых полей
+
     setVal('productName', ''); 
     setVal('productLink', ''); 
     setVal('productQuantity', '1'); 
@@ -989,32 +980,58 @@ function clearProductForm() {
     setVal('productNote', ''); 
     setCheck('productDefective', false);
     
+    // Сброс специфичных полей
+    if(document.getElementById('productAllPartsCreated')) 
+        document.getElementById('productAllPartsCreated').checked = false;
+
     setVal('productFilament', ''); 
+    const swatch = document.getElementById('productColorSwatch'); if(swatch) swatch.style.background = '#ffffff'; 
+    setText('productColorName', '—'); 
+    
     const printers = db.printers || [];
     setVal('productPrinter', printers.length > 0 ? printers[0].id : ''); 
     setVal('productDate', new Date().toISOString().split('T')[0]);
     
-    setVal('productParent', ''); // Сброс родителя
-    
-    // Сброс валидации
-    const msg = document.getElementById('productValidationMessage');
-    if(msg) msg.classList.add('hidden'); 
-    document.querySelectorAll('#productModal input, #productModal select').forEach(el => el.classList.remove('error'));
-    
-    // Сброс файлов
-    currentProductImage = null; 
-    currentProductFiles = []; 
-    renderProductImage(); 
-    renderProductFiles();
-
-    // Сброс типа в дефолт
+    setVal('productParent', ''); 
+    setText('productStockCalc', '1 шт.'); 
     setVal('productType', 'Самостоятельное'); 
     
-    // Принудительное обновление UI
+    // Сброс статуса
+    const statusField = document.getElementById('productAvailabilityField');
+    if (statusField) {
+        statusField.textContent = 'В наличии полностью';
+        statusField.className = 'calc-field status-field-stocked';
+    }
+    
+    // Сброс сообщений
+    const msg = document.getElementById('productValidationMessage');
+    if(msg) {
+        msg.classList.add('hidden'); 
+        msg.textContent = 'Не все обязательные поля заполнены';
+    }
+
+    document.querySelectorAll('#productModal input, #productModal select').forEach(el => el.classList.remove('error'));
+    
+    // === ВАЖНО: Разблокировка всех полей (восстановлено из v3.7) ===
+    const allInputs = document.querySelectorAll('#productModal input, #productModal select, #productModal textarea, #productModal button.btn-primary'); 
+    allInputs.forEach(el => { 
+        el.disabled = false; 
+        el.style.opacity = ''; 
+        el.style.cursor = ''; 
+    });
+    // ==============================================================
+    
+    // Сброс загруженных файлов и картинок
+    removeProductImage();
+    currentProductFiles = [];
+    renderProductFiles();
+
+    // Обновление UI
     updateProductTypeUI();
     updateProductColorDisplay();
     updateProductCosts();
 }
+
 
 function updateProductTypeUI() {
     const type = document.getElementById('productType').value;
@@ -1102,32 +1119,37 @@ function copyProduct(id) {
     updateProductTypeUI();
 }
 
-// === ИСПРАВЛЕННАЯ ФУНКЦИЯ ДЛЯ КНОПКИ [+] ===
 function addChildPart(parentId) {
     const modal = document.getElementById('productModal');
-    // 1. Принудительно сбрасываем флаг редактирования, чтобы форма считалась новой
+    // Сбрасываем флаги, чтобы форма считалась новой
     modal.removeAttribute('data-edit-id');
     modal.removeAttribute('data-system-id');
     
-    // 2. Открываем модалку (она вызовет clearProductForm)
+    // Открываем (это вызовет очистку и разблокировку полей)
     openProductModal(); 
     
-    // 3. Устанавливаем тип "Часть составного"
+    // Устанавливаем значения
     document.getElementById('productType').value = 'Часть составного';
-    updateProductTypeUI(); // Это покажет поле выбора родителя
-
-    // 4. Заполняем родителя и количество (через тайм-аут, чтобы UI успел обновиться)
+    
+    // Принудительно обновляем UI для этого типа
+    updateProductTypeUI(); 
+    
+    // Устанавливаем родителя
+    updateParentSelect(parentId); // Передаем ID, чтобы он выбрался в списке
+    
+    // Наследуем количество от родителя
+    const parent = db.products.find(p => p.id == parentId);
+    if (parent) {
+        document.getElementById('productQuantity').value = parent.quantity;
+    }
+    
+    // Фокус на имени
     setTimeout(() => {
-        // Передаем parentId, чтобы он выбрался даже если фильтры его скрывают
-        updateParentSelect(parentId);
-        
-        const parent = db.products.find(p => p.id == parentId);
-        if (parent) {
-            document.getElementById('productQuantity').value = parent.quantity;
-        }
-        document.getElementById('productName').focus();
-    }, 50);
+        const nameInput = document.getElementById('productName');
+        if(nameInput) nameInput.focus();
+    }, 100);
 }
+
 
 
 
