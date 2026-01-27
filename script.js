@@ -1,4 +1,4 @@
-console.log("Version: 4.1 (2026-01-27 10-55)");
+console.log("Version: 4.1 (2026-01-27 12-10)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -904,14 +904,22 @@ function updateProductCosts() {
 
 // ==================== PRODUCT LOGIC (FIXED & UNIFIED) ====================
 
+
+
+// ==================== PRODUCT LOGIC (FIXED v4.2) ====================
+
 function updateParentSelect(ensureParentId = null) {
     const modal = document.getElementById('productModal');
     const eid = modal.getAttribute('data-edit-id');
     const cp = eid ? db.products.find(p => p.id == parseInt(eid)) : null;
     
+    // Определяем текущего родителя: либо из редактируемого товара, либо переданный принудительно (кнопка +)
     let currentParentId = cp?.parentId || ensureParentId;
+    
+    // Ищем объект родителя, чтобы получить его имя, даже если он скрыт фильтрами
     let currentParent = currentParentId ? db.products.find(p => p.id == currentParentId) : null;
     
+    // Фильтр: Составные, не завершенные, не брак (Как в v3.7)
     const avail = db.products.filter(p => 
         p.type === 'Составное' && 
         p.allPartsCreated !== true && 
@@ -919,10 +927,13 @@ function updateParentSelect(ensureParentId = null) {
     );
     
     let opts = [];
+    // Пункт "Выберите" добавляем только если мы не в режиме принудительного добавления части
     if (!eid && !ensureParentId) {
         opts.push('<option value="">-- Выберите родителя --</option>');
     }
 
+    // Если текущий родитель (например, для которого нажали +) не прошел фильтр (стал браком или завершен),
+    // мы ВСЕ РАВНО добавляем его в список, иначе поле будет пустым и привязка слетит.
     if (currentParent && !avail.some(p => p.id === currentParent.id)) {
         opts.push(`<option value="${currentParent.id}">${escapeHtml(currentParent.name)} (текущий)</option>`);
     }
@@ -932,26 +943,29 @@ function updateParentSelect(ensureParentId = null) {
     const select = document.getElementById('productParent');
     if (select) {
         select.innerHTML = opts.join('');
+        // Принудительно выбираем значение
         if (currentParentId) {
             select.value = currentParentId;
         }
     }
 }
 
-
 function openProductModal() {
     const modal = document.getElementById('productModal');
     modal.classList.add('active');
     
-    // Если это не режим редактирования (нет ID), очищаем форму для нового изделия
+    // Если это добавление нового (нет ID редактирования)
     if(!modal.hasAttribute('data-edit-id')) {
+        // Меняем заголовок, так как он мог остаться от копирования
+        const titleEl = document.querySelector('#productModal .modal-header-title');
+        if(titleEl) titleEl.textContent = 'Добавить изделие';
+
         clearProductForm();
         
-        // Генерируем новый системный ID
+        // Новый System ID
         const now = new Date(); 
         document.getElementById('productSystemId').textContent = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
         
-        // Обновляем UI под "Самостоятельное" изделие по умолчанию
         updateProductTypeUI();
         updateProductFilamentSelect();
     }
@@ -960,7 +974,7 @@ function openProductModal() {
 function closeProductModal() { 
     const modal = document.getElementById('productModal');
     modal.classList.remove('active'); 
-    modal.removeAttribute('data-edit-id'); // Сброс флага редактирования
+    modal.removeAttribute('data-edit-id'); 
     modal.removeAttribute('data-system-id');
     clearProductForm(); 
 }
@@ -983,7 +997,7 @@ function clearProductForm() {
     if(document.getElementById('productAllPartsCreated')) 
         document.getElementById('productAllPartsCreated').checked = false;
 
-    // Очистка таблицы дочерних элементов
+    // Очистка таблицы детей
     const childrenTbody = document.querySelector('#childrenTable tbody');
     if (childrenTbody) childrenTbody.innerHTML = '';
 
@@ -999,7 +1013,6 @@ function clearProductForm() {
     setText('productStockCalc', '1 шт.'); 
     setVal('productType', 'Самостоятельное'); 
     
-    // Сброс статуса
     const statusField = document.getElementById('productAvailabilityField');
     if (statusField) {
         statusField.textContent = 'В наличии полностью';
@@ -1014,8 +1027,8 @@ function clearProductForm() {
 
     document.querySelectorAll('#productModal input, #productModal select').forEach(el => el.classList.remove('error'));
     
-    // === ВАЖНО: Разблокировка всех полей (восстановлено из v3.7) ===
-    // Этого блока не хватало, из-за чего форма оставалась неактивной
+    // === ВАЖНО: ПРИНУДИТЕЛЬНАЯ РАЗБЛОКИРОВКА ВСЕХ ПОЛЕЙ ===
+    // Это исправляет проблему, когда форма открывалась неактивной после просмотра закрытого/бракованного изделия
     const allInputs = document.querySelectorAll('#productModal input, #productModal select, #productModal textarea, #productModal button.btn-primary'); 
     allInputs.forEach(el => { 
         el.disabled = false; 
@@ -1023,7 +1036,7 @@ function clearProductForm() {
         el.style.cursor = ''; 
         if(el.tagName === 'BUTTON') el.title = ""; 
     });
-    // ==============================================================
+    // ========================================================
     
     removeProductImage();
     currentProductFiles = [];
@@ -1033,8 +1046,6 @@ function clearProductForm() {
     updateProductColorDisplay();
     updateProductCosts();
 }
-
-
 
 function updateProductTypeUI() {
     const type = document.getElementById('productType').value;
@@ -1048,13 +1059,9 @@ function updateProductTypeUI() {
     };
     const inputs = ['productFilament','productPrinter','productPrintTimeHours','productPrintTimeMinutes','productWeight','productLength'];
     
-    // Логика кнопки "Списать"
     const btnWriteOff = document.getElementById('btnWriteOffProduct');
     const isExistingProduct = !!document.getElementById('productModal').getAttribute('data-edit-id');
-    if (btnWriteOff) {
-        // Списывать можно только существующие изделия, которые НЕ являются частью составного (части списываются через родителя или отдельно)
-        btnWriteOff.style.display = (isExistingProduct && type !== 'Часть составного') ? 'flex' : 'none';
-    }
+    if (btnWriteOff) btnWriteOff.style.display = (isExistingProduct && type !== 'Часть составного') ? 'flex' : 'none';
 
     groups.parent.classList.add('hidden');
     if(groups.allParts) groups.allParts.style.display = 'none';
@@ -1067,7 +1074,6 @@ function updateProductTypeUI() {
         if(groups.allParts) groups.allParts.style.display = 'flex';
         groups.material.classList.add('hidden');
         groups.children.classList.remove('hidden');
-        // Блокируем поля, так как они считаются автоматически
         inputs.forEach(id => { 
             const el = document.getElementById(id);
             if(el) { el.disabled = true; if(id.includes('Filament') || id.includes('Printer')) el.value = ''; }
@@ -1079,9 +1085,8 @@ function updateProductTypeUI() {
         groups.linkContainer.style.display = 'none';
         if(groups.fileSection) groups.fileSection.classList.add('hidden');
         inputs.forEach(id => { const el = document.getElementById(id); if(el) el.disabled = false; });
-        
-        // ВАЖНО: Обновляем список родителей с учетом фильтров
-        updateParentSelect(); 
+        // Обновляем список родителей (логика внутри функции сама решит, какой ID выбрать)
+        updateParentSelect();
     } else {
         inputs.forEach(id => { const el = document.getElementById(id); if(el) el.disabled = false; });
     }
@@ -1107,56 +1112,153 @@ function onParentProductChange() {
     if(parent) document.getElementById('productQuantity').value = parent.quantity;
 }
 
+// === ИСПРАВЛЕННАЯ ФУНКЦИЯ COPY (из v3.7) ===
 function copyProduct(id) {
-    const p = db.products.find(x => x.id === id); if (!p) return;
-    openProductModal();
-    document.getElementById('productName').value = p.name + ' (Копия)';
-    document.getElementById('productQuantity').value = p.quantity;
-    document.getElementById('productWeight').value = p.weight;
-    document.getElementById('productLength').value = p.length;
-    document.getElementById('productPrintTimeHours').value = Math.floor(p.printTime/60);
-    document.getElementById('productPrintTimeMinutes').value = p.printTime%60;
-    if(p.printer) document.getElementById('productPrinter').value = p.printer.id;
-    if(p.filament) document.getElementById('productFilament').value = p.filament.id;
-    document.getElementById('productType').value = p.type;
-    updateProductTypeUI();
+    const p = db.products.find(x => x.id === id); 
+    if (!p) return;
+
+    // 1. Логика копирования СОСТАВНОГО изделия (Deep Copy)
+    if (p.type === 'Составное') {
+        if (!confirm('Это составное изделие. Будут скопированы все его части. Продолжить?')) {
+            return;
+        }
+        // Копируем родителя
+        const newParent = JSON.parse(JSON.stringify(p));
+        const now = new Date();
+        newParent.id = now.getTime();
+        newParent.systemId = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
+        newParent.name = p.name + ' (Копия)';
+        newParent.date = now.toISOString().split('T')[0];
+        newParent.inStock = p.quantity;
+        newParent.allPartsCreated = false;
+        newParent.defective = false;
+        newParent.status = determineProductStatus(newParent);
+        // Очищаем медиа при копировании через БД (можно оставить, если нужно)
+        newParent.imageBlob = null; 
+        newParent.imageUrl = p.imageUrl; // Сохраняем ссылку на облако
+        newParent.attachedFiles = [];
+        newParent.fileUrls = p.fileUrls; // Сохраняем ссылки на файлы
+        
+        db.products.push(newParent);
+
+        // Копируем детей
+        const children = db.products.filter(child => child.parentId === p.id);
+        children.forEach((child, index) => {
+            const newChild = JSON.parse(JSON.stringify(child));
+            const childNow = new Date();
+            newChild.id = childNow.getTime() + index + 1;
+            newChild.systemId = `${childNow.getFullYear()}${String(childNow.getMonth()+1).padStart(2,'0')}${String(childNow.getDate()).padStart(2,'0')}${String(childNow.getHours()).padStart(2,'0')}${String(childNow.getMinutes()).padStart(2,'0')}${String(childNow.getSeconds()+index+1).padStart(2,'0')}`;
+            newChild.parentId = newParent.id;
+            newChild.date = now.toISOString().split('T')[0];
+            newChild.inStock = newChild.quantity;
+            newChild.defective = false;
+            newChild.status = determineProductStatus(newChild);
+            db.products.push(newChild);
+        });
+        
+        saveToLocalStorage();
+        updateProductsTable();
+        updateDashboard();
+        alert(`Составное изделие "${newParent.name}" и ${children.length} его частей успешно скопированы.`);
+
+    } else {
+        // 2. Логика копирования ПРОСТОГО изделия (через модалку)
+        
+        // Сначала открываем как НОВОЕ (сбрасываем ID)
+        document.getElementById('productModal').removeAttribute('data-edit-id');
+        document.getElementById('productModal').removeAttribute('data-system-id');
+        openProductModal();
+        
+        // Меняем заголовок (как в v3.7)
+        document.querySelector('#productModal .modal-header-title').textContent = 'Копирование изделия';
+
+        // Заполняем поля
+        document.getElementById('productName').value = p.name + ' (Копия)';
+        document.getElementById('productLink').value = p.link || '';
+        document.getElementById('productDate').value = new Date().toISOString().split('T')[0];
+        document.getElementById('productWeight').value = p.weight;
+        document.getElementById('productLength').value = p.length;
+        document.getElementById('productPrintTimeHours').value = Math.floor(p.printTime/60);
+        document.getElementById('productPrintTimeMinutes').value = p.printTime%60;
+        if(p.printer) document.getElementById('productPrinter').value = p.printer.id;
+        
+        document.getElementById('productType').value = p.type;
+        document.getElementById('productNote').value = p.note;
+        document.getElementById('productDefective').checked = false;
+        
+        updateProductTypeUI();
+        
+        if (p.type === 'Часть составного') { 
+            // При копировании части - пытаемся выбрать того же родителя
+            updateParentSelect(p.parentId);
+            document.getElementById('productParent').value = p.parentId;
+            
+            // Наследуем количество от родителя, если он есть
+            const parent = db.products.find(x => x.id == p.parentId);
+            if (parent) {
+                document.getElementById('productQuantity').value = parent.quantity;
+            } else {
+                document.getElementById('productQuantity').value = p.quantity;
+            }
+        } else {
+            document.getElementById('productQuantity').value = p.quantity;
+        }
+
+        if (p.type !== 'Составное' && p.filament) { 
+            document.getElementById('productFilament').value = p.filament.id; 
+        }
+        
+        // Копируем ссылки на картинки
+        currentProductImage = p.imageUrl || null;
+        currentProductFiles = p.fileUrls || [];
+        renderProductImage();
+        renderProductFiles();
+        
+        updateProductFilamentSelect();
+        if (p.type !== 'Составное' && p.filament) updateProductColorDisplay();
+        updateProductCosts();
+    }
 }
 
+// === ИСПРАВЛЕННАЯ ФУНКЦИЯ [+] (addChildPart) ===
 function addChildPart(parentId) {
     const modal = document.getElementById('productModal');
-    // Сброс флагов редактирования
+    // Сбрасываем флаги, чтобы это было НОВОЕ изделие
     modal.removeAttribute('data-edit-id');
     modal.removeAttribute('data-system-id');
     
-    // Открываем модалку (теперь она гарантированно разблокирует поля через clearProductForm)
+    // 1. Открываем модалку (вызывает clearProductForm и РАЗБЛОКИРУЕТ поля)
     openProductModal(); 
     
-    // Устанавливаем тип "Часть составного"
-    const typeSelect = document.getElementById('productType');
-    if(typeSelect) {
-        typeSelect.value = 'Часть составного';
-        // Обновляем интерфейс, чтобы появилось поле выбора родителя
-        updateProductTypeUI(); 
-    }
+    // 2. Устанавливаем тип "Часть составного"
+    document.getElementById('productType').value = 'Часть составного';
+    updateProductTypeUI(); // Это покажет поле выбора родителя
 
-    // Заполняем родителя и количество
+    // 3. Выбираем родителя и ставим количество
+    // Делаем это с небольшой задержкой, чтобы UI успел перестроиться
     setTimeout(() => {
-        // Принудительно обновляем список родителей, передавая ID нужного,
-        // чтобы он появился даже если скрыт фильтрами
+        // Принудительно обновляем селект с указанием ID, который НАДО добавить (даже если он скрыт фильтром)
         updateParentSelect(parentId);
         
         const parentSelect = document.getElementById('productParent');
-        if(parentSelect) parentSelect.value = parentId;
+        parentSelect.value = parentId;
 
-        // Наследуем количество
         const parent = db.products.find(p => p.id == parentId);
         if (parent) {
             document.getElementById('productQuantity').value = parent.quantity;
         }
         
+        // Фокус на имя
         document.getElementById('productName').focus();
     }, 50);
 }
+// ====================================================
+
+
+
+
+
+
 
 
 
