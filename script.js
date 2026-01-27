@@ -1,4 +1,4 @@
-console.log("Version: 4.1 (2026-01-27 20-11)");
+console.log("Version: 4.1 (2026-01-27 21-31)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1206,58 +1206,84 @@ function copyProduct(id) {
     }
 }
 
-// === ИСПРАВЛЕННАЯ ФУНКЦИЯ ДЛЯ КНОПКИ [+] ===
-// Замените старую функцию addChildPart на эту версию
+// === ИСПРАВЛЕННАЯ ФУНКЦИЯ ДЛЯ КНОПКИ [+] С ОТЛАДКОЙ ===
 function addChildPart(parentId) {
-    const modal = document.getElementById('productModal');
-    // Сбрасываем флаги редактирования, чтобы открылось как "новое"
-    modal.removeAttribute('data-edit-id');
-    modal.removeAttribute('data-system-id');
+    console.log("addChildPart called with ID:", parentId);
     
-    // Открываем модалку (форма очищается внутри этой функции)
-    openProductModal(); 
-    
-    // 1. Сначала устанавливаем тип "Часть составного"
-    const typeSelect = document.getElementById('productType');
-    if(typeSelect) {
-        typeSelect.value = 'Часть составного';
-        // Обновляем UI (показываем поле выбора родителя)
-        updateProductTypeUI(); 
-    }
+    try {
+        const modal = document.getElementById('productModal');
+        if (!modal) {
+            alert("Ошибка: Модальное окно не найдено в DOM!");
+            return;
+        }
 
-    // 2. Принудительно обновляем список родителей, передавая ID
-    // Это гарантирует, что родитель появится в списке, даже если он "закрыт" (allPartsCreated=true)
-    if (typeof updateParentSelect === 'function') {
-        updateParentSelect(parentId);
-    }
-    
-    // 3. Выбираем родителя в списке
-    const parentSelect = document.getElementById('productParent');
-    if(parentSelect) {
-        parentSelect.value = parentId;
-    }
+        // Сбрасываем флаги редактирования
+        modal.removeAttribute('data-edit-id');
+        modal.removeAttribute('data-system-id');
+        
+        // Открываем модалку
+        if (typeof openProductModal === 'function') {
+            openProductModal(); 
+        } else {
+            alert("Ошибка: функция openProductModal не найдена!");
+            return;
+        }
+        
+        // 1. Устанавливаем тип "Часть составного"
+        const typeSelect = document.getElementById('productType');
+        if(typeSelect) {
+            typeSelect.value = 'Часть составного';
+            
+            // Обновляем UI
+            if (typeof updateProductTypeUI === 'function') {
+                updateProductTypeUI(); 
+            }
+        } else {
+            console.warn("Element #productType not found");
+        }
 
-    // 4. Наследуем количество от родителя
-    const parent = db.products.find(p => p.id == parentId);
-    if (parent) {
-        document.getElementById('productQuantity').value = parent.quantity;
-    }
-    
-    // Пересчитываем стоимости, так как изменили количество и родителя
-    if (typeof updateProductCosts === 'function') {
-        updateProductCosts();
-    }
+        // 2. Принудительно обновляем список родителей
+        if (typeof updateParentSelect === 'function') {
+            updateParentSelect(parentId);
+        }
+        
+        // 3. Выбираем родителя в списке
+        const parentSelect = document.getElementById('productParent');
+        if(parentSelect) {
+            parentSelect.value = parentId;
+        }
 
-    // Фокус на поле названия через небольшую задержку (только для визуального эффекта)
-    setTimeout(() => {
-        const nameInput = document.getElementById('productName');
-        if(nameInput) nameInput.focus();
-    }, 50);
+        // 4. Наследуем количество от родителя
+        if (typeof db !== 'undefined' && db.products) {
+            // Используем нестрогое сравнение (==), так как parentId может прийти числом или строкой
+            const parent = db.products.find(p => p.id == parentId);
+            if (parent) {
+                const qtyInput = document.getElementById('productQuantity');
+                if (qtyInput) qtyInput.value = parent.quantity;
+            } else {
+                console.warn("Родительское изделие не найдено в БД для ID:", parentId);
+            }
+        }
+        
+        // Пересчитываем стоимости
+        if (typeof updateProductCosts === 'function') {
+            updateProductCosts();
+        }
+
+        // Фокус на поле названия
+        setTimeout(() => {
+            const nameInput = document.getElementById('productName');
+            if(nameInput) nameInput.focus();
+        }, 50);
+
+    } catch (err) {
+        console.error("Ошибка внутри addChildPart:", err);
+        alert("Произошла ошибка при добавлении части: " + err.message);
+    }
 }
 
-// Делаем функцию глобальной, чтобы кнопка в таблице могла её вызвать через onclick
+// Гарантируем глобальную доступность
 window.addChildPart = addChildPart;
-
 
 
 
