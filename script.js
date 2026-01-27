@@ -1,4 +1,4 @@
-console.log("Version: 4.1 (2026-01-27 21-31)");
+console.log("Version: 4.1 (2026-01-27 21-45)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1206,85 +1206,57 @@ function copyProduct(id) {
     }
 }
 
-// === ИСПРАВЛЕННАЯ ФУНКЦИЯ ДЛЯ КНОПКИ [+] С ОТЛАДКОЙ ===
-function addChildPart(parentId) {
-    console.log("addChildPart called with ID:", parentId);
+// === ФИНАЛЬНАЯ ИСПРАВЛЕННАЯ ФУНКЦИЯ ДЛЯ КНОПКИ [+] ===
+window.addChildPart = function(parentId) {
+    console.log("[DEBUG] Clicked (+) for parent ID:", parentId);
+
+    const modal = document.getElementById('productModal');
+    if (!modal) return console.error("Modal not found");
+
+    // 1. Сначала открываем модалку как "новую"
+    modal.removeAttribute('data-edit-id');
+    modal.removeAttribute('data-system-id');
     
-    try {
-        const modal = document.getElementById('productModal');
-        if (!modal) {
-            alert("Ошибка: Модальное окно не найдено в DOM!");
-            return;
-        }
+    // Это очистит форму и разблокирует поля
+    openProductModal(); 
 
-        // Сбрасываем флаги редактирования
-        modal.removeAttribute('data-edit-id');
-        modal.removeAttribute('data-system-id');
-        
-        // Открываем модалку
-        if (typeof openProductModal === 'function') {
-            openProductModal(); 
-        } else {
-            alert("Ошибка: функция openProductModal не найдена!");
-            return;
-        }
-        
-        // 1. Устанавливаем тип "Часть составного"
-        const typeSelect = document.getElementById('productType');
-        if(typeSelect) {
-            typeSelect.value = 'Часть составного';
-            
-            // Обновляем UI
-            if (typeof updateProductTypeUI === 'function') {
-                updateProductTypeUI(); 
-            }
-        } else {
-            console.warn("Element #productType not found");
-        }
-
-        // 2. Принудительно обновляем список родителей
-        if (typeof updateParentSelect === 'function') {
-            updateParentSelect(parentId);
-        }
-        
-        // 3. Выбираем родителя в списке
-        const parentSelect = document.getElementById('productParent');
-        if(parentSelect) {
-            parentSelect.value = parentId;
-        }
-
-        // 4. Наследуем количество от родителя
-        if (typeof db !== 'undefined' && db.products) {
-            // Используем нестрогое сравнение (==), так как parentId может прийти числом или строкой
-            const parent = db.products.find(p => p.id == parentId);
-            if (parent) {
-                const qtyInput = document.getElementById('productQuantity');
-                if (qtyInput) qtyInput.value = parent.quantity;
-            } else {
-                console.warn("Родительское изделие не найдено в БД для ID:", parentId);
-            }
-        }
-        
-        // Пересчитываем стоимости
-        if (typeof updateProductCosts === 'function') {
-            updateProductCosts();
-        }
-
-        // Фокус на поле названия
-        setTimeout(() => {
-            const nameInput = document.getElementById('productName');
-            if(nameInput) nameInput.focus();
-        }, 50);
-
-    } catch (err) {
-        console.error("Ошибка внутри addChildPart:", err);
-        alert("Произошла ошибка при добавлении части: " + err.message);
+    // 2. Устанавливаем тип "Часть составного"
+    const typeSelect = document.getElementById('productType');
+    if(typeSelect) {
+        typeSelect.value = 'Часть составного';
+        // Обновляем UI (показываем поле выбора родителя)
+        updateProductTypeUI(); 
     }
-}
 
-// Гарантируем глобальную доступность
-window.addChildPart = addChildPart;
+    // 3. Обновляем список родителей и выбираем нужного
+    // ВАЖНО: Делаем это синхронно, без setTimeout!
+    if (typeof updateParentSelect === 'function') {
+        updateParentSelect(parentId); // Передаем ID, чтобы он точно попал в список
+    }
+    
+    const parentSelect = document.getElementById('productParent');
+    if(parentSelect) {
+        parentSelect.value = parentId;
+    }
 
+    // 4. Наследуем количество от родителя
+    const parent = db.products.find(p => p.id == parentId);
+    if (parent) {
+        const qtyInput = document.getElementById('productQuantity');
+        if(qtyInput) qtyInput.value = parent.quantity;
+    }
+    
+    // 5. Пересчитываем стоимости
+    if (typeof updateProductCosts === 'function') {
+        updateProductCosts();
+    }
+
+    // 6. Фокус на имя (единственное, что можно оставить в таймере для удобства)
+    setTimeout(() => {
+        const nameEl = document.getElementById('productName');
+        if(nameEl) nameEl.focus();
+    }, 50);
+};
 
 
 
