@@ -1,4 +1,4 @@
-console.log("Version: 4.1 (2026-01-27 22-22)");
+console.log("Version: 4.1 (2026-01-27 22-31)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1742,7 +1742,8 @@ function buildProductRow(p, isChild) {
     if (p.type === 'Составное') {
         const hasWriteoffs = db.writeoffs.some(w => w.productId === p.id);
         const isDisabled = hasWriteoffs || p.defective || p.allPartsCreated;
-		addPartButtonHtml = `<button class="btn-secondary btn-small" title="Добавить часть изделия" onclick="addChildPart('${p.id}')" ${isDisabled ? 'disabled' : ''}>+</button>`;
+		addPartButtonHtml = `<button class="btn-secondary btn-small btn-add-part" title="Добавить часть изделия" data-id="${p.id}" ${isDisabled ? 'disabled' : ''}>+</button>`;
+
 
     }
 
@@ -2914,6 +2915,23 @@ function setupEventListeners() {
     document.getElementById('saveProductBtn')?.addEventListener('click', () => saveProduct(false));
     document.getElementById('closeProductModalBtn')?.addEventListener('click', closeProductModal);
     document.getElementById('btnWriteOffProduct')?.addEventListener('click', initiateWriteOff);
+	    // Делегирование событий для динамической таблицы изделий
+    document.getElementById('productsTable')?.addEventListener('click', function(e) {
+        // Ищем кнопку с классом btn-add-part
+        const btn = e.target.closest('.btn-add-part');
+        if (btn) {
+            // Если кнопка заблокирована, ничего не делаем
+            if (btn.disabled) return;
+            
+            const productId = btn.getAttribute('data-id');
+            if (productId) {
+                // Вызываем нашу функцию
+                window.addChildPart(productId);
+            }
+        }
+    });
+
+		
     // Filters & Sort
     document.getElementById('productSearch')?.addEventListener('input', filterProducts);
     document.getElementById('productSearch')?.nextElementSibling.addEventListener('click', () => clearSearch('productSearch', 'filterProducts'));
