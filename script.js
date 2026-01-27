@@ -1,4 +1,3 @@
-console.log("Version: 4.1 (2026-01-27 12-57)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1209,37 +1208,51 @@ function copyProduct(id) {
 // === ИСПРАВЛЕННАЯ ФУНКЦИЯ ДЛЯ КНОПКИ [+] ===
 function addChildPart(parentId) {
     const modal = document.getElementById('productModal');
-    // Сбрасываем флаги редактирования
+    // Сбрасываем флаги редактирования, чтобы открылось как "новое"
     modal.removeAttribute('data-edit-id');
     modal.removeAttribute('data-system-id');
     
-    // Открываем модалку (теперь она точно вызовет clearProductForm и разблокирует поля)
+    // Открываем модалку (форма очищается внутри этой функции)
     openProductModal(); 
     
-    // Устанавливаем тип "Часть составного"
+    // 1. Сначала устанавливаем тип "Часть составного"
     const typeSelect = document.getElementById('productType');
     if(typeSelect) {
         typeSelect.value = 'Часть составного';
-        updateProductTypeUI(); // Показать поле выбора родителя
+        // Обновляем UI (показываем поле выбора родителя)
+        // Внимание: здесь updateParentSelect вызовется без аргументов
+        updateProductTypeUI(); 
     }
 
-    // Заполняем данные через setTimeout, чтобы UI успел обновиться
-    setTimeout(() => {
-        // Принудительно добавляем родителя в список, даже если он "закрыт" фильтрами
+    // 2. Принудительно обновляем список родителей, передавая ID
+    // Это гарантирует, что родитель появится в списке, даже если он "закрыт" (allPartsCreated=true)
+    if (typeof updateParentSelect === 'function') {
         updateParentSelect(parentId);
-        
-        const parentSelect = document.getElementById('productParent');
-        if(parentSelect) parentSelect.value = parentId;
+    }
+    
+    // 3. Выбираем родителя в списке
+    const parentSelect = document.getElementById('productParent');
+    if(parentSelect) {
+        parentSelect.value = parentId;
+    }
 
-        const parent = db.products.find(p => p.id == parentId);
-        if (parent) {
-            document.getElementById('productQuantity').value = parent.quantity;
-        }
-        
-        document.getElementById('productName').focus();
+    // 4. Наследуем количество от родителя
+    const parent = db.products.find(p => p.id == parentId);
+    if (parent) {
+        document.getElementById('productQuantity').value = parent.quantity;
+    }
+    
+    // Пересчитываем стоимости, так как изменили количество и родителя
+    if (typeof updateProductCosts === 'function') {
+        updateProductCosts();
+    }
+
+    // Фокус на поле названия через небольшую задержку (для визуального удобства)
+    setTimeout(() => {
+        const nameInput = document.getElementById('productName');
+        if(nameInput) nameInput.focus();
     }, 50);
 }
-
 
 
 
@@ -2096,24 +2109,6 @@ function removeWriteoffSection(index) {
     calcWriteoffTotal();
 }
 
-
-function renumberWriteoffSections() {
-    writeoffSectionCount = 0; // Reset counter
-    const sections = document.querySelectorAll('.writeoff-item-section');
-    sections.forEach((sec, i) => {
-        writeoffSectionCount++;
-        const newIndex = writeoffSectionCount;
-        sec.id = `writeoffSection_${newIndex}`;
-        sec.querySelector('.section-title').textContent = `ИЗДЕЛИЕ ${newIndex}`;
-        
-        const btn = sec.querySelector('.btn-remove-section');
-        btn.setAttribute('onclick', `removeWriteoffSection(${newIndex})`);
-        
-        sec.querySelector('.writeoff-product-select').setAttribute('onchange', `updateWriteoffSection(${newIndex})`);
-        sec.querySelector('.section-qty').setAttribute('oninput', `updateWriteoffSection(${newIndex})`);
-        sec.querySelector('.section-price').setAttribute('oninput', `updateWriteoffSection(${newIndex})`);
-    });
-}
 
 function updateRemoveButtons() {
     const sections = document.querySelectorAll('.writeoff-item-section');
