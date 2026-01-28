@@ -1742,7 +1742,7 @@ function buildProductRow(p, isChild) {
     if (p.type === 'Составное') {
         const hasWriteoffs = db.writeoffs.some(w => w.productId === p.id);
         const isDisabled = hasWriteoffs || p.defective || p.allPartsCreated;
-		addPartButtonHtml = `<button class="btn-secondary btn-small js-add-part-btn" title="Добавить часть изделия" data-id="${p.id}" ${isDisabled ? 'disabled' : ''}>+</button>`;
+		addPartButtonHtml = `<button class="btn-secondary btn-small js-add-part-btn" title="Добавить часть изделия" data-id="${p.id}" ${isDisabled ? 'disabled' : ''}>v</button>`;
 
     }
 
