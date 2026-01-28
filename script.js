@@ -1,4 +1,4 @@
-console.log("Version: 4.1 (2026-01-28 17-05)");
+console.log("Version: 4.1 (2026-01-28 17-32)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1742,7 +1742,8 @@ function buildProductRow(p, isChild) {
         const hasWriteoffs = db.writeoffs.some(w => w.productId === p.id);
         const isDisabled = hasWriteoffs || p.defective || p.allPartsCreated;
 		// Строго такой же синтаксис, как у работающей кнопки editProduct ниже
-		addPartButtonHtml = `<button class="btn-secondary btn-small" title="Добавить часть изделия" onclick="addChildPart(${p.id})" ${isDisabled ? 'disabled' : ''}>+</button>`;
+		addPartButtonHtml = `<button class="btn-secondary btn-small" title="Добавить часть изделия" onclick="addChildPart('${p.id}')" ${isDisabled ? 'disabled' : ''}>+</button>`;
+
 
     }
 
