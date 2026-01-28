@@ -1,4 +1,4 @@
-console.log("Version: 4.1 (2026-01-28 09-13)");
+console.log("Version: 4.1 (2026-01-28 17-05)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1206,32 +1206,31 @@ function copyProduct(id) {
     }
 }
 
-// === ФИНАЛЬНАЯ ИСПРАВЛЕННАЯ ФУНКЦИЯ ДЛЯ КНОПКИ [+] ===
-window.addChildPart = function(parentId) {
-    console.log("[DEBUG] Clicked (+) for parent ID:", parentId);
+// === ИСПРАВЛЕННАЯ ФУНКЦИЯ (Стиль как у editProduct) ===
+function addChildPart(parentId) {
+    // Временный alert для проверки - если увидите его, значит кнопка работает!
+    // alert("Кнопка нажата! ID: " + parentId); 
+    console.log("Кнопка (+) нажата, ID:", parentId);
 
     const modal = document.getElementById('productModal');
     if (!modal) return console.error("Modal not found");
 
-    // 1. Сначала открываем модалку как "новую"
+    // Сброс флагов (чтобы открылось как новое)
     modal.removeAttribute('data-edit-id');
     modal.removeAttribute('data-system-id');
     
-    // Это очистит форму и разблокирует поля
+    // Открытие и очистка
     openProductModal(); 
 
-    // 2. Устанавливаем тип "Часть составного"
+    // Заполнение полей
     const typeSelect = document.getElementById('productType');
     if(typeSelect) {
         typeSelect.value = 'Часть составного';
-        // Обновляем UI (показываем поле выбора родителя)
         updateProductTypeUI(); 
     }
 
-    // 3. Обновляем список родителей и выбираем нужного
-    // ВАЖНО: Делаем это синхронно, без setTimeout!
     if (typeof updateParentSelect === 'function') {
-        updateParentSelect(parentId); // Передаем ID, чтобы он точно попал в список
+        updateParentSelect(parentId);
     }
     
     const parentSelect = document.getElementById('productParent');
@@ -1239,24 +1238,24 @@ window.addChildPart = function(parentId) {
         parentSelect.value = parentId;
     }
 
-    // 4. Наследуем количество от родителя
+    // Наследование количества
+    // Используем == для нестрогого сравнения (число/строка)
     const parent = db.products.find(p => p.id == parentId);
     if (parent) {
         const qtyInput = document.getElementById('productQuantity');
         if(qtyInput) qtyInput.value = parent.quantity;
     }
     
-    // 5. Пересчитываем стоимости
     if (typeof updateProductCosts === 'function') {
         updateProductCosts();
     }
 
-    // 6. Фокус на имя (единственное, что можно оставить в таймере для удобства)
     setTimeout(() => {
-        const nameEl = document.getElementById('productName');
-        if(nameEl) nameEl.focus();
+        const nameInput = document.getElementById('productName');
+        if(nameInput) nameInput.focus();
     }, 50);
-};
+}
+
 
 
 
@@ -1742,8 +1741,8 @@ function buildProductRow(p, isChild) {
     if (p.type === 'Составное') {
         const hasWriteoffs = db.writeoffs.some(w => w.productId === p.id);
         const isDisabled = hasWriteoffs || p.defective || p.allPartsCreated;
-		addPartButtonHtml = `<button class="btn-secondary btn-small" title="Добавить часть изделия" onclick="window.addChildPart('${p.id}')" ${isDisabled ? 'disabled' : ''}>v</button>`;
-
+		// Строго такой же синтаксис, как у работающей кнопки editProduct ниже
+		addPartButtonHtml = `<button class="btn-secondary btn-small" title="Добавить часть изделия" onclick="addChildPart(${p.id})" ${isDisabled ? 'disabled' : ''}>+</button>`;
 
     }
 
