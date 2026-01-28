@@ -1,4 +1,4 @@
-console.log("Version: 4.1 (2026-01-28 18-26)");
+console.log("Version: 4.1 (2026-01-28 19-01)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1207,60 +1207,60 @@ function copyProduct(id) {
 }
 
 // === ФУНКЦИЯ ДЛЯ КНОПКИ [+] ===
-// Объявляем её явно в window, чтобы избежать любых проблем с областью видимости
 window.addChildPart = function(parentId) {
-    console.log("Кнопка (+) нажата, ID:", parentId);
-    // alert("Кнопка нажата! ID: " + parentId); // Раскомментируйте для теста, если консоль молчит
-
+    console.log('Добавление части для родителя ID:', parentId);
+    
+    if (!parentId) {
+        alert('Ошибка: не указан ID родительского изделия');
+        return;
+    }
+    
+    // Получаем родительское изделие
+    const parent = db.products.find(p => p.id === parentId);
+    if (!parent) {
+        alert('Ошибка: родительское изделие не найдено');
+        return;
+    }
+    
+    // Открываем модальное окно для новой части
     const modal = document.getElementById('productModal');
-    if (!modal) return console.error("Modal not found");
-
-    // Сброс флагов (чтобы открылось как новое)
+    if (!modal) {
+        alert('Ошибка: модальное окно не найдено');
+        return;
+    }
+    
+    // Очищаем форму и устанавливаем тип "Простое" + родителя
     modal.removeAttribute('data-edit-id');
     modal.removeAttribute('data-system-id');
+    openProductModal();
     
-    // Открытие и очистка
-    // Важно: эта функция очищает форму, поэтому вызываем её первой
-    openProductModal(); 
-
-    // Заполнение полей
     const typeSelect = document.getElementById('productType');
-    if(typeSelect) {
-        typeSelect.value = 'Часть составного';
-        // Обновляем UI, чтобы показать поле выбора родителя
-        updateProductTypeUI(); 
-    }
-
-    // Принудительно обновляем список родителей, передавая ID текущего
-    if (typeof updateParentSelect === 'function') {
-        updateParentSelect(parentId);
+    if (typeSelect) {
+        typeSelect.value = 'Часть составного'; 
+        updateProductTypeUI();
     }
     
-    // Выбираем родителя
+    // Устанавливаем родителя
+    updateParentSelect(parentId);
     const parentSelect = document.getElementById('productParent');
-    if(parentSelect) {
+    if (parentSelect) {
         parentSelect.value = parentId;
     }
-
-    // Наследование количества от родителя
-    const parent = db.products.find(p => p.id == parentId);
-    if (parent) {
-        const qtyInput = document.getElementById('productQuantity');
-        if(qtyInput) qtyInput.value = parent.quantity;
+    
+    // Копируем данные родителя где нужно
+    if (parent.printer) {
+        document.getElementById('productPrinter').value = parent.printer.id;
+    }
+    if (parent.filament) {
+        document.getElementById('productFilament').value = parent.filament.id;
+        updateProductColorDisplay();
     }
     
-    // Пересчет стоимости
-    if (typeof updateProductCosts === 'function') {
-        updateProductCosts();
-    }
-
-    // Фокус на имя
+    // Фокус на название
     setTimeout(() => {
-        const nameInput = document.getElementById('productName');
-        if(nameInput) nameInput.focus();
-    }, 50);
+        document.getElementById('productName').focus();
+    }, 100);
 };
-
 
 
 
@@ -1749,8 +1749,21 @@ function buildProductRow(p, isChild) {
         const isDisabled = hasWriteoffs || p.defective || p.allPartsCreated;
 		
 		// ВАЖНО: Убираем onclick полностью!
-		addPartButtonHtml = `<button class="btn-secondary btn-small btn-add-part" title="Добавить часть изделия" data-id="${p.id}" ${isDisabled ? 'disabled' : ''}>+</button>`;
-
+		//addPartButtonHtml = `<button class="btn-secondary btn-small btn-add-part" title="Добавить часть изделия" data-id="${p.id}" ${isDisabled ? 'disabled' : ''}>+</button>`;
+		
+		let addPartButtonHtml = '';
+		if (p.type === 'Составное') {
+			// ИСПРАВЛЕНИЕ: используем data-атрибут вместо inline onclick
+			const hasWriteoffs = db.writeoffs.some(w => w.productId === p.id);
+			const isDisabled = hasWriteoffs || p.defective || p.allPartsCreated;
+			
+			addPartButtonHtml = `<button 
+				class="btn-secondary btn-small btn-add-part" 
+				data-parent-id="${p.id}" 
+				title="Добавить часть" 
+				${isDisabled ? 'disabled' : ''}
+			>➕</button>`;
+		}
 
 
     }
@@ -3000,6 +3013,20 @@ function setupEventListeners() {
     document.getElementById('btnAddFile')?.addEventListener('click', () => document.getElementById('productFileInput').click());
     document.getElementById('productFileInput')?.addEventListener('change', function() { handleFileUpload(this); });
 	
+	// === НОВЫЙ ОБРАБОТЧИК в setupEventListeners() ===
+	// Добавьте эту строку в конец функции setupEventListeners():
+
+	// Обработчик для кнопки добавления части составного изделия
+	document.querySelector('#productsTable tbody')?.addEventListener('click', function(e) {
+		const btn = e.target.closest('.btn-add-part');
+		if (btn) {
+			const parentId = parseInt(btn.getAttribute('data-parent-id'));
+			if (parentId) {
+				addChildPart(parentId);
+			}
+		}
+	});
+
 }
 
 
