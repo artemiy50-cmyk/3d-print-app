@@ -1,4 +1,4 @@
-console.log("Version: 4.1 (2026-01-28 18-26)");
+console.log("Version: 4.1 (2026-01-28 21-50)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1744,13 +1744,22 @@ function buildProductRow(p, isChild) {
 
     // ВОССТАНОВЛЕНО: Логика кнопки "Добавить часть"
     let addPartButtonHtml = '';
-    if (p.type === 'Составное') {
+	if (p.type === 'Составное') {
         const hasWriteoffs = db.writeoffs.some(w => w.productId === p.id);
         const isDisabled = hasWriteoffs || p.defective || p.allPartsCreated;
-		
-		// ВАЖНО: Убираем onclick полностью!
-		addPartButtonHtml = `<button class="btn-secondary btn-small btn-add-part" title="Добавить часть изделия" data-id="${p.id}" ${isDisabled ? 'disabled' : ''}>+</button>`;
-		
+        
+        // ИСПРАВЛЕНИЕ:
+        // 1. Убрали атрибут disabled, чтобы событие клика проходило.
+        // 2. Добавили визуальный стиль (opacity), чтобы кнопка выглядела неактивной, если есть причины.
+        // 3. Добавили data-disabled="true", чтобы можно было проверить это в обработчике (опционально).
+        
+        const disabledStyle = isDisabled ? 'opacity: 0.5; cursor: not-allowed;' : '';
+        
+        addPartButtonHtml = `<button class="btn-secondary btn-small btn-add-part" 
+                                     title="Добавить часть изделия" 
+                                     data-id="${p.id}" 
+                                     style="${disabledStyle}">+</button>`;
+        
     }
 
     return `<tr class="${isChild ? 'product-child-row' : rowBgClass}">
