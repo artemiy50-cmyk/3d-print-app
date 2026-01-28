@@ -1,4 +1,4 @@
-console.log("Version: 4.1 (2026-01-28 19-01)");
+console.log("Version: 4.1 (2026-01-28 19-21)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1207,60 +1207,69 @@ function copyProduct(id) {
 }
 
 // === ФУНКЦИЯ ДЛЯ КНОПКИ [+] ===
+// Добавление части к составному изделию
 window.addChildPart = function(parentId) {
-    console.log('Добавление части для родителя ID:', parentId);
+    console.log('Добавление части для составного изделия ID:', parentId);
     
     if (!parentId) {
         alert('Ошибка: не указан ID родительского изделия');
         return;
     }
     
-    // Получаем родительское изделие
     const parent = db.products.find(p => p.id === parentId);
-    if (!parent) {
-        alert('Ошибка: родительское изделие не найдено');
+    if (!parent || parent.type !== 'Составное') {
+        alert('Ошибка: родительское изделие не найдено или это не составное изделие');
         return;
     }
     
-    // Открываем модальное окно для новой части
     const modal = document.getElementById('productModal');
     if (!modal) {
         alert('Ошибка: модальное окно не найдено');
         return;
     }
     
-    // Очищаем форму и устанавливаем тип "Простое" + родителя
     modal.removeAttribute('data-edit-id');
     modal.removeAttribute('data-system-id');
+    clearProductForm();
     openProductModal();
     
     const typeSelect = document.getElementById('productType');
     if (typeSelect) {
-        typeSelect.value = 'Часть составного'; 
+        typeSelect.value = 'Часть составного';
         updateProductTypeUI();
     }
     
-    // Устанавливаем родителя
-    updateParentSelect(parentId);
     const parentSelect = document.getElementById('productParent');
     if (parentSelect) {
+        updateParentSelect();
         parentSelect.value = parentId;
     }
     
-    // Копируем данные родителя где нужно
-    if (parent.printer) {
-        document.getElementById('productPrinter').value = parent.printer.id;
-    }
-    if (parent.filament) {
-        document.getElementById('productFilament').value = parent.filament.id;
-        updateProductColorDisplay();
+    if (parent.printer && parent.printer.id) {
+        const printerSelect = document.getElementById('productPrinter');
+        if (printerSelect) {
+            printerSelect.value = parent.printer.id;
+        }
     }
     
-    // Фокус на название
+    if (parent.filament) {
+        const filamentSelect = document.getElementById('productFilament');
+        if (filamentSelect) {
+            const filId = (typeof parent.filament === 'object') ? parent.filament.id : parent.filament;
+            filamentSelect.value = filId;
+            updateProductColorDisplay();
+            updateProductCosts();
+        }
+    }
+    
     setTimeout(() => {
-        document.getElementById('productName').focus();
+        const nameInput = document.getElementById('productName');
+        if (nameInput) {
+            nameInput.focus();
+        }
     }, 100);
 };
+
 
 
 
@@ -1742,55 +1751,37 @@ function buildProductRow(p, isChild) {
         ? `<div class="product-name-cell product-child-indent"><div class="product-icon-wrapper"><strong>${icon}</strong></div><span ${nameEvents} style="cursor:default">${escapeHtml(p.name)}</span>${note}</div>`
         : `<div class="product-name-cell"><div class="product-icon-wrapper"><strong>${icon}</strong></div><span ${nameEvents} style="cursor:default"><strong>${escapeHtml(p.name)}</strong></span>${note}</div>`;
 
-    // ВОССТАНОВЛЕНО: Логика кнопки "Добавить часть"
+    // Логика кнопки "Добавить часть"
     let addPartButtonHtml = '';
-    if (p.type === 'Составное') {
+    if (p.type === 'Составное' && !isChild) {
         const hasWriteoffs = db.writeoffs.some(w => w.productId === p.id);
         const isDisabled = hasWriteoffs || p.defective || p.allPartsCreated;
-		
-		// ВАЖНО: Убираем onclick полностью!
-		//addPartButtonHtml = `<button class="btn-secondary btn-small btn-add-part" title="Добавить часть изделия" data-id="${p.id}" ${isDisabled ? 'disabled' : ''}>+</button>`;
-		
-		let addPartButtonHtml = '';
-		if (p.type === 'Составное') {
-			// ИСПРАВЛЕНИЕ: используем data-атрибут вместо inline onclick
-			const hasWriteoffs = db.writeoffs.some(w => w.productId === p.id);
-			const isDisabled = hasWriteoffs || p.defective || p.allPartsCreated;
-			
-			addPartButtonHtml = `<button 
-				class="btn-secondary btn-small btn-add-part" 
-				data-parent-id="${p.id}" 
-				title="Добавить часть" 
-				${isDisabled ? 'disabled' : ''}
-			>➕</button>`;
-		}
-
-
+        addPartButtonHtml = `<button class="btn-edit" data-add-part="${p.id}" title="Добавить часть" ${isDisabled ? 'disabled' : ''}>+</button>`;
     }
 
-    return `<tr class="${isChild ? 'product-child-row' : rowBgClass}">
-        <td style="padding-left:12px;">${nameHtml}</td>
-        <td class="text-center">${fileIconHtml}</td>
-        <td style="width: 110px;">${p.date}</td>
-        <td>${fil}</td>
-        <td>${formattedTime}</td>
-        <td>${weight.toFixed(1)}</td>
-        <td>${length.toFixed(2)}</td>
-        <td>${p.quantity}</td>
-        <td>${p.inStock !== undefined ? p.inStock : p.quantity}</td>
-        <td>${costM} ₽</td>
-        <td>${costA} ₽</td>
-        <td>${statusHtml}</td>
-        <td class="text-center">${linkHtml}</td>
-        <td class="text-center">
-            <div class="action-buttons">
-                ${addPartButtonHtml} 
-                <button class="btn-secondary btn-small" title="Редактировать" onclick="editProduct(${p.id})">✎</button>
-                <button class="btn-secondary btn-small" title="Копировать" onclick="copyProduct(${p.id})">❐</button>
-                <button class="btn-danger btn-small" title="Удалить" onclick="deleteProduct(${p.id})">✕</button>
-            </div>
-        </td>
-    </tr>`;
+    return `
+        <tr class="${rowBgClass}">
+            <td>${nameHtml}</td>
+            <td>${p.date}</td>
+            <td>${fil}</td>
+            <td>${formattedTime}</td>
+            <td>${weight.toFixed(1)}</td>
+            <td>${length.toFixed(2)}</td>
+            <td>${p.quantity}</td>
+            <td>${p.inStock || 0}</td>
+            <td>${costM}</td>
+            <td>${costA}</td>
+            <td>${statusHtml}</td>
+            <td>
+                ${addPartButtonHtml}
+                <button class="btn-edit" onclick="editProduct(${p.id})" title="Открыть">✏️</button>
+                <button class="btn-edit" onclick="copyProduct(${p.id})" title="Копировать">📋</button>
+                <button class="btn-edit" onclick="deleteProduct(${p.id})" title="Удалить">🗑️</button>
+                ${linkHtml}
+                ${fileIconHtml}
+            </td>
+        </tr>
+    `;
 }
 
 
@@ -3016,16 +3007,19 @@ function setupEventListeners() {
 	// === НОВЫЙ ОБРАБОТЧИК в setupEventListeners() ===
 	// Добавьте эту строку в конец функции setupEventListeners():
 
-	// Обработчик для кнопки добавления части составного изделия
-	document.querySelector('#productsTable tbody')?.addEventListener('click', function(e) {
-		const btn = e.target.closest('.btn-add-part');
-		if (btn) {
-			const parentId = parseInt(btn.getAttribute('data-parent-id'));
-			if (parentId) {
-				addChildPart(parentId);
-			}
-		}
-	});
+    // Обработчик для кнопки добавления части составного изделия
+    const productsTableBody = document.querySelector('#productsTable tbody');
+    if (productsTableBody) {
+        productsTableBody.addEventListener('click', function(e) {
+            const btn = e.target.closest('[data-add-part]');
+            if (btn && !btn.disabled) {
+                const parentId = parseInt(btn.getAttribute('data-add-part'));
+                if (parentId) {
+                    window.addChildPart(parentId);
+                }
+            }
+        });
+    }
 
 }
 
