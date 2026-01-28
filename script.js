@@ -1,4 +1,4 @@
-console.log("Version: 4.1 (2026-01-27 22-40)");
+console.log("Version: 4.1 (2026-01-28 08-49)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1742,9 +1742,7 @@ function buildProductRow(p, isChild) {
     if (p.type === 'Составное') {
         const hasWriteoffs = db.writeoffs.some(w => w.productId === p.id);
         const isDisabled = hasWriteoffs || p.defective || p.allPartsCreated;
-		addPartButtonHtml = `<button class="btn-secondary btn-small" title="Добавить часть изделия" onclick="window.addChildPart('${p.id}')" ${isDisabled ? 'disabled' : ''}>+</button>`;
-
-
+		addPartButtonHtml = `<button class="btn-secondary btn-small js-add-part-btn" title="Добавить часть изделия" data-id="${p.id}" ${isDisabled ? 'disabled' : ''}>+</button>`;
 
     }
 
@@ -2992,7 +2990,41 @@ function setupEventListeners() {
     document.getElementById('btnDeleteImage')?.addEventListener('click', function(event) { event.stopPropagation(); removeProductImage(); });
     document.getElementById('btnAddFile')?.addEventListener('click', () => document.getElementById('productFileInput').click());
     document.getElementById('productFileInput')?.addEventListener('change', function() { handleFileUpload(this); });
+	
+	// === ГЛОБАЛЬНЫЙ ОБРАБОТЧИК КЛИКОВ (Гарантированное срабатывание) ===
+	document.addEventListener('click', function(e) {
+    // Проверяем, был ли клик по нашей кнопке (или внутри неё)
+    const btn = e.target.closest('.js-add-part-btn');
+    
+    if (btn) {
+        console.log("Global click handler caught button:", btn);
+        
+        // Блокируем стандартное поведение (на всякий случай)
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (btn.disabled) return;
+
+        const productId = btn.getAttribute('data-id');
+        console.log("Product ID from data-attribute:", productId);
+
+        if (productId) {
+            // Вызываем функцию добавления
+            // Убедимся, что вызываем именно нашу функцию
+            if (typeof window.addChildPart === 'function') {
+                window.addChildPart(productId);
+            } else {
+                console.error("Function window.addChildPart is not defined!");
+                alert("Ошибка: Функция добавления не найдена. Обновите страницу.");
+            }
+        } else {
+            console.error("No data-id found on button");
+        }
+    }
+});
+	
 }
+
 
 
 
