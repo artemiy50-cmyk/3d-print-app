@@ -1,4 +1,4 @@
-console.log("Version: 4.1 (2026-01-28 08-49)");
+console.log("Version: 4.1 (2026-01-28 09-00)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -2991,8 +2991,12 @@ function setupEventListeners() {
     document.getElementById('btnAddFile')?.addEventListener('click', () => document.getElementById('productFileInput').click());
     document.getElementById('productFileInput')?.addEventListener('change', function() { handleFileUpload(this); });
 	
+	
+}
+
+
 	// === ГЛОБАЛЬНЫЙ ОБРАБОТЧИК КЛИКОВ (Гарантированное срабатывание) ===
-	document.addEventListener('click', function(e) {
+document.addEventListener('click', function(e) {
     // Проверяем, был ли клик по нашей кнопке (или внутри неё)
     const btn = e.target.closest('.js-add-part-btn');
     
@@ -3022,11 +3026,6 @@ function setupEventListeners() {
         }
     }
 });
-	
-}
-
-
-
 
 
 
