@@ -1,4 +1,4 @@
-console.log("Version: 4.1 (2026-01-28 21-50)");
+console.log("Version: 4.1 (2026-01-29 08-37)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1742,24 +1742,12 @@ function buildProductRow(p, isChild) {
         ? `<div class="product-name-cell product-child-indent"><div class="product-icon-wrapper"><strong>${icon}</strong></div><span ${nameEvents} style="cursor:default">${escapeHtml(p.name)}</span>${note}</div>`
         : `<div class="product-name-cell"><div class="product-icon-wrapper"><strong>${icon}</strong></div><span ${nameEvents} style="cursor:default"><strong>${escapeHtml(p.name)}</strong></span>${note}</div>`;
 
-    // ВОССТАНОВЛЕНО: Логика кнопки "Добавить часть"
+// ИСПРАВЛЕНИЕ: Кнопка (+) теперь всегда выглядит активной
     let addPartButtonHtml = '';
 	if (p.type === 'Составное') {
-        const hasWriteoffs = db.writeoffs.some(w => w.productId === p.id);
-        const isDisabled = hasWriteoffs || p.defective || p.allPartsCreated;
-        
-        // ИСПРАВЛЕНИЕ:
-        // 1. Убрали атрибут disabled, чтобы событие клика проходило.
-        // 2. Добавили визуальный стиль (opacity), чтобы кнопка выглядела неактивной, если есть причины.
-        // 3. Добавили data-disabled="true", чтобы можно было проверить это в обработчике (опционально).
-        
-        const disabledStyle = isDisabled ? 'opacity: 0.5; cursor: not-allowed;' : '';
-        
         addPartButtonHtml = `<button class="btn-secondary btn-small btn-add-part" 
                                      title="Добавить часть изделия" 
-                                     data-id="${p.id}" 
-                                     style="${disabledStyle}">+</button>`;
-        
+                                     data-id="${p.id}">+</button>`;
     }
 
     return `<tr class="${isChild ? 'product-child-row' : rowBgClass}">
