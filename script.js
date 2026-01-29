@@ -1,4 +1,4 @@
-console.log("Version: 4.1 (2026-01-29 08-37)");
+console.log("Version: 4.1 (2026-01-29 08-44)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1209,7 +1209,7 @@ function copyProduct(id) {
 // === ФУНКЦИЯ ДЛЯ КНОПКИ [+] ===
 // Объявляем её явно в window, чтобы избежать любых проблем с областью видимости
 window.addChildPart = function(parentId) {
-    console.log("Кнопка (+) нажата, ID:", parentId);
+    // console.log("Кнопка (+) нажата, ID:", parentId);
     // alert("Кнопка нажата! ID: " + parentId); // Раскомментируйте для теста, если консоль молчит
 
     const modal = document.getElementById('productModal');
@@ -3012,7 +3012,7 @@ document.addEventListener('click', function(event) {
         if (target.disabled) return;
 
         const productId = target.getAttribute('data-id');
-        console.log('Global click handler: (+)', productId);
+        // console.log('Global click handler: (+)', productId);
 
         if (productId) {
             // Пытаемся вызвать функцию
