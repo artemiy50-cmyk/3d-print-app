@@ -1949,33 +1949,40 @@ function updateProductAvailability() {
     updateProductStockDisplay();
 }
 
-// Пункт 2: Сортировка выпадающего списка по ID
+// Сортировка выпадающего списка филаментов по алфавиту
 function updateProductFilamentSelect() {
-    const productModal = document.getElementById('productModal'); 
-    const editId = productModal.getAttribute('data-edit-id'); 
-    const currentProduct = editId ? db.products.find(p => p.id == parseInt(editId)) : null; 
-    const currentFilament = currentProduct?.filament; 
-    const filamentSelect = document.getElementById('productFilament'); 
+    const productModal = document.getElementById('productModal');
+    const editId = productModal.getAttribute('data-edit-id');
+    const currentProduct = editId ? db.products.find(p => p.id == parseInt(editId)) : null;
+    const currentFilament = currentProduct?.filament;
+    const filamentSelect = document.getElementById('productFilament');
     if (!filamentSelect) return;
 
-    // Добавлена сортировка .sort() по customId
+    // Фильтруем доступные филаменты и сортируем их по имени (customId)
     const available = db.filaments
         .filter(f => f.availability === 'В наличии')
         .sort((a, b) => (a.customId || '').localeCompare(b.customId || ''));
 
-    let options = []; 
+    let options = [];
+    // Для новых изделий добавляем пустой вариант
     if (!editId) options.push(`<option value="">-- Выберите филамент --</option>`);
-    
+
+    // Если у редактируемого изделия уже выбран филамент, который закончился,
+    // его нужно добавить в список, чтобы он оставался видимым и выбранным.
     if (currentFilament && !available.find(f => f.id === currentFilament.id)) {
         const currentRemaining = Math.max(0, currentFilament.length - (currentFilament.usedLength||0));
         options.push(`<option value="${currentFilament.id}">${escapeHtml(currentFilament.customId)} (ост. ${currentRemaining.toFixed(1)} м.) - текущий</option>`);
     }
-    
+
+    // Добавляем отсортированный список доступных филаментов
     options.push(...available.map(f => {
         const remaining = Math.max(0, f.length - (f.usedLength||0));
         return `<option value="${f.id}">${escapeHtml(f.customId)} (ост. ${remaining.toFixed(1)} м.)</option>`;
     }));
-    filamentSelect.innerHTML = options.join(''); 
+
+    filamentSelect.innerHTML = options.join('');
+
+    // Восстанавливаем выбор, если он был
     if (currentFilament) filamentSelect.value = currentFilament.id;
 }
 
