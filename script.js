@@ -1,4 +1,4 @@
-console.log("Version: 4.1 (2026-01-29 08-44)");
+console.log("Version: 4.2 (2026-01-30 22-50)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -13,7 +13,13 @@ const firebaseConfig = {
   databaseURL: "https://d-print-app-3655b-default-rtdb.europe-west1.firebasedatabase.app"
 };
 
-const IMGBB_API_KEY = "326af327af6376b3b4d4e580dba10743";
+// Конфигурация для Cloudinary
+const cloudinaryConfig = {
+  cloudName: "dw4gdz64b",     
+  uploadPreset: "hcvbf9f9" 
+};
+
+// const IMGBB_API_KEY = "326af327af6376b3b4d4e580dba10743";
 
 // ==================== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ====================
 const db = {
@@ -107,24 +113,60 @@ function addLogoutButton() {
 
 // ==================== CLOUD & DATA ====================
 
+// async function uploadFileToCloud(file) {
+//    if (!file) return null;
+//    if (!file.type.startsWith('image/')) {
+//        alert(`Файл "${file.name}" не картинка. ImgBB поддерживает только изображения.`);
+//        return null;
+//    }
+//    try {
+//        const formData = new FormData();
+//        formData.append("image", file);
+//        const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, { method: "POST", body: formData });
+//        const data = await response.json();
+//        if (data.success) return data.data.url;
+//        else throw new Error(data.error?.message);
+//    } catch (error) {
+//        alert(`Ошибка загрузки: ${error.message}`);
+//        return null;
+//    }
+// }
+
+
 async function uploadFileToCloud(file) {
     if (!file) return null;
-    if (!file.type.startsWith('image/')) {
-        alert(`Файл "${file.name}" не картинка. ImgBB поддерживает только изображения.`);
-        return null;
-    }
+
+    // Cloudinary может загружать любые типы файлов, так что проверка на 'image/' больше не нужна.
+    // Это позволит загружать, например, STL-модели.
+    const url = `https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/upload`;
+    
     try {
         const formData = new FormData();
-        formData.append("image", file);
-        const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, { method: "POST", body: formData });
+        formData.append("file", file);
+        formData.append("upload_preset", cloudinaryConfig.uploadPreset);
+
+        const response = await fetch(url, {
+            method: "POST",
+            body: formData
+        });
+
         const data = await response.json();
-        if (data.success) return data.data.url;
-        else throw new Error(data.error?.message);
+
+        if (data.secure_url) {
+            console.log('Файл успешно загружен в Cloudinary:', data.secure_url);
+            return data.secure_url; // Возвращаем безопасную ссылку
+        } else {
+            // Cloudinary возвращает ошибку в поле 'error'
+            throw new Error(data.error?.message || 'Неизвестная ошибка Cloudinary');
+        }
     } catch (error) {
-        alert(`Ошибка загрузки: ${error.message}`);
+        alert(`Ошибка загрузки файла в Cloudinary: ${error.message}`);
+        console.error('Ошибка загрузки в Cloudinary:', error);
         return null;
     }
 }
+
+
 
 async function saveData() {
     if (!dbRef) return;
@@ -284,7 +326,7 @@ function base64ToBlob(base64) {
     return new Blob([u8arr], { type: mime });
 }
 
-// УМНЫЙ ИМПОРТ С МИГРАЦИЕЙ В ОБЛАКО
+// УМНЫЙ ИМПОРТ С МИГРАЦИЕЙ В ОБЛАКО (v4.1 - Адаптировано под Cloudinary)
 function importData(input) {
     const file = input.files[0];
     if (!file) return;
@@ -295,75 +337,71 @@ function importData(input) {
             const loaded = JSON.parse(e.target.result);
             
             if (loaded.filaments && loaded.products) {
-                if (confirm('Внимание! Загрузка базы.\n\nЕсли это бэкап из версии 3.7 с картинками, они будут автоматически загружены в облако. Это может занять время.\n\nПродолжить?')) {
+                if (confirm('Внимание! Загрузка базы.\n\nЕсли это бэкап из старой версии (v3.7) с файлами, они будут автоматически загружены в облако Cloudinary. Это может занять некоторое время.\n\nПродолжить?')) {
                     
                     const btn = document.getElementById('importBtn');
                     if(btn) { btn.textContent = "☁️ Миграция..."; btn.disabled = true; }
 
-                    // --- МИГРАЦИЯ КАРТИНОК ---
                     if (loaded.products) {
-                        let uploadCount = 0;
+                        console.log('Начинаем миграцию данных в Cloudinary...');
+                        let uploadedImageCount = 0;
+                        let uploadedFileCount = 0;
                         
                         // Используем for...of для последовательной обработки async/await
                         for (let p of loaded.products) {
                             
-                            // 1. Главное фото (из Base64 v3.7 -> в ImgBB URL v4.0)
+                            // 1. Миграция главного фото (из Base64 v3.7 -> в Cloudinary URL)
                             if (p._backupBase64Image) {
+                                console.log(`Мигрируем изображение для продукта "${p.name}"...`);
                                 try {
                                     const blob = base64ToBlob(p._backupBase64Image);
-                                    // Загружаем в облако
                                     const cloudUrl = await uploadFileToCloud(blob);
                                     if (cloudUrl) {
                                         p.imageUrl = cloudUrl;
-                                        p.imageBlob = null; // Очищаем локальные данные
-                                        uploadCount++;
+                                        uploadedImageCount++;
                                     }
                                 } catch (err) {
                                     console.error(`Ошибка загрузки фото для ${p.name}:`, err);
                                 }
-                                delete p._backupBase64Image; // Удаляем "сырые" данные
+                                delete p._backupBase64Image;
                             } 
                             // Очистка старых пустых объектов, если были
                             else if (p.imageBlob && Object.keys(p.imageBlob).length === 0) {
                                 p.imageBlob = null;
                             }
 
-                            // 2. Файлы (из Base64 v3.7 -> в ImgBB URL v4.0)
-                            // ВНИМАНИЕ: ImgBB принимает только картинки. Если это STL, загрузка может не пройти
-                            // или ImgBB вернет ошибку.
+                            // 2. Миграция прикрепленных файлов (из Base64 v3.7 -> в Cloudinary URL)
                             if (p._backupAttachedFiles && Array.isArray(p._backupAttachedFiles)) {
-                                p.fileUrls = []; // Новый массив для ссылок v4.0
+                                console.log(`Мигрируем файлы для продукта "${p.name}"...`);
+                                p.fileUrls = p.fileUrls || [];
                                 
                                 for (let f of p._backupAttachedFiles) {
                                     if (f._contentBase64) {
                                         try {
                                             const blob = base64ToBlob(f._contentBase64);
-                                            // Пытаемся загрузить. Если это не картинка, ImgBB может отказать.
+                                            // Cloudinary позволяет загружать любые файлы, поэтому STL и другие теперь будут работать
                                             const cloudUrl = await uploadFileToCloud(blob);
                                             if (cloudUrl) {
                                                 p.fileUrls.push({ name: f.name, url: cloudUrl });
+                                                uploadedFileCount++;
                                             } else {
-                                                // Если загрузка не удалась (например, не картинка), 
-                                                // сохраняем хотя бы имя, чтобы пользователь знал
                                                 p.fileUrls.push({ name: f.name + " (ошибка загр.)", url: null });
                                             }
                                         } catch (err) {
-                                            console.warn(`Не удалось загрузить файл ${f.name}`);
+                                            console.warn(`Не удалось загрузить файл ${f.name} для продукта "${p.name}"`, err);
                                         }
                                     }
                                 }
-                                delete p._backupAttachedFiles;
-                                delete p.attachedFiles;
+                                delete p._backupAttachedFiles; // Удаляем старые данные
                             }
                         }
                         
-                        if(uploadCount > 0) {
-                            console.log(`Успешно мигрировано ${uploadCount} изображений в облако.`);
+                        if(uploadedImageCount > 0 || uploadedFileCount > 0) {
+                            console.log(`Миграция завершена: ${uploadedImageCount} изображений и ${uploadedFileCount} файлов загружено в облако.`);
                         }
                     }
 
                     // --- Обычное восстановление данных ---
-                    // Восстановление SystemID для списаний
                     if (loaded.writeoffs) {
                         loaded.writeoffs.forEach(w => {
                             if (!w.systemId) w.systemId = String(w.id);
@@ -373,7 +411,7 @@ function importData(input) {
                     Object.assign(db, loaded);
                     await saveData();
                     
-                    alert('База восстановлена! Данные синхронизированы.');
+                    alert('База успешно восстановлена! Данные синхронизированы с облаком.');
                     window.location.reload();
                 }
             } else {
@@ -390,6 +428,7 @@ function importData(input) {
     r.readAsText(file);
     input.value = ''; 
 }
+
 
 
 function exportData() {
