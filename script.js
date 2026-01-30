@@ -1,4 +1,4 @@
-console.log("Version: 4.2 (2026-01-30 22-50)");
+console.log("Version: 4.2 (2026-01-30 23-00)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -330,6 +330,18 @@ function base64ToBlob(base64) {
 function importData(input) {
     const file = input.files[0];
     if (!file) return;
+	
+	
+	// --- ДОБАВЛЕНО: Проверка размера файла ---
+    const maxSizeInBytes = 100 * 1024 * 1024; // 100 МБ
+    if (file.size > maxSizeInBytes) {
+        alert('Ошибка: Размер файла не должен превышать 100 МБ.');
+        input.value = ''; // Очищаем поле выбора файла
+        return; // Прерываем выполнение функции
+    }
+
+	
+	
     const r = new FileReader();
     
     r.onload = async (e) => {
