@@ -1,4 +1,4 @@
-console.log("Version: 4.2 (2026-01-30 23-00)");
+console.log("Version: 4.2 (2026-01-31 13-31)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1491,8 +1491,6 @@ function validateProductForm() {
 
 
 
-
-// ЗАМЕНИТЬ эту функцию целиком
 async function saveProduct(andThenWriteOff = false) {
     if (!validateProductForm()) return;
 
@@ -1502,22 +1500,47 @@ async function saveProduct(andThenWriteOff = false) {
     const eid = document.getElementById('productModal').getAttribute('data-edit-id'); 
     const type = document.getElementById('productType').value; 
     
-    // Сначала загружаем файлы в облако
+    // 1. Сначала загружаем ГЛАВНОЕ ФОТО в облако
     let imgUrl = currentProductImage;
     if(currentProductImage instanceof Blob) {
-        imgUrl = await uploadFileToCloud(currentProductImage);
-    }
-    
-    let fileUrls = [];
-    for(let f of currentProductFiles) {
-        if(f.url) fileUrls.push(f);
-        else if(f.blob) { 
-            const u = await uploadFileToCloud(f.blob); 
-            if(u) fileUrls.push({name:f.name, url:u}); 
+        // Пытаемся загрузить новый файл
+        const uploadedUrl = await uploadFileToCloud(currentProductImage);
+        if (uploadedUrl) {
+            imgUrl = uploadedUrl;
+        } else {
+            // Если фото не загрузилось, оставляем null, чтобы не ломать логику,
+            // но можно добавить alert, если критично.
+            // Для главного фото текстовую пометку сделать сложнее, так как это поле URL.
+            imgUrl = null; 
         }
     }
     
-    // Теперь собираем объект для сохранения, как в v3.7
+    // 2. Обработка ПРИКРЕПЛЕННЫХ ФАЙЛОВ
+    let fileUrls = [];
+    for(let f of currentProductFiles) {
+        if(f.url) {
+            // А) Файл уже был успешно загружен ранее (есть URL)
+            fileUrls.push(f);
+        }
+        else if(f.blob) { 
+            // Б) Это НОВЫЙ файл, нужно загрузить
+            const u = await uploadFileToCloud(f.blob); 
+            if(u) {
+                // Успех
+                fileUrls.push({name: f.name, url: u}); 
+            } else {
+                // Ошибка загрузки: сохраняем "заглушку" с пометкой
+                fileUrls.push({name: f.name + " (ошибка загр.)", url: null});
+            }
+        }
+        else {
+            // В) Файл без URL и без Blob. Скорее всего, это "битый" файл с прошлого раза.
+            // Сохраняем его, чтобы надпись "(ошибка загр.)" не исчезла.
+            fileUrls.push(f);
+        }
+    }
+    
+    // Далее стандартный код сбора объекта p...
     const qty = parseInt(document.getElementById('productQuantity').value) || 0;
     const isDefective = document.getElementById('productDefective').checked;
     
@@ -1534,8 +1557,8 @@ async function saveProduct(andThenWriteOff = false) {
         type: type, 
         note: document.getElementById('productNote').value, 
         defective: isDefective,
-        imageUrl: imgUrl,      // Используем URL из облака
-        fileUrls: fileUrls,  // Используем URL-ы из облака
+        imageUrl: imgUrl,      
+        fileUrls: fileUrls,  // <-- Используем наш обновленный список
     };
     
     const writeoffs = db.writeoffs || [];
@@ -1562,7 +1585,6 @@ async function saveProduct(andThenWriteOff = false) {
     p.costMarketPrice = costMarketPrice;
     p.costPer1Actual = qty > 0 ? p.costActualPrice / qty : 0;
     p.costPer1Market = qty > 0 ? p.costMarketPrice / qty : 0;
-
 
     // Логика сохранения (добавление/обновление)
     if (eid) {
@@ -1596,7 +1618,7 @@ async function saveProduct(andThenWriteOff = false) {
     // Пересчет родителя, если это дочерний элемент
     if (type === 'Часть составного' && p.parentId) { 
         const parent = db.products.find(x => x.id === p.parentId); 
-        if (parent) recalculateAllProductCosts(); // Пересчитываем всё для надежности
+        if (parent) recalculateAllProductCosts(); 
     }
     
     recalculateAllProductCosts();
@@ -1618,6 +1640,10 @@ async function saveProduct(andThenWriteOff = false) {
         closeProductModal();
     }
 }
+
+
+
+
 
 // Вспомогательная функция, которая должна быть где-то в коде
 function determineProductStatus(p) { 
