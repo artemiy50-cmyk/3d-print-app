@@ -1,4 +1,4 @@
-console.log("Version: 4.2 (2026-01-31 21-01)");
+console.log("Version: 4.2 (2026-01-31 21-06)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1618,35 +1618,37 @@ async function saveProduct(andThenWriteOff = false) {
     if (eid) {
         const oldProduct = db.products.find(x => x.id == parseInt(eid));
         if (oldProduct) {
-            // 1. Проверка ГЛАВНОГО ИЗОБРАЖЕНИЯ
-            // Если старое фото было, а новое отличается (другое или null/удалено) -> удаляем старое
-            // Примечание: currentProductImage может быть Blob (новое) или URL (старое) или null
+            // 1. Главное фото
             const isNewImage = (currentProductImage instanceof Blob);
             const isImageRemoved = (currentProductImage === null);
             const isUrlChanged = (typeof currentProductImage === 'string' && currentProductImage !== oldProduct.imageUrl);
 
+            // ДОБАВЛЕНА ПРОВЕРКА: !isResourceUsedByOthers(...)
             if (oldProduct.imageUrl && (isNewImage || isImageRemoved || isUrlChanged)) {
-                console.log("Удаляю старое изображение...");
-                // Не ждем await, пусть удаляется в фоне, чтобы не тормозить интерфейс
-                deleteFileFromCloud(oldProduct.imageUrl); 
+                if (!isResourceUsedByOthers(oldProduct.imageUrl, oldProduct.id)) {
+                    console.log("Удаляю старое изображение (больше нигде не используется)...");
+                    deleteFileFromCloud(oldProduct.imageUrl);
+                } else {
+                    console.log("Старое изображение используется в других карточках, оставляем в облаке.");
+                }
             }
 
-            // 2. Проверка ПРИКРЕПЛЕННЫХ ФАЙЛОВ
-            // Собираем список URL, которые останутся
+            // 2. Прикрепленные файлы
             const keptUrls = currentProductFiles.map(f => f.url).filter(u => u);
             
             if (oldProduct.fileUrls) {
                 oldProduct.fileUrls.forEach(oldF => {
-                    // Если старого URL нет в новом списке -> удаляем
                     if (oldF.url && !keptUrls.includes(oldF.url)) {
-                        console.log(`Удаляю файл ${oldF.name}...`);
-                        deleteFileFromCloud(oldF.url);
+                        // ДОБАВЛЕНА ПРОВЕРКА ДЛЯ ФАЙЛОВ
+                        if (!isResourceUsedByOthers(oldF.url, oldProduct.id)) {
+                            deleteFileFromCloud(oldF.url);
+                        }
                     }
                 });
             }
         }
     }
-    // ==================================================	
+    // ==================================================
 	
 	
 	const type = document.getElementById('productType').value; 
@@ -1840,16 +1842,24 @@ function deleteProduct(id) {
     }
     if (!confirm(`Удалить изделие "${p.name}" и вернуть филамент?`)) return;
     
-    // === УДАЛЕНИЕ ФАЙЛОВ ИЗ ОБЛАКА ===
-    if (p.imageUrl) {
+  
+	// === БЕЗОПАСНОЕ УДАЛЕНИЕ ФАЙЛОВ ИЗ ОБЛАКА ===
+    // Удаляем только если этот файл НЕ используется в других карточках
+    
+    if (p.imageUrl && !isResourceUsedByOthers(p.imageUrl, id)) {
         deleteFileFromCloud(p.imageUrl);
     }
+    
     if (p.fileUrls && Array.isArray(p.fileUrls)) {
         p.fileUrls.forEach(f => {
-            if (f.url) deleteFileFromCloud(f.url);
+            // Для файлов логика та же (на будущее), хотя сейчас они не копируются
+            if (f.url && !isResourceUsedByOthers(f.url, id)) {
+                deleteFileFromCloud(f.url);
+            }
         });
     }
-    // =================================
+    // ============================================
+	
     
     // Возврат филамента для простого или дочернего изделия
     if (p.filament && p.type !== 'Составное') { 
