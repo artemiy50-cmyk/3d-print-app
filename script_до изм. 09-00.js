@@ -1,4 +1,4 @@
-console.log("Version: 4.1 (2026-01-29 08-44)");
+console.log("Version: 4.1 (2026-01-28 21-50)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1209,7 +1209,7 @@ function copyProduct(id) {
 // === ФУНКЦИЯ ДЛЯ КНОПКИ [+] ===
 // Объявляем её явно в window, чтобы избежать любых проблем с областью видимости
 window.addChildPart = function(parentId) {
-    // console.log("Кнопка (+) нажата, ID:", parentId);
+    console.log("Кнопка (+) нажата, ID:", parentId);
     // alert("Кнопка нажата! ID: " + parentId); // Раскомментируйте для теста, если консоль молчит
 
     const modal = document.getElementById('productModal');
@@ -1742,12 +1742,24 @@ function buildProductRow(p, isChild) {
         ? `<div class="product-name-cell product-child-indent"><div class="product-icon-wrapper"><strong>${icon}</strong></div><span ${nameEvents} style="cursor:default">${escapeHtml(p.name)}</span>${note}</div>`
         : `<div class="product-name-cell"><div class="product-icon-wrapper"><strong>${icon}</strong></div><span ${nameEvents} style="cursor:default"><strong>${escapeHtml(p.name)}</strong></span>${note}</div>`;
 
-// ИСПРАВЛЕНИЕ: Кнопка (+) теперь всегда выглядит активной
+    // ВОССТАНОВЛЕНО: Логика кнопки "Добавить часть"
     let addPartButtonHtml = '';
 	if (p.type === 'Составное') {
+        const hasWriteoffs = db.writeoffs.some(w => w.productId === p.id);
+        const isDisabled = hasWriteoffs || p.defective || p.allPartsCreated;
+        
+        // ИСПРАВЛЕНИЕ:
+        // 1. Убрали атрибут disabled, чтобы событие клика проходило.
+        // 2. Добавили визуальный стиль (opacity), чтобы кнопка выглядела неактивной, если есть причины.
+        // 3. Добавили data-disabled="true", чтобы можно было проверить это в обработчике (опционально).
+        
+        const disabledStyle = isDisabled ? 'opacity: 0.5; cursor: not-allowed;' : '';
+        
         addPartButtonHtml = `<button class="btn-secondary btn-small btn-add-part" 
                                      title="Добавить часть изделия" 
-                                     data-id="${p.id}">+</button>`;
+                                     data-id="${p.id}" 
+                                     style="${disabledStyle}">+</button>`;
+        
     }
 
     return `<tr class="${isChild ? 'product-child-row' : rowBgClass}">
@@ -1949,40 +1961,33 @@ function updateProductAvailability() {
     updateProductStockDisplay();
 }
 
-// Сортировка выпадающего списка филаментов по алфавиту
+// Пункт 2: Сортировка выпадающего списка по ID
 function updateProductFilamentSelect() {
-    const productModal = document.getElementById('productModal');
-    const editId = productModal.getAttribute('data-edit-id');
-    const currentProduct = editId ? db.products.find(p => p.id == parseInt(editId)) : null;
-    const currentFilament = currentProduct?.filament;
-    const filamentSelect = document.getElementById('productFilament');
+    const productModal = document.getElementById('productModal'); 
+    const editId = productModal.getAttribute('data-edit-id'); 
+    const currentProduct = editId ? db.products.find(p => p.id == parseInt(editId)) : null; 
+    const currentFilament = currentProduct?.filament; 
+    const filamentSelect = document.getElementById('productFilament'); 
     if (!filamentSelect) return;
 
-    // Фильтруем доступные филаменты и сортируем их по имени (customId)
+    // Добавлена сортировка .sort() по customId
     const available = db.filaments
         .filter(f => f.availability === 'В наличии')
         .sort((a, b) => (a.customId || '').localeCompare(b.customId || ''));
 
-    let options = [];
-    // Для новых изделий добавляем пустой вариант
+    let options = []; 
     if (!editId) options.push(`<option value="">-- Выберите филамент --</option>`);
-
-    // Если у редактируемого изделия уже выбран филамент, который закончился,
-    // его нужно добавить в список, чтобы он оставался видимым и выбранным.
+    
     if (currentFilament && !available.find(f => f.id === currentFilament.id)) {
         const currentRemaining = Math.max(0, currentFilament.length - (currentFilament.usedLength||0));
         options.push(`<option value="${currentFilament.id}">${escapeHtml(currentFilament.customId)} (ост. ${currentRemaining.toFixed(1)} м.) - текущий</option>`);
     }
-
-    // Добавляем отсортированный список доступных филаментов
+    
     options.push(...available.map(f => {
         const remaining = Math.max(0, f.length - (f.usedLength||0));
         return `<option value="${f.id}">${escapeHtml(f.customId)} (ост. ${remaining.toFixed(1)} м.)</option>`;
     }));
-
-    filamentSelect.innerHTML = options.join('');
-
-    // Восстанавливаем выбор, если он был
+    filamentSelect.innerHTML = options.join(''); 
     if (currentFilament) filamentSelect.value = currentFilament.id;
 }
 
@@ -3019,7 +3024,7 @@ document.addEventListener('click', function(event) {
         if (target.disabled) return;
 
         const productId = target.getAttribute('data-id');
-        // console.log('Global click handler: (+)', productId);
+        console.log('Global click handler: (+)', productId);
 
         if (productId) {
             // Пытаемся вызвать функцию
