@@ -1,4 +1,4 @@
-console.log("Version: 4.2 (2026-01-31 21-06)");
+console.log("Version: 4.2 (2026-01-31 21-40)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -415,6 +415,27 @@ function isResourceUsedByOthers(url, excludeId) {
     });
 }
 
+// Сбор всех ссылок (URL) из базы данных (для очистки мусора)
+function getAllCloudinaryUrls(databaseObj) {
+    const urls = new Set();
+    if (!databaseObj || !databaseObj.products) return urls;
+
+    databaseObj.products.forEach(p => {
+        // Главное фото
+        if (p.imageUrl && p.imageUrl.includes('cloudinary')) {
+            urls.add(p.imageUrl);
+        }
+        // Прикрепленные файлы
+        if (p.fileUrls && Array.isArray(p.fileUrls)) {
+            p.fileUrls.forEach(f => {
+                if (f.url && f.url.includes('cloudinary')) {
+                    urls.add(f.url);
+                }
+            });
+        }
+    });
+    return urls;
+}
 
 
 
@@ -433,22 +454,18 @@ function base64ToBlob(base64) {
     return new Blob([u8arr], { type: mime });
 }
 
-// УМНЫЙ ИМПОРТ С МИГРАЦИЕЙ В ОБЛАКО (v4.1 - Адаптировано под Cloudinary)
+// УМНЫЙ ИМПОРТ С МИГРАЦИЕЙ В ОБЛАКО И ОЧИСТКОЙ МУСОРА
 function importData(input) {
     const file = input.files[0];
     if (!file) return;
 	
-	
-	// --- ДОБАВЛЕНО: Проверка размера файла ---
     const maxSizeInBytes = 100 * 1024 * 1024; // 100 МБ
     if (file.size > maxSizeInBytes) {
         alert('Ошибка: Размер файла не должен превышать 100 МБ.');
-        input.value = ''; // Очищаем поле выбора файла
-        return; // Прерываем выполнение функции
+        input.value = ''; 
+        return; 
     }
 
-	
-	
     const r = new FileReader();
     
     r.onload = async (e) => {
@@ -456,22 +473,36 @@ function importData(input) {
             const loaded = JSON.parse(e.target.result);
             
             if (loaded.filaments && loaded.products) {
-                if (confirm('Внимание! Загрузка базы.\n\nЕсли это бэкап из старой версии (v3.7) с файлами, они будут автоматически загружены в облако Cloudinary. Это может занять некоторое время.\n\nПродолжить?')) {
+                if (confirm('Внимание! Загрузка базы.\n\nТекущие данные будут заменены.\nФайлы, отсутствующие в бэкапе, будут удалены из облака.\n\nПродолжить?')) {
                     
                     const btn = document.getElementById('importBtn');
-                    if(btn) { btn.textContent = "☁️ Миграция..."; btn.disabled = true; }
+                    if(btn) { btn.textContent = "♻️ Очистка и загрузка..."; btn.disabled = true; }
 
+                    // === ШАГ 1: ОЧИСТКА МУСОРА (Удаляем файлы, которых нет в бэкапе) ===
+                    const currentUrls = getAllCloudinaryUrls(db);     // Ссылки, которые есть сейчас
+                    const newUrls = getAllCloudinaryUrls(loaded);     // Ссылки, которые будут
+                    
+                    console.log(`Анализ файлов: Текущих - ${currentUrls.size}, В бэкапе - ${newUrls.size}`);
+                    
+                    let deletedCount = 0;
+                    // Проходим по текущим ссылкам. Если ссылки нет в новом бэкапе -> удаляем файл.
+                    for (const url of currentUrls) {
+                        if (!newUrls.has(url)) {
+                            // Удаляем без await, чтобы не тормозить процесс (фоновое удаление)
+                            deleteFileFromCloud(url);
+                            deletedCount++;
+                        }
+                    }
+                    if(deletedCount > 0) console.log(`Очищено ${deletedCount} устаревших файлов из облака.`);
+
+                    // === ШАГ 2: МИГРАЦИЯ СТАРЫХ БЭКАПОВ (v3.7 -> v4.2) ===
                     if (loaded.products) {
-                        console.log('Начинаем миграцию данных в Cloudinary...');
                         let uploadedImageCount = 0;
                         let uploadedFileCount = 0;
                         
-                        // Используем for...of для последовательной обработки async/await
                         for (let p of loaded.products) {
-                            
-                            // 1. Миграция главного фото (из Base64 v3.7 -> в Cloudinary URL)
+                            // 1. Главное фото (Base64 -> Cloudinary)
                             if (p._backupBase64Image) {
-                                console.log(`Мигрируем изображение для продукта "${p.name}"...`);
                                 try {
                                     const blob = base64ToBlob(p._backupBase64Image);
                                     const cloudUrl = await uploadFileToCloud(blob);
@@ -480,25 +511,21 @@ function importData(input) {
                                         uploadedImageCount++;
                                     }
                                 } catch (err) {
-                                    console.error(`Ошибка загрузки фото для ${p.name}:`, err);
+                                    console.error(`Ошибка миграции фото: ${p.name}`, err);
                                 }
                                 delete p._backupBase64Image;
                             } 
-                            // Очистка старых пустых объектов, если были
                             else if (p.imageBlob && Object.keys(p.imageBlob).length === 0) {
                                 p.imageBlob = null;
                             }
 
-                            // 2. Миграция прикрепленных файлов (из Base64 v3.7 -> в Cloudinary URL)
+                            // 2. Файлы (Base64 -> Cloudinary)
                             if (p._backupAttachedFiles && Array.isArray(p._backupAttachedFiles)) {
-                                console.log(`Мигрируем файлы для продукта "${p.name}"...`);
                                 p.fileUrls = p.fileUrls || [];
-                                
                                 for (let f of p._backupAttachedFiles) {
                                     if (f._contentBase64) {
                                         try {
                                             const blob = base64ToBlob(f._contentBase64);
-                                            // Cloudinary позволяет загружать любые файлы, поэтому STL и другие теперь будут работать
                                             const cloudUrl = await uploadFileToCloud(blob);
                                             if (cloudUrl) {
                                                 p.fileUrls.push({ name: f.name, url: cloudUrl });
@@ -507,16 +534,15 @@ function importData(input) {
                                                 p.fileUrls.push({ name: f.name + " (ошибка загр.)", url: null });
                                             }
                                         } catch (err) {
-                                            console.warn(`Не удалось загрузить файл ${f.name} для продукта "${p.name}"`, err);
+                                            console.warn(`Не удалось мигрировать файл ${f.name}`);
                                         }
                                     }
                                 }
-                                delete p._backupAttachedFiles; // Удаляем старые данные
+                                delete p._backupAttachedFiles;
                             }
                         }
-                        
                         if(uploadedImageCount > 0 || uploadedFileCount > 0) {
-                            console.log(`Миграция завершена: ${uploadedImageCount} изображений и ${uploadedFileCount} файлов загружено в облако.`);
+                            console.log(`Миграция завершена: загружено ${uploadedImageCount} фото и ${uploadedFileCount} файлов.`);
                         }
                     }
 
@@ -530,7 +556,7 @@ function importData(input) {
                     Object.assign(db, loaded);
                     await saveData();
                     
-                    alert('База успешно восстановлена! Данные синхронизированы с облаком.');
+                    alert('База восстановлена! Устаревшие файлы очищены, новые загружены.');
                     window.location.reload();
                 }
             } else {
