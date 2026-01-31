@@ -1,4 +1,4 @@
-console.log("Version: 4.2 (2026-01-31 21-40)");
+console.log("Version: 4.2 (2026-01-31 22-15)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -458,13 +458,8 @@ function base64ToBlob(base64) {
 function importData(input) {
     const file = input.files[0];
     if (!file) return;
-	
-    const maxSizeInBytes = 100 * 1024 * 1024; // 100 МБ
-    if (file.size > maxSizeInBytes) {
-        alert('Ошибка: Размер файла не должен превышать 100 МБ.');
-        input.value = ''; 
-        return; 
-    }
+    
+    // УБРАНА проверка размера файла бэкапа. Теперь можно грузить файлы любого размера.
 
     const r = new FileReader();
     
@@ -479,16 +474,16 @@ function importData(input) {
                     if(btn) { btn.textContent = "♻️ Очистка и загрузка..."; btn.disabled = true; }
 
                     // === ШАГ 1: ОЧИСТКА МУСОРА (Удаляем файлы, которых нет в бэкапе) ===
-                    const currentUrls = getAllCloudinaryUrls(db);     // Ссылки, которые есть сейчас
-                    const newUrls = getAllCloudinaryUrls(loaded);     // Ссылки, которые будут
+                    // ВАЖНО: Если вы переходите с локальной версии 3.7, этот шаг может удалить 
+                    // файлы из облака, если они там были. Но для v3.7 это обычно не актуально.
+                    const currentUrls = getAllCloudinaryUrls(db);
+                    const newUrls = getAllCloudinaryUrls(loaded);
                     
                     console.log(`Анализ файлов: Текущих - ${currentUrls.size}, В бэкапе - ${newUrls.size}`);
                     
                     let deletedCount = 0;
-                    // Проходим по текущим ссылкам. Если ссылки нет в новом бэкапе -> удаляем файл.
                     for (const url of currentUrls) {
                         if (!newUrls.has(url)) {
-                            // Удаляем без await, чтобы не тормозить процесс (фоновое удаление)
                             deleteFileFromCloud(url);
                             deletedCount++;
                         }
@@ -505,6 +500,8 @@ function importData(input) {
                             if (p._backupBase64Image) {
                                 try {
                                     const blob = base64ToBlob(p._backupBase64Image);
+                                    // Здесь проверка размера происходит на стороне Cloudinary.
+                                    // Если файл > 10МБ, он не загрузится, но база восстановится.
                                     const cloudUrl = await uploadFileToCloud(blob);
                                     if (cloudUrl) {
                                         p.imageUrl = cloudUrl;
@@ -573,6 +570,7 @@ function importData(input) {
     r.readAsText(file);
     input.value = ''; 
 }
+
 
 
 
@@ -901,9 +899,38 @@ function renderProductImage() {
 
 
 
-function handleImageUpload(input) { const file = input.files[0]; if(file) { currentProductImage = file; renderProductImage(); } }
+// Обработка загрузки ГЛАВНОГО ФОТО
+function handleImageUpload(input) { 
+    const file = input.files[0]; 
+    if(file) { 
+        // Проверка размера (10 МБ)
+        if (file.size > 10 * 1024 * 1024) {
+            alert("Файл изображения слишком большой! Максимальный размер для Cloudinary: 10 МБ");
+            input.value = '';
+            return;
+        }
+        currentProductImage = file; 
+        renderProductImage(); 
+    } 
+}
+
 function removeProductImage() { currentProductImage = null; renderProductImage(); }
-function handleFileUpload(input) { const file = input.files[0]; if(file) { currentProductFiles.push({name:file.name, blob:file}); renderProductFiles(); } }
+
+// Обработка загрузки ПРИКРЕПЛЕННЫХ ФАЙЛОВ
+function handleFileUpload(input) { 
+    const file = input.files[0]; 
+    if(file) { 
+        // Проверка размера (100 МБ)
+        if (file.size > 100 * 1024 * 1024) {
+            alert("Файл слишком большой! Максимальный размер 100 МБ");
+            input.value = '';
+            return;
+        }
+        currentProductFiles.push({name:file.name, blob:file}); 
+        renderProductFiles(); 
+    } 
+}
+
 function removeFile(index) { currentProductFiles.splice(index, 1); renderProductFiles(); }
 function renderProductFiles() {
     const container = document.getElementById('fileListContainer'); container.innerHTML = '';
