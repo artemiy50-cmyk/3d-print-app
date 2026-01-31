@@ -1,4 +1,4 @@
-console.log("Version: 4.2 (2026-01-31 14-32)");
+console.log("Version: 4.2 (2026-01-31 20-27)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1331,7 +1331,7 @@ function copyProduct(id) {
         
         // Копируем ссылки на изображения (адаптация под v4.1 cloud links)
         currentProductImage = p.imageUrl || null;
-        currentProductFiles = p.fileUrls || [];
+        currentProductFiles = p.fileUrls ? [...p.fileUrls] : [];
         renderProductImage();
         renderProductFiles();
         
@@ -1430,8 +1430,8 @@ function editProduct(id) {
         if (el) el.value = field.value;
     });
 
-    currentProductImage = p.imageUrl || null; 
-    currentProductFiles = p.fileUrls || []; 
+	currentProductImage = p.imageUrl || null; 
+    currentProductFiles = p.fileUrls ? [...p.fileUrls] : []; 
     renderProductImage();
     renderProductFiles();
     
