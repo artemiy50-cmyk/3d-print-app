@@ -16,7 +16,7 @@ const firebaseConfig = {
 // Конфигурация для Cloudinary
 const cloudinaryConfig = {
   cloudName: "dw4gdz64b",     
-  uploadPreset: "hcvbf9f9" 
+  uploadPreset: "hcvbf9f9", 
   apiKey: "835297164555199",      
   apiSecret: "ejk4LNatvU-SUskbesZL2khWq5c" 
 };
