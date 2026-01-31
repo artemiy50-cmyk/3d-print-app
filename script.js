@@ -1,4 +1,4 @@
-console.log("Version: 4.2 (2026-01-31 13-31)");
+console.log("Version: 4.2 (2026-01-31 14-32)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -17,6 +17,8 @@ const firebaseConfig = {
 const cloudinaryConfig = {
   cloudName: "dw4gdz64b",     
   uploadPreset: "hcvbf9f9" 
+  apiKey: "835297164555199",      
+  apiSecret: "ejk4LNatvU-SUskbesZL2khWq5c" 
 };
 
 // const IMGBB_API_KEY = "326af327af6376b3b4d4e580dba10743";
@@ -165,6 +167,88 @@ async function uploadFileToCloud(file) {
         return null;
     }
 }
+
+
+// --- ФУНКЦИИ УДАЛЕНИЯ ИЗ CLOUDINARY ---
+
+// 1. Получение public_id и типа ресурса из URL
+function getCloudinaryInfo(url) {
+    if (!url || !url.includes('cloudinary.com')) return null;
+    try {
+        // Пример: https://res.cloudinary.com/demo/image/upload/v1234/folder/sample.jpg
+        const parts = url.split('/');
+        const uploadIndex = parts.indexOf('upload');
+        if (uploadIndex === -1) return null;
+
+        // Определяем тип (image, raw, video) - он стоит ПЕРЕД 'upload'
+        const resourceType = parts[uploadIndex - 1]; 
+
+        // Ищем версию (v123...) и берем все, что после нее
+        let publicIdParts = parts.slice(uploadIndex + 1);
+        if (publicIdParts[0].startsWith('v')) {
+            publicIdParts.shift(); // убираем v123456...
+        }
+        
+        // Собираем путь обратно и убираем расширение файла
+        let publicId = publicIdParts.join('/');
+        const lastDot = publicId.lastIndexOf('.');
+        if (lastDot !== -1) publicId = publicId.substring(0, lastDot);
+
+        return { publicId, resourceType };
+    } catch (e) {
+        console.error("Ошибка парсинга URL:", url, e);
+        return null;
+    }
+}
+
+// 2. Генерация SHA-1 подписи (Native Browser API)
+async function generateSignature(paramsString, secret) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(paramsString + secret);
+    const hashBuffer = await crypto.subtle.digest('SHA-1', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// 3. Функция удаления
+async function deleteFileFromCloud(url) {
+    if (!url) return;
+    
+    // Если файла нет в облаке (например, локальный blob или ошибка), пропускаем
+    if (!url.startsWith('http')) return;
+
+    const info = getCloudinaryInfo(url);
+    if (!info) return;
+
+    const timestamp = Math.round(new Date().getTime() / 1000);
+    const paramsString = `public_id=${info.publicId}&timestamp=${timestamp}`;
+    
+    try {
+        const signature = await generateSignature(paramsString, cloudinaryConfig.apiSecret);
+        
+        const formData = new FormData();
+        formData.append("public_id", info.publicId);
+        formData.append("signature", signature);
+        formData.append("api_key", cloudinaryConfig.apiKey);
+        formData.append("timestamp", timestamp);
+
+        const apiUrl = `https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/${info.resourceType}/destroy`;
+
+        const response = await fetch(apiUrl, { method: "POST", body: formData });
+        const result = await response.json();
+        
+        if (result.result === 'ok') {
+            console.log(`Файл удален из облака: ${info.publicId}`);
+        } else {
+            console.warn(`Не удалось удалить файл: ${result.result}`, result);
+        }
+    } catch (e) {
+        console.error("Ошибка удаления из Cloudinary:", e);
+    }
+}
+
+
+
 
 
 
@@ -1498,7 +1582,43 @@ async function saveProduct(andThenWriteOff = false) {
     saveBtn.textContent = '⏳ Сохраняю...'; saveBtn.disabled = true;
 
     const eid = document.getElementById('productModal').getAttribute('data-edit-id'); 
-    const type = document.getElementById('productType').value; 
+    
+    // === ЛОГИКА УДАЛЕНИЯ УСТАРЕВШИХ ФАЙЛОВ ИЗ ОБЛАКА ===
+    if (eid) {
+        const oldProduct = db.products.find(x => x.id == parseInt(eid));
+        if (oldProduct) {
+            // 1. Проверка ГЛАВНОГО ИЗОБРАЖЕНИЯ
+            // Если старое фото было, а новое отличается (другое или null/удалено) -> удаляем старое
+            // Примечание: currentProductImage может быть Blob (новое) или URL (старое) или null
+            const isNewImage = (currentProductImage instanceof Blob);
+            const isImageRemoved = (currentProductImage === null);
+            const isUrlChanged = (typeof currentProductImage === 'string' && currentProductImage !== oldProduct.imageUrl);
+
+            if (oldProduct.imageUrl && (isNewImage || isImageRemoved || isUrlChanged)) {
+                console.log("Удаляю старое изображение...");
+                // Не ждем await, пусть удаляется в фоне, чтобы не тормозить интерфейс
+                deleteFileFromCloud(oldProduct.imageUrl); 
+            }
+
+            // 2. Проверка ПРИКРЕПЛЕННЫХ ФАЙЛОВ
+            // Собираем список URL, которые останутся
+            const keptUrls = currentProductFiles.map(f => f.url).filter(u => u);
+            
+            if (oldProduct.fileUrls) {
+                oldProduct.fileUrls.forEach(oldF => {
+                    // Если старого URL нет в новом списке -> удаляем
+                    if (oldF.url && !keptUrls.includes(oldF.url)) {
+                        console.log(`Удаляю файл ${oldF.name}...`);
+                        deleteFileFromCloud(oldF.url);
+                    }
+                });
+            }
+        }
+    }
+    // ==================================================	
+	
+	
+	const type = document.getElementById('productType').value; 
     
     // 1. Сначала загружаем ГЛАВНОЕ ФОТО в облако
     let imgUrl = currentProductImage;
@@ -1689,6 +1809,17 @@ function deleteProduct(id) {
     }
     if (!confirm(`Удалить изделие "${p.name}" и вернуть филамент?`)) return;
     
+    // === УДАЛЕНИЕ ФАЙЛОВ ИЗ ОБЛАКА ===
+    if (p.imageUrl) {
+        deleteFileFromCloud(p.imageUrl);
+    }
+    if (p.fileUrls && Array.isArray(p.fileUrls)) {
+        p.fileUrls.forEach(f => {
+            if (f.url) deleteFileFromCloud(f.url);
+        });
+    }
+    // =================================
+    
     // Возврат филамента для простого или дочернего изделия
     if (p.filament && p.type !== 'Составное') { 
         const dbFilament = db.filaments.find(f => f.id === p.filament.id);
@@ -1700,10 +1831,16 @@ function deleteProduct(id) {
         }
     }
     
+    // ... (Остальной код удаления родителя/детей остаётся без изменений) ...
+    
     // Возврат филамента для всех частей составного изделия
     if (p.type === 'Составное') { 
         const kids = db.products.filter(k => k.parentId === id); 
         kids.forEach(k => { 
+            // !! Важно: Удаляем файлы и у детей тоже !!
+            if (k.imageUrl) deleteFileFromCloud(k.imageUrl);
+            if (k.fileUrls) k.fileUrls.forEach(f => { if(f.url) deleteFileFromCloud(f.url); });
+
             if (k.filament) { 
                 const dbFilament = db.filaments.find(f => f.id === k.filament.id);
                 if (dbFilament) {
@@ -1727,14 +1864,12 @@ function deleteProduct(id) {
     }
     
     saveToLocalStorage(); 
-    // Полное обновление UI
     updateAllSelects(); 
     updateProductsTable(); 
     updateDashboard(); 
     updateReports(); 
     updateFilamentsTable();
 }
-
 
 
 
