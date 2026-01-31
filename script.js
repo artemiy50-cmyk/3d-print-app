@@ -1,4 +1,4 @@
-console.log("Version: 4.2 (2026-01-31 20-27)");
+console.log("Version: 4.2 (2026-01-31 21-01)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -393,7 +393,30 @@ function loadShowChildren() {
     if(s!==null && document.getElementById('showProductChildren')) document.getElementById('showProductChildren').checked = (s==='true');
 }
 
-// === БЭКАП ФУНКЦИИ ===
+// Функция проверяет, используется ли данный URL в других изделиях
+// url - ссылка, которую хотим удалить
+// excludeId - ID изделия, из которого мы удаляем (его мы не должны учитывать в проверке)
+function isResourceUsedByOthers(url, excludeId) {
+    if (!url) return false;
+    
+    return db.products.some(p => {
+        // Пропускаем само изделие, которое мы сейчас редактируем/удаляем
+        if (p.id === excludeId) return false;
+
+        // 1. Проверяем главное фото
+        if (p.imageUrl === url) return true;
+
+        // 2. Проверяем прикрепленные файлы (на случай, если когда-то разрешим копирование файлов)
+        if (p.fileUrls && Array.isArray(p.fileUrls)) {
+            if (p.fileUrls.some(f => f.url === url)) return true;
+        }
+
+        return false;
+    });
+}
+
+
+
 
 // ==================== V4.0 МИГРАЦИЯ И ИМПОРТ ====================
 
@@ -1234,13 +1257,13 @@ function onParentProductChange() {
     if(parent) document.getElementById('productQuantity').value = parent.quantity;
 }
 
-// === ВОССТАНОВЛЕННАЯ ФУНКЦИЯ COPY (с подтверждением для составных) ===
+// === ФУНКЦИЯ КОПИРОВАНИЯ ИЗДЕЛИЯ ===
 function copyProduct(id) {
     const p = db.products.find(x => x.id === id); if (!p) return;
 
     // 1. Копирование СОСТАВНОГО изделия (С предупреждением и глубоким копированием)
     if (p.type === 'Составное') {
-        if (!confirm('Это составное изделие. Будут скопированы все его части. Продолжить?')) {
+        if (!confirm('Это составное изделие. Будут скопированы все его части (без прикрепленных файлов). Продолжить?')) {
             return;
         }
         
@@ -1256,8 +1279,11 @@ function copyProduct(id) {
         newParent.defective = false;
         newParent.status = determineProductStatus(newParent);
         
-        // Сброс медиа при глубоком копировании (чтобы не дублировать ссылки некорректно)
-        // В v4.1 используются URL, их можно оставить
+        // --- ИЗМЕНЕНИЕ: Очищаем файлы, оставляем только картинку ---
+        newParent.fileUrls = []; // Убираем файлы
+        // newParent.imageUrl остается как есть (копируется ссылка на фото оригинала)
+        
+        // Очистка мусора от старых версий (на всякий случай)
         newParent.imageBlob = null; 
         newParent.attachedFiles = [];
         
@@ -1276,7 +1302,9 @@ function copyProduct(id) {
             newChild.defective = false;
             newChild.status = determineProductStatus(newChild);
             
-            // Медиа дочерних элементов
+            // --- ИЗМЕНЕНИЕ: Очищаем файлы и у детей ---
+            newChild.fileUrls = []; 
+            
             newChild.imageBlob = null;
             newChild.attachedFiles = [];
             
@@ -1289,13 +1317,12 @@ function copyProduct(id) {
         alert(`Составное изделие "${newParent.name}" и ${children.length} его частей успешно скопированы.`);
 
     } else {
-        // 2. Копирование ПРОСТОГО изделия (через модалку с правильным заголовком)
+        // 2. Копирование ПРОСТОГО изделия (через модалку)
         const modal = document.getElementById('productModal');
         modal.removeAttribute('data-edit-id');
         modal.removeAttribute('data-system-id');
         openProductModal();
         
-        // Меняем заголовок
         document.querySelector('#productModal .modal-header-title').textContent = 'Копирование изделия';
 
         document.getElementById('productName').value = p.name + ' (Копия)';
@@ -1314,7 +1341,6 @@ function copyProduct(id) {
         updateProductTypeUI();
         
         if (p.type === 'Часть составного') { 
-            // При копировании части пытаемся выбрать того же родителя
             updateParentSelect(p.parentId);
             document.getElementById('productParent').value = p.parentId;
             
@@ -1329,9 +1355,13 @@ function copyProduct(id) {
             document.getElementById('productFilament').value = p.filament.id; 
         }
         
-        // Копируем ссылки на изображения (адаптация под v4.1 cloud links)
+        // --- ИЗМЕНЕНИЕ: Настройка медиа для копии ---
+        // 1. Основное фото копируем (ссылку)
         currentProductImage = p.imageUrl || null;
-        currentProductFiles = p.fileUrls ? [...p.fileUrls] : [];
+        
+        // 2. Файлы НЕ копируем (обнуляем массив)
+        currentProductFiles = []; 
+        
         renderProductImage();
         renderProductFiles();
         
@@ -1340,6 +1370,7 @@ function copyProduct(id) {
         updateProductCosts();
     }
 }
+
 
 // === ФУНКЦИЯ ДЛЯ КНОПКИ [+] ===
 // Объявляем её явно в window, чтобы избежать любых проблем с областью видимости
