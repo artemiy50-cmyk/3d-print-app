@@ -1,4 +1,4 @@
-console.log("Version: 4.2 (2026-01-31 22-15)");
+console.log("Version: 5.0 (2026-02-01 12-34)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -40,45 +40,162 @@ let dbRef;
 let activePreviewProductId = null;
 let writeoffSectionCount = 0; // Для списаний
 
-// ==================== ИНИЦИАЛИЗАЦИЯ ====================
+
+// ==================== ИНИЦИАЛИЗАЦИЯ И МНОГОПОЛЬЗОВАТЕЛЬСКАЯ ЛОГИКА ====================
+
+// Глобальная переменная для текущего пользователя
+let currentUser = null;
 
 try {
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
     const auth = firebase.auth();
-    dbRef = database.ref('filament_manager_data'); 
+    // dbRef теперь не устанавливается здесь жестко!
 } catch (e) {
     console.error("Firebase init error:", e);
     alert("Ошибка подключения к сервисам Google!");
 }
 
+// Управление формами
+window.showAuthForm = function(type) {
+    ['loginForm', 'registerForm', 'resetForm'].forEach(id => document.getElementById(id).classList.add('hidden'));
+    document.getElementById('authMessage').style.display = 'none';
+    
+    if (type === 'login') document.getElementById('loginForm').classList.remove('hidden');
+    if (type === 'register') document.getElementById('registerForm').classList.remove('hidden');
+    if (type === 'reset') document.getElementById('resetForm').classList.remove('hidden');
+}
+
+// 1. ЛОГИН
 document.getElementById('loginBtn')?.addEventListener('click', () => {
     const email = document.getElementById('emailInput').value;
     const pass = document.getElementById('passwordInput').value;
-    const err = document.getElementById('loginError');
+    const msg = document.getElementById('authMessage');
     const btn = document.getElementById('loginBtn');
+
+    if(!email || !pass) return;
 
     btn.textContent = "Вход...";
     btn.disabled = true;
-    err.style.display = 'none';
+    msg.style.display = 'none';
 
     firebase.auth().signInWithEmailAndPassword(email, pass)
         .catch((error) => {
             btn.textContent = "Войти";
             btn.disabled = false;
-            err.textContent = "Ошибка: Неверный email или пароль";
-            err.style.display = 'block';
+            msg.textContent = "Ошибка: " + error.message;
+            msg.style.display = 'block';
         });
 });
 
+// 2. РЕГИСТРАЦИЯ
+document.getElementById('regBtn')?.addEventListener('click', () => {
+    const email = document.getElementById('regEmailInput').value;
+    const pass = document.getElementById('regPasswordInput').value;
+    const msg = document.getElementById('authMessage');
+    const btn = document.getElementById('regBtn');
+
+    if(!email || !pass) return;
+
+    btn.textContent = "Создание аккаунта...";
+    btn.disabled = true;
+    msg.style.display = 'none';
+
+    firebase.auth().createUserWithEmailAndPassword(email, pass)
+        .then((userCredential) => {
+            // Отправка письма подтверждения
+            userCredential.user.sendEmailVerification().then(() => {
+                alert("Аккаунт создан! Проверьте почту для подтверждения.");
+                // Автоматически сработает onAuthStateChanged
+            });
+        })
+        .catch((error) => {
+            btn.textContent = "Зарегистрироваться";
+            btn.disabled = false;
+            let text = "Ошибка регистрации";
+            if(error.code === 'auth/email-already-in-use') text = "Этот email уже используется.";
+            if(error.code === 'auth/weak-password') text = "Пароль слишком простой (мин. 6 символов).";
+            msg.textContent = text;
+            msg.style.display = 'block';
+        });
+});
+
+// 3. СБРОС ПАРОЛЯ
+document.getElementById('resetBtn')?.addEventListener('click', () => {
+    const email = document.getElementById('resetEmailInput').value;
+    const msg = document.getElementById('authMessage');
+    const btn = document.getElementById('resetBtn');
+
+    if(!email) {
+        msg.textContent = "Введите email";
+        msg.style.display = 'block';
+        return;
+    }
+
+    btn.textContent = "Отправка...";
+    btn.disabled = true;
+    msg.style.display = 'none';
+
+    firebase.auth().sendPasswordResetEmail(email)
+        .then(() => {
+            msg.style.color = 'green';
+            msg.textContent = "Ссылка для сброса отправлена на почту!";
+            msg.style.display = 'block';
+            btn.textContent = "Отправлено";
+        })
+        .catch((error) => {
+            btn.textContent = "Отправить ссылку";
+            btn.disabled = false;
+            msg.style.color = '#dc2626';
+            msg.textContent = "Ошибка: " + error.message;
+            msg.style.display = 'block';
+        });
+});
+
+// Повторная отправка подтверждения
+window.resendVerification = function() {
+    const user = firebase.auth().currentUser;
+    if(user) {
+        const btn = document.getElementById('resendBtn');
+        btn.disabled = true;
+        btn.textContent = "Отправка...";
+        user.sendEmailVerification().then(() => {
+            alert('Письмо отправлено повторно!');
+            btn.textContent = "Отправлено";
+        }).catch(e => alert(e.message));
+    }
+}
+
+
+// === ГЛАВНЫЙ СЛУШАТЕЛЬ АВТОРИЗАЦИИ ===
 window.addEventListener('DOMContentLoaded', () => {
     firebase.auth().onAuthStateChanged(async (user) => {
         const overlay = document.getElementById('loginOverlay');
+        const authContainer = document.getElementById('authContainer');
+        const verifyContainer = document.getElementById('verificationWait');
         
         if (user) {
-            console.log("Logged in:", user.email);
+            currentUser = user;
+            console.log("Logged in:", user.email, "Verified:", user.emailVerified);
+
+            // ПРОВЕРКА ПОДТВЕРЖДЕНИЯ ПОЧТЫ
+            if (!user.emailVerified) {
+                authContainer.style.display = 'none';
+                verifyContainer.style.display = 'block';
+                document.getElementById('verifyEmailSpan').textContent = user.email;
+                return; // НЕ ЗАГРУЖАЕМ ДАННЫЕ
+            }
+
+            // Если почта подтверждена
             if(overlay) overlay.style.display = 'none'; 
+            
+            // === КЛЮЧЕВОЙ МОМЕНТ: ИЗОЛЯЦИЯ ДАННЫХ ===
+            // Каждый пользователь получает свой путь: users/{uid}/data
+            dbRef = firebase.database().ref('users/' + user.uid + '/data');
+            
             addLogoutButton();
+            
+            // Загрузка данных КОНКРЕТНОГО пользователя
             await loadData();
             
             recalculateAllProductCosts(); 
@@ -94,10 +211,20 @@ window.addEventListener('DOMContentLoaded', () => {
 
             setupEventListeners();
         } else {
-            if(overlay) overlay.style.display = 'flex'; 
+            // Пользователь не вошел
+            currentUser = null;
+            if(overlay) overlay.style.display = 'flex';
+            authContainer.style.display = 'block';
+            verifyContainer.style.display = 'none';
+            
+            // Очистка интерфейса
+            db.filaments = []; db.products = []; db.writeoffs = [];
         }
     });
 });
+
+
+
 
 function addLogoutButton() {
     const sidebar = document.querySelector('.sidebar');

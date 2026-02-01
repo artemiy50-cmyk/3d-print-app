@@ -16,25 +16,82 @@
 	
 </head>
 <body>
-	<!-- Экран авторизации -->
+	<!-- Экран авторизации / Регистрации / Сброса -->
 	<div id="loginOverlay" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #1e293b; z-index: 99999; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white;">
-			<form id="loginForm" onsubmit="event.preventDefault();" style="background: white; padding: 30px; border-radius: 12px; width: 320px; color: #333; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
-				<h2 style="margin-top: 0; color: #1e40af; text-align: center;">Вход в систему</h2>
-				<div style="margin-bottom: 15px;">
-					<label style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 5px;">Email</label>
-					<!-- Добавили autocomplete="username" -->
-					<input type="email" id="emailInput" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px;" required autocomplete="username">
-				</div>
-				<div style="margin-bottom: 20px;">
-					<label style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 5px;">Пароль</label>
-					<!-- Добавили autocomplete="current-password" -->
-					<input type="password" id="passwordInput" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px;" required autocomplete="current-password">
-				</div>
-				<button type="submit" id="loginBtn" style="width: 100%; padding: 12px; background: #1e40af; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 16px;">Войти</button>
-				<p id="loginError" style="color: #dc2626; font-size: 13px; margin-top: 10px; text-align: center; display: none;"></p>
-			</form>
-		<p style="margin-top: 20px; font-size: 12px; color: #94a3b8;">3D Filament Manager v4.2</p>
+        
+        <div id="authContainer" style="background: white; padding: 30px; border-radius: 12px; width: 340px; color: #333; box-shadow: 0 10px 25px rgba(0,0,0,0.5); position: relative;">
+            
+            <!-- 1. Форма ВХОДА -->
+            <form id="loginForm" onsubmit="event.preventDefault();">
+                <h2 style="margin-top: 0; color: #1e40af; text-align: center; margin-bottom: 20px;">Вход</h2>
+                <div style="margin-bottom: 15px;">
+                    <label style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 5px;">Email</label>
+                    <input type="email" id="emailInput" class="auth-input" required autocomplete="username">
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <label style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 5px;">Пароль</label>
+                    <input type="password" id="passwordInput" class="auth-input" required autocomplete="current-password">
+                </div>
+                <div style="text-align: right; margin-bottom: 20px;">
+                    <a href="#" onclick="showAuthForm('reset')" style="font-size: 12px; color: #1e40af; text-decoration: none;">Забыли пароль?</a>
+                </div>
+                <button type="submit" id="loginBtn" class="auth-btn">Войти</button>
+                <div style="margin-top: 15px; text-align: center; font-size: 13px;">
+                    Нет аккаунта? <a href="#" onclick="showAuthForm('register')" style="color: #1e40af; font-weight: bold;">Регистрация</a>
+                </div>
+            </form>
+
+            <!-- 2. Форма РЕГИСТРАЦИИ -->
+            <form id="registerForm" onsubmit="event.preventDefault();" class="hidden">
+                <h2 style="margin-top: 0; color: #15803d; text-align: center; margin-bottom: 20px;">Регистрация</h2>
+                <div style="margin-bottom: 15px;">
+                    <label style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 5px;">Email</label>
+                    <input type="email" id="regEmailInput" class="auth-input" required autocomplete="username">
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 5px;">Придумайте пароль (мин. 6 симв.)</label>
+                    <input type="password" id="regPasswordInput" class="auth-input" required autocomplete="new-password" minlength="6">
+                </div>
+                <button type="submit" id="regBtn" class="auth-btn" style="background: #15803d;">Зарегистрироваться</button>
+                <div style="margin-top: 15px; text-align: center; font-size: 13px;">
+                    Есть аккаунт? <a href="#" onclick="showAuthForm('login')" style="color: #1e40af; font-weight: bold;">Войти</a>
+                </div>
+            </form>
+
+            <!-- 3. Форма СБРОСА ПАРОЛЯ -->
+            <form id="resetForm" onsubmit="event.preventDefault();" class="hidden">
+                <h2 style="margin-top: 0; color: #ea580c; text-align: center; margin-bottom: 10px;">Сброс пароля</h2>
+                <p style="font-size: 12px; color: #666; margin-bottom: 20px; text-align: center;">Введите email, указанный при регистрации. Мы отправим ссылку для сброса.</p>
+                <div style="margin-bottom: 20px;">
+                    <label style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 5px;">Email</label>
+                    <input type="email" id="resetEmailInput" class="auth-input" required>
+                </div>
+                <button type="submit" id="resetBtn" class="auth-btn" style="background: #ea580c;">Отправить ссылку</button>
+                <div style="margin-top: 15px; text-align: center; font-size: 13px;">
+                    <a href="#" onclick="showAuthForm('login')" style="color: #1e40af; font-weight: bold;">Вернуться ко входу</a>
+                </div>
+            </form>
+
+            <p id="authMessage" style="color: #dc2626; font-size: 13px; margin-top: 15px; text-align: center; display: none; line-height: 1.4;"></p>
+        </div>
+
+        <!-- Экран ожидания подтверждения Email -->
+        <div id="verificationWait" style="background: white; padding: 30px; border-radius: 12px; width: 340px; color: #333; text-align: center; display: none;">
+            <h2 style="color: #1e40af; margin-top: 0;">Подтвердите Email</h2>
+            <p style="margin: 20px 0; font-size: 14px; line-height: 1.5;">
+                На вашу почту <strong id="verifyEmailSpan"></strong> отправлено письмо со ссылкой.
+                <br><br>Пожалуйста, перейдите по ссылке, а затем нажмите кнопку ниже.
+            </p>
+            <button onclick="window.location.reload()" class="auth-btn" style="margin-bottom: 10px;">Я подтвердил, войти</button>
+            <button onclick="resendVerification()" id="resendBtn" class="btn-secondary" style="width: 100%; justify-content: center;">Отправить письмо повторно</button>
+            <div style="margin-top: 15px;">
+                <a href="#" onclick="firebase.auth().signOut().then(()=>window.location.reload())" style="font-size: 12px; color: #64748b;">Выйти / Сменить аккаунт</a>
+            </div>
+        </div>
+
+		<p style="margin-top: 20px; font-size: 12px; color: #94a3b8;">3D Filament Manager v4.3 Multi-User</p>
 	</div>
+
 
     
     <!-- Header -->
@@ -44,7 +101,7 @@
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div class="header-title" style="line-height: 1; display: flex; align-items: baseline; gap: 8px;">
                     <span>3D Print: Filament & Products Manager</span>
-                    <small style="font-size: 14px; color: var(--color-text-light); font-weight: 400;">v4.2</small>
+                    <small style="font-size: 14px; color: var(--color-text-light); font-weight: 400;">v5.0</small>
                 </div>
                 <div class="header-info" style="line-height: 1;">Система учета филамента и напечатанных изделий</div>
             </div>
