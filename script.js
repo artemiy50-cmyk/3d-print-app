@@ -1,4 +1,4 @@
-console.log("Version: 5.0 (2026-02-01 12-34)");
+console.log("Version: 5.0 (2026-02-01 13-15)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -193,7 +193,7 @@ window.addEventListener('DOMContentLoaded', () => {
             // Каждый пользователь получает свой путь: users/{uid}/data
             dbRef = firebase.database().ref('users/' + user.uid + '/data');
             
-            addLogoutButton();
+            setupUserSidebar(user);
             
             // Загрузка данных КОНКРЕТНОГО пользователя
             await loadData();
@@ -224,21 +224,37 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 
-
-
-function addLogoutButton() {
+function setupUserSidebar(user) {
     const sidebar = document.querySelector('.sidebar');
+    
+    // Если элементы уже есть, не создаем дубли
     if (document.getElementById('logoutBtn')) return; 
+
+    // 1. Создаем блок с Email пользователя
+    const userDiv = document.createElement('div');
+    userDiv.className = 'user-profile-info';
+    // Используем title, чтобы при наведении был виден полный email, если он длинный
+    userDiv.title = user.email; 
+    userDiv.innerHTML = `<span class="user-profile-icon">👤</span><span style="overflow:hidden;text-overflow:ellipsis;">${escapeHtml(user.email)}</span>`;
+
+    // 2. Создаем кнопку Выхода
     const btn = document.createElement('button');
     btn.className = 'menu-item';
     btn.id = 'logoutBtn';
     btn.innerHTML = '🚪 Выйти';
-    btn.style.marginTop = '20px';
-    btn.style.borderTop = '1px solid rgba(255,255,255,0.1)';
-    btn.onclick = () => { if(confirm('Выйти?')) firebase.auth().signOut().then(() => window.location.reload()); };
+    // Убираем margin-top, так как отступ теперь дает блок с email
+    btn.style.marginTop = '8px'; 
+    // Убираем border-top, так как линия теперь у userDiv
+    btn.style.borderTop = 'none'; 
+    btn.onclick = () => { if(confirm('Выйти из аккаунта?')) firebase.auth().signOut().then(() => window.location.reload()); };
+
+    // 3. Вставляем элементы перед копирайтом (последним элементом)
     const copyright = sidebar.lastElementChild;
+    sidebar.insertBefore(userDiv, copyright);
     sidebar.insertBefore(btn, copyright);
 }
+
+
 
 // ==================== CLOUD & DATA ====================
 

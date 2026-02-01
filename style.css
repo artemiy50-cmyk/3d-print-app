@@ -1055,3 +1055,22 @@
 			background: #94a3b8 !important;
 			cursor: not-allowed;
 		}
+
+		/* User Profile in Sidebar */
+		.user-profile-info {
+			margin-top: 20px;
+			padding: 12px 16px 0 16px; /* Отступ сверху внутри блока */
+			border-top: 1px solid rgba(255,255,255,0.1);
+			color: #cbd5e1; /* Светло-серый текст */
+			font-size: 13px;
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+		.user-profile-icon {
+			font-size: 16px;
+			opacity: 0.7;
+		}
