@@ -1,4 +1,4 @@
-console.log("Version: 5.0 (2026-02-01 13-15)");
+console.log("Version: 5.0 (2026-02-01 20-26)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1063,16 +1063,15 @@ function removeProductImage() { currentProductImage = null; renderProductImage()
 function handleFileUpload(input) { 
     const file = input.files[0]; 
     if(file) { 
-        // Проверка размера (100 МБ)
-        if (file.size > 100 * 1024 * 1024) {
-            alert("Файл слишком большой! Максимальный размер 100 МБ");
-            input.value = '';
-            return;
-        }
+        // ВЫДАЕМ СООБЩЕНИЕ (как вы просили)
+        alert("Внимание: Сохранение файлов в Cloudinary временно невозможно. Файл будет сохранен в карточке только как текстовая запись (без возможности скачивания).");
+        
+        // Добавляем в список, чтобы пользователь видел, что он "прикрепил" файл
         currentProductFiles.push({name:file.name, blob:file}); 
         renderProductFiles(); 
     } 
 }
+
 
 function removeFile(index) { currentProductFiles.splice(index, 1); renderProductFiles(); }
 function renderProductFiles() {
@@ -1868,26 +1867,29 @@ async function saveProduct(andThenWriteOff = false) {
     let fileUrls = [];
     for(let f of currentProductFiles) {
         if(f.url) {
-            // А) Файл уже был успешно загружен ранее (есть URL)
+            // А) Файл уже был успешно загружен ранее (старый файл) - оставляем
             fileUrls.push(f);
         }
         else if(f.blob) { 
-            // Б) Это НОВЫЙ файл, нужно загрузить
-            const u = await uploadFileToCloud(f.blob); 
+            // Б) Это НОВЫЙ файл.
+            // ИЗМЕНЕНИЕ: Мы НЕ вызываем uploadFileToCloud, а сразу симулируем ошибку.
+            // const u = await uploadFileToCloud(f.blob); <--- ЭТО МЫ ОТКЛЮЧИЛИ
+            
+            const u = null; // Симуляция "неудачной загрузки"
+            
             if(u) {
-                // Успех
                 fileUrls.push({name: f.name, url: u}); 
             } else {
-                // Ошибка загрузки: сохраняем "заглушку" с пометкой
+                // Срабатывает этот блок: сохраняем имя с пометкой
                 fileUrls.push({name: f.name + " (ошибка загр.)", url: null});
             }
         }
         else {
-            // В) Файл без URL и без Blob. Скорее всего, это "битый" файл с прошлого раза.
-            // Сохраняем его, чтобы надпись "(ошибка загр.)" не исчезла.
+            // В) Файл без URL и без Blob (уже был битым). Сохраняем как есть.
             fileUrls.push(f);
         }
     }
+
     
     // Далее стандартный код сбора объекта p...
     const qty = parseInt(document.getElementById('productQuantity').value) || 0;
