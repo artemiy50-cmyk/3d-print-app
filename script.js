@@ -1,4 +1,4 @@
-console.log("Version: 5.0 (2026-02-01 20-26)");
+console.log("Version: 5.0 (2026-02-02 20-19)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -2743,16 +2743,20 @@ function updateWriteoffSection(index) {
     const pid = parseInt(section.querySelector('.writeoff-product-select').value);
     const qtyInput = section.querySelector('.section-qty');
     const priceInput = section.querySelector('.section-price');
+    const enrichmentSection = section.querySelector('.enrichment-section');
     
+    // Показываем/скрываем блок обогащения в зависимости от типа "Продажа"
+    const type = document.getElementById('writeoffType').value;
+    enrichmentSection.classList.toggle('hidden', type !== 'Продажа');
+
     const product = db.products.find(p => p.id === pid);
     
     if (!product) {
-        // Сброс полей, если продукт не выбран
         section.querySelector('.section-stock').textContent = '0 шт.';
         section.querySelector('.section-remaining').textContent = '0 шт.';
         section.querySelector('.section-cost').textContent = '0.00 ₽';
         section.querySelector('.section-total').textContent = '0.00 ₽';
-        section.querySelector('.section-tooltip').textContent = 'Расчет с реальной стоимостью: -';
+        section.querySelector('.section-tooltip').textContent = 'Изделие + Обогащение';
         section.querySelector('.markup-info').classList.add('hidden');
         section.querySelector('.profit-info').classList.add('hidden');
         calcWriteoffTotal();
@@ -2768,16 +2772,22 @@ function updateWriteoffSection(index) {
     const qty = parseInt(qtyInput.value) || 0;
     const remaining = Math.max(0, currentStock - qty); 
     section.querySelector('.section-remaining').textContent = remaining + ' шт.';
-    
-    const costM = product.costPer1Market || 0;
-    const costA = product.costPer1Actual || 0;
-    section.querySelector('.section-cost').textContent = costM.toFixed(2) + ' ₽';
-    section.querySelector('.section-tooltip').textContent = `Расчет с реальной стоимостью: ${costA.toFixed(2)} ₽`;
+
+    // Считаем стоимость обогащения
+    let totalEnrichmentCost = 0;
+    section.querySelectorAll('.enrichment-row').forEach(row => {
+        totalEnrichmentCost += parseFloat(row.querySelector('.enrichment-cost').value) || 0;
+    });
+
+    const costA = (product.costPer1Actual || 0);
+    const totalCostPerItem = costA + totalEnrichmentCost;
+
+    section.querySelector('.section-cost').textContent = totalCostPerItem.toFixed(2) + ' ₽';
+    section.querySelector('.section-tooltip').textContent = `Себест. изделия: ${costA.toFixed(2)} ₽ + Обогащение: ${totalEnrichmentCost.toFixed(2)} ₽`;
     
     const price = parseFloat(priceInput.value) || 0;
     section.querySelector('.section-total').textContent = (price * qty).toFixed(2) + ' ₽';
     
-    const type = document.getElementById('writeoffType').value;
     const markupContainer = section.querySelector('.markup-info');
 	const profitContainer = section.querySelector('.profit-info');
     
@@ -2785,18 +2795,12 @@ function updateWriteoffSection(index) {
         markupContainer.classList.remove('hidden');
 		profitContainer.classList.remove('hidden');
         
-        const markupM_money = price - costM;
-        const markupM_percent = costM > 0 ? (markupM_money / costM) * 100 : 0;
-        section.querySelector('.markup-market-val').textContent = `${markupM_money.toFixed(2)} ₽ (${markupM_percent.toFixed(1)}%)`;
-
-        const markupA_money = price - costA;
-        const markupA_percent = costA > 0 ? (markupA_money / costA) * 100 : 0;
+        const markupA_money = price - totalCostPerItem;
+        const markupA_percent = totalCostPerItem > 0 ? (markupA_money / totalCostPerItem) * 100 : 0;
         section.querySelector('.markup-actual-val').textContent = `${markupA_money.toFixed(2)} ₽ (${markupA_percent.toFixed(1)}%)`;
-        
-        section.querySelector('.markup-market-val').style.color = markupM_money < 0 ? 'var(--color-danger)' : 'var(--color-success)';
         section.querySelector('.markup-actual-val').style.color = markupA_money < 0 ? 'var(--color-danger)' : 'var(--color-success)';
 
-        const itemProfit = (price * qty) - (costA * qty);
+        const itemProfit = (price * qty) - (totalCostPerItem * qty);
         const profitValSpan = section.querySelector('.profit-val');
         profitValSpan.textContent = `${itemProfit.toFixed(2)} ₽`;
         profitValSpan.style.color = itemProfit < 0 ? 'var(--color-danger)' : 'var(--color-success)';
@@ -2807,6 +2811,49 @@ function updateWriteoffSection(index) {
     }
     
     calcWriteoffTotal();
+}
+
+
+
+// Добавляет строку обогащения в секцию изделия
+function addEnrichmentRow(sectionIndex, data = null) {
+    const container = document.getElementById(`enrichmentContainer_${sectionIndex}`);
+    if (!container) return;
+
+    const row = document.createElement('div');
+    row.className = 'enrichment-row';
+    
+    const nameValue = data ? escapeHtml(data.name) : '';
+    const costValue = data ? data.cost : '';
+
+    row.innerHTML = `
+        <input type="text" class="enrichment-name" placeholder="Название детали (кольцо, свитчер...)" value="${nameValue}" oninput="updateWriteoffSection(${sectionIndex})">
+        <input type="number" class="enrichment-cost" placeholder="Цена, ₽" value="${costValue}" step="0.01" oninput="updateWriteoffSection(${sectionIndex})">
+        <button type="button" class="btn-remove-enrichment" onclick="this.parentElement.remove(); updateWriteoffSection(${sectionIndex})">✕</button>
+    `;
+    container.appendChild(row);
+}
+
+// Пересчитывает остатки для ВСЕХ товаров (надежный способ)
+function recalculateAllProductStock() {
+    // 1. Сбрасываем остатки до начальных (равно количеству)
+    db.products.forEach(p => {
+        p.inStock = p.defective ? 0 : p.quantity;
+    });
+
+    // 2. Вычитаем все списания
+    (db.writeoffs || []).forEach(w => {
+        const product = db.products.find(p => p.id === w.productId);
+        if (product) {
+            product.inStock -= w.qty;
+        }
+    });
+
+    // 3. Обновляем статусы
+    db.products.forEach(p => {
+        p.status = determineProductStatus(p);
+        p.availability = p.status;
+    });
 }
 
 
@@ -2835,7 +2882,6 @@ function calcWriteoffTotal() {
 }
 
 
-// ЗАМЕНИТЕ ЭТУ ФУНКЦИЮ
 function saveWriteoff() {
     const systemId = document.getElementById('writeoffSystemId').textContent;
     const date = document.getElementById('writeoffDate').value;
@@ -2856,9 +2902,7 @@ function saveWriteoff() {
         sec.querySelector('.section-price').classList.remove('error');
     });
 
-    if (sections.length === 0) {
-        globalValid = false;
-    }
+    if (sections.length === 0) globalValid = false;
     
     const productUsageMap = {}; 
 
@@ -2867,16 +2911,12 @@ function saveWriteoff() {
         let sectionValid = true;
 
         const pid = sec.querySelector('.writeoff-product-select').value;
-        if (!pid) {
-            sec.querySelector('.writeoff-product-select').classList.add('error');
-            sectionValid = false;
-        }
-        
         const qtyInput = sec.querySelector('.section-qty');
         const qty = parseInt(qtyInput.value);
-        
-        if (!qty || qty <= 0) { 
-            qtyInput.classList.add('error');
+
+        if (!pid || !qty || qty <= 0) {
+            if (!pid) sec.querySelector('.writeoff-product-select').classList.add('error');
+            if (!qty || qty <= 0) qtyInput.classList.add('error');
             sectionValid = false;
         }
         
@@ -2905,15 +2945,23 @@ function saveWriteoff() {
         let price = 0;
         if (type === 'Продажа') {
             const priceInput = sec.querySelector('.section-price');
-            const priceVal = priceInput.value.trim(); 
-            const priceNum = parseFloat(priceVal);
-            
-            if (priceVal === '' || isNaN(priceNum) || priceNum <= 0) { 
+            price = parseFloat(priceInput.value);
+            if (isNaN(price) || price <= 0) {
                 priceInput.classList.add('error');
-                sectionValid = false; 
-            } else {
-                price = priceNum;
+                sectionValid = false;
             }
+        }
+        
+        // Собираем данные обогащения
+        const enrichmentCosts = [];
+        if (type === 'Продажа') {
+            sec.querySelectorAll('.enrichment-row').forEach(row => {
+                const name = row.querySelector('.enrichment-name').value.trim();
+                const cost = parseFloat(row.querySelector('.enrichment-cost').value) || 0;
+                if (name && cost > 0) {
+                    enrichmentCosts.push({ name, cost });
+                }
+            });
         }
 
         if (sectionValid) {
@@ -2929,7 +2977,7 @@ function saveWriteoff() {
                 price: price,
                 total: qty * price,
                 note: note,
-                hasDeductedParts: (product && product.type === 'Составное') 
+                enrichmentCosts: enrichmentCosts // <--- СОХРАНЯЕМ НОВОЕ ПОЛЕ
             });
         } else {
             globalValid = false;
@@ -2937,49 +2985,31 @@ function saveWriteoff() {
     }
 
     if (!globalValid) {
-        if(document.getElementById('writeoffValidationMessage').classList.contains('hidden')) {
-             document.getElementById('writeoffValidationMessage').classList.remove('hidden');
-        }
+        document.getElementById('writeoffValidationMessage').classList.remove('hidden');
         return;
     }
     
     if (newItems.length === 0) { alert('Нет данных для сохранения'); return; }
 
-    try {
-        if (isEdit) {
-            const oldItems = db.writeoffs.filter(w => w.systemId === systemId);
-            db.writeoffs = db.writeoffs.filter(w => w.systemId !== systemId);
-            oldItems.forEach(old => {
-                const p = db.products.find(x => x.id === old.productId);
-                if(p) { 
-                    p.inStock += old.qty; 
-                    p.status = determineProductStatus(p); 
-                    p.availability = p.status; 
-                }
-            });
-        }
-
-        newItems.forEach(item => {
-            db.writeoffs.push(item);
-            const p = db.products.find(x => x.id === item.productId);
-            if(p) { 
-                p.inStock -= item.qty; 
-                p.status = determineProductStatus(p); 
-                p.availability = p.status; 
-            }
-        });
-
-        saveToLocalStorage();
-        updateWriteoffTable(); 
-        updateProductsTable(); 
-        updateDashboard(); 
-        updateReports(); 
-        
-        closeWriteoffModal();
-    } catch (e) {
-        alert("Ошибка при сохранении: " + e.message);
-        console.error(e);
+    if (isEdit) {
+        db.writeoffs = db.writeoffs.filter(w => w.systemId !== systemId);
     }
+    
+    // Важно: сначала удаляем старые, потом пушим новые, чтобы избежать гонки
+    // при обновлении остатков.
+    newItems.forEach(item => db.writeoffs.push(item));
+    
+    // Пересчет остатков (inStock) для всех продуктов.
+    // Это самый надежный способ после таких сложных операций.
+    recalculateAllProductStock(); 
+
+    saveToLocalStorage();
+    updateWriteoffTable(); 
+    updateProductsTable(); 
+    updateDashboard(); 
+    updateReports(); 
+    
+    closeWriteoffModal();
 }
 
 
@@ -3116,7 +3146,6 @@ function copyWriteoffItem(rowId) {
 
 // ==================== REPORTS (FIXED LOGIC) ====================
 
-// ЗАМЕНИТЕ ЭТУ ФУНКЦИЮ
 function updateFinancialReport() {
     const dStart = new Date(document.getElementById('reportStartDate').value);
     const dEnd = new Date(document.getElementById('reportEndDate').value);
@@ -3127,16 +3156,29 @@ function updateFinancialReport() {
     const writeoffsInRange = db.writeoffs.filter(w => { const d = new Date(w.date); return d >= dStart && d <= dEnd; });
     const sumRevenue = writeoffsInRange.filter(w => w.type === 'Продажа').reduce((sum, w) => sum + (w.total || 0), 0);
 
-    let sumCOGS = 0; let sumCostUsedDefect = 0; 
+    let sumCOGS = 0; 
+    let sumCostUsedDefect = 0; 
+
     writeoffsInRange.forEach(w => {
         const product = db.products.find(p => p.id === w.productId);
         const costOne = product ? (product.costPer1Actual || 0) : 0;
-        const totalCost = costOne * w.qty;
-        if (w.type === 'Продажа') sumCOGS += totalCost;
-        else if (w.type === 'Использовано' || w.type === 'Брак') sumCostUsedDefect += totalCost;
+        
+        // --- ИЗМЕНЕНИЕ: Учитываем стоимость обогащения ---
+        const enrichmentCost = (w.enrichmentCosts || []).reduce((sum, item) => sum + (item.cost || 0), 0);
+        const totalCostOne = costOne + enrichmentCost;
+        
+        const totalCost = totalCostOne * w.qty;
+
+        if (w.type === 'Продажа') {
+            sumCOGS += totalCost;
+        } else if (w.type === 'Использовано' || w.type === 'Брак') {
+            sumCostUsedDefect += totalCost;
+        }
     });
+
     const defectiveProducts = db.products.filter(p => { const d = new Date(p.date); return p.defective === true && d >= dStart && d <= dEnd; });
     defectiveProducts.forEach(p => sumCostUsedDefect += (p.costActualPrice || 0));
+ 
 
     const createRowHtml = (title, desc, expenses, costUsed, revenue, cogs, profit) => {
         const ros = revenue > 0 ? (profit / revenue) * 100 : 0;
@@ -3162,6 +3204,15 @@ function updateFinancialReport() {
             <td class="report-val col-markup">${cogs !== null ? fmt(markup) : ''}%</td>
         </tr>`;
     };
+
+	// --- ИЗМЕНЕНИЕ: Обновляем текст подсказки ---
+    const financialTable = document.getElementById('financialTable');
+    if (financialTable) {
+        const cogsTooltip = financialTable.querySelector('th:nth-child(5) .tooltip-text');
+        if (cogsTooltip) {
+            cogsTooltip.innerHTML = 'Суммарная реальная себестоимость проданных изделий, включая стоимость "обогащения"';
+        }
+    }
 
     const tbody = document.querySelector('#financialTable tbody');
     let html = '';
