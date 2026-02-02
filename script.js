@@ -1,4 +1,4 @@
-console.log("Version: 5.0 (2026-02-02 20-46)");
+console.log("Version: 5.1 (2026-02-02 01-56)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -2694,14 +2694,13 @@ function addWriteoffItemSection(data = null) {
                 <div class="calc-field section-remaining">0 шт.</div>
             </div>
         </div>
-
-        <!-- ДОБАВЛЕННЫЙ БЛОК ОБОГАЩЕНИЯ -->
+        
+        <!-- СЕКЦИЯ ОБОГАЩЕНИЯ -->
         <div class="enrichment-section hidden" style="margin-top: 15px; margin-bottom: 15px; border-top: 1px dashed #ccc; padding-top: 10px;">
             <div style="font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 8px;">ОБОГАЩЕНИЕ (Доп. расходы на 1 шт.)</div>
             <div id="enrichmentContainer_${index}"></div>
             <button type="button" class="btn-secondary btn-small" onclick="addEnrichmentRow(${index})" style="width: 100%; justify-content: center; border-style: dashed;">+ Добавить деталь</button>
         </div>
-        <!-- КОНЕЦ БЛОКА -->
 
         <div class="form-row-3 writeoff-price-row">
             <div class="form-group">
@@ -2720,11 +2719,18 @@ function addWriteoffItemSection(data = null) {
                 <div class="calc-field section-total">0.00 ₽</div>
             </div>
         </div>
+
+        <!-- ВОССТАНОВЛЕННЫЙ БЛОК НАЦЕНКИ ИЗ v4.2 -->
         <div class="markup-info hidden" style="margin-top: 8px; padding: 0 4px;">
+            <div style="font-size: 12px; color: var(--color-text-light); margin-bottom: 4px;">
+                Наценка для рыночной себестоимости = <span class="markup-market-val" style="font-weight:600; color: var(--color-text);">0 ₽ (0%)</span>
+            </div>
             <div style="font-size: 12px; color: var(--color-text-light);">
-                Наценка = <span class="markup-actual-val" style="font-weight:600; color: var(--color-text);">0 ₽ (0%)</span>
+                Наценка для реальной себестоимости = <span class="markup-actual-val" style="font-weight:600; color: var(--color-text);">0 ₽ (0%)</span>
             </div>
         </div>
+        <!-- КОНЕЦ ВОССТАНОВЛЕННОГО БЛОКА -->
+
 		<div class="profit-info hidden" style="margin-top: 12px; padding: 0 4px; font-weight: bold; font-size: 13px;">
             Прибыль с продажи Изделия: <span class="profit-val">0.00 ₽</span>
         </div>
@@ -2743,6 +2749,7 @@ function addWriteoffItemSection(data = null) {
 
 
 
+
 function updateWriteoffSection(index) {
     const section = document.getElementById(`writeoffSection_${index}`);
     if (!section) return;
@@ -2754,7 +2761,18 @@ function updateWriteoffSection(index) {
     
     // Показываем/скрываем блок обогащения в зависимости от типа "Продажа"
     const type = document.getElementById('writeoffType').value;
-    enrichmentSection.classList.toggle('hidden', type !== 'Продажа');
+    const isSale = type === 'Продажа';
+    
+    enrichmentSection.classList.toggle('hidden', !isSale);
+    priceInput.disabled = !isSale;
+    
+    if (!isSale) {
+        section.querySelector('.markup-info').classList.add('hidden');
+        section.querySelector('.profit-info').classList.add('hidden');
+    } else {
+        section.querySelector('.markup-info').classList.remove('hidden');
+        section.querySelector('.profit-info').classList.remove('hidden');
+    }
 
     const product = db.products.find(p => p.id === pid);
     
@@ -2764,8 +2782,6 @@ function updateWriteoffSection(index) {
         section.querySelector('.section-cost').textContent = '0.00 ₽';
         section.querySelector('.section-total').textContent = '0.00 ₽';
         section.querySelector('.section-tooltip').textContent = 'Изделие + Обогащение';
-        section.querySelector('.markup-info').classList.add('hidden');
-        section.querySelector('.profit-info').classList.add('hidden');
         calcWriteoffTotal();
         return;
     }
@@ -2786,39 +2802,47 @@ function updateWriteoffSection(index) {
         totalEnrichmentCost += parseFloat(row.querySelector('.enrichment-cost').value) || 0;
     });
 
+    const costM = (product.costPer1Market || 0);
     const costA = (product.costPer1Actual || 0);
-    const totalCostPerItem = costA + totalEnrichmentCost;
+    
+    const totalCostM = costM + totalEnrichmentCost;
+    const totalCostA = costA + totalEnrichmentCost;
 
-    section.querySelector('.section-cost').textContent = totalCostPerItem.toFixed(2) + ' ₽';
-    section.querySelector('.section-tooltip').textContent = `Себест. изделия: ${costA.toFixed(2)} ₽ + Обогащение: ${totalEnrichmentCost.toFixed(2)} ₽`;
+    section.querySelector('.section-cost').textContent = totalCostM.toFixed(2) + ' ₽'; // Показываем рыночную (как обычно)
+    section.querySelector('.section-tooltip').textContent = `Себест. (реальная) изделия: ${costA.toFixed(2)} ₽ + Обогащение: ${totalEnrichmentCost.toFixed(2)} ₽ = Итого: ${totalCostA.toFixed(2)} ₽`;
     
     const price = parseFloat(priceInput.value) || 0;
     section.querySelector('.section-total').textContent = (price * qty).toFixed(2) + ' ₽';
     
-    const markupContainer = section.querySelector('.markup-info');
-	const profitContainer = section.querySelector('.profit-info');
-    
-    if (type === 'Продажа') {
-        markupContainer.classList.remove('hidden');
-		profitContainer.classList.remove('hidden');
-        
-        const markupA_money = price - totalCostPerItem;
-        const markupA_percent = totalCostPerItem > 0 ? (markupA_money / totalCostPerItem) * 100 : 0;
-        section.querySelector('.markup-actual-val').textContent = `${markupA_money.toFixed(2)} ₽ (${markupA_percent.toFixed(1)}%)`;
-        section.querySelector('.markup-actual-val').style.color = markupA_money < 0 ? 'var(--color-danger)' : 'var(--color-success)';
+    if (isSale) {
+        // Наценка (Рынок)
+        const markupM_money = price - totalCostM;
+        const markupM_percent = totalCostM > 0 ? (markupM_money / totalCostM) * 100 : 0;
+        const mkM_El = section.querySelector('.markup-market-val');
+        if(mkM_El) {
+            mkM_El.textContent = `${markupM_money.toFixed(2)} ₽ (${markupM_percent.toFixed(1)}%)`;
+            mkM_El.style.color = markupM_money < 0 ? 'var(--color-danger)' : 'var(--color-success)';
+        }
 
-        const itemProfit = (price * qty) - (totalCostPerItem * qty);
+        // Наценка (Реальная)
+        const markupA_money = price - totalCostA;
+        const markupA_percent = totalCostA > 0 ? (markupA_money / totalCostA) * 100 : 0;
+        const mkA_El = section.querySelector('.markup-actual-val');
+        if(mkA_El) {
+            mkA_El.textContent = `${markupA_money.toFixed(2)} ₽ (${markupA_percent.toFixed(1)}%)`;
+            mkA_El.style.color = markupA_money < 0 ? 'var(--color-danger)' : 'var(--color-success)';
+        }
+
+        // Прибыль (Считаем от реальной)
+        const itemProfit = (price * qty) - (totalCostA * qty);
         const profitValSpan = section.querySelector('.profit-val');
         profitValSpan.textContent = `${itemProfit.toFixed(2)} ₽`;
         profitValSpan.style.color = itemProfit < 0 ? 'var(--color-danger)' : 'var(--color-success)';
-
-    } else {
-        markupContainer.classList.add('hidden');
-		profitContainer.classList.add('hidden');
     }
     
     calcWriteoffTotal();
 }
+
 
 
 
@@ -2829,7 +2853,7 @@ function addEnrichmentRow(sectionIndex, data = null) {
 
     const row = document.createElement('div');
     row.className = 'enrichment-row';
-    // Стиль для строки: Название (flex) + Цена (100px) + Кнопка (30px)
+    // Стиль для строки: Название (flex) + Цена (160px - стало шире) + Кнопка (38px)
     row.style.cssText = "display: flex; gap: 10px; margin-bottom: 8px;";
     
     const nameValue = data ? escapeHtml(data.name) : '';
@@ -2837,11 +2861,12 @@ function addEnrichmentRow(sectionIndex, data = null) {
 
     row.innerHTML = `
         <input type="text" class="enrichment-name" placeholder="Название..." value="${nameValue}" style="flex:1;" oninput="updateWriteoffSection(${sectionIndex})">
-        <input type="number" class="enrichment-cost" placeholder="Цена" value="${costValue}" step="0.01" style="width: 100px;" oninput="updateWriteoffSection(${sectionIndex})">
+        <input type="number" class="enrichment-cost" placeholder="Цена" value="${costValue}" step="0.01" style="width: 160px;" oninput="updateWriteoffSection(${sectionIndex})">
         <button type="button" class="btn-remove-enrichment" onclick="this.parentElement.remove(); updateWriteoffSection(${sectionIndex})" style="width: 38px; padding: 0; display: flex; justify-content: center; align-items: center; border: 1px solid var(--color-danger); color: var(--color-danger); background: none; border-radius: 4px; cursor: pointer;">✕</button>
     `;
     container.appendChild(row);
 }
+
 
 // Пересчитывает остатки для ВСЕХ товаров (надежный способ)
 function recalculateAllProductStock() {
