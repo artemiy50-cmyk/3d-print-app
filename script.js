@@ -1,4 +1,4 @@
-console.log("Version: 5.0 (2026-02-02 20-19)");
+console.log("Version: 5.0 (2026-02-02 20-46)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -2668,7 +2668,6 @@ function addWriteoffItemSection(data = null) {
         return `<option value="${p.id}" ${isSelected ? 'selected' : ''}>${label}</option>`;
     }).join('');
 
-    // ЭТОТ HTML-БЛОК ПОЛНОСТЬЮ СООТВЕТСТВУЕТ ВЕРСИИ 3.7
     div.innerHTML = `
         <div class="writeoff-item-header">
             <span class="section-title">ИЗДЕЛИЕ ${index}</span>
@@ -2695,11 +2694,20 @@ function addWriteoffItemSection(data = null) {
                 <div class="calc-field section-remaining">0 шт.</div>
             </div>
         </div>
+
+        <!-- ДОБАВЛЕННЫЙ БЛОК ОБОГАЩЕНИЯ -->
+        <div class="enrichment-section hidden" style="margin-top: 15px; margin-bottom: 15px; border-top: 1px dashed #ccc; padding-top: 10px;">
+            <div style="font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 8px;">ОБОГАЩЕНИЕ (Доп. расходы на 1 шт.)</div>
+            <div id="enrichmentContainer_${index}"></div>
+            <button type="button" class="btn-secondary btn-small" onclick="addEnrichmentRow(${index})" style="width: 100%; justify-content: center; border-style: dashed;">+ Добавить деталь</button>
+        </div>
+        <!-- КОНЕЦ БЛОКА -->
+
         <div class="form-row-3 writeoff-price-row">
             <div class="form-group">
                 <label class="label-with-tooltip" style="justify-content:center;">
-                    Рынок. себест. за 1 шт.
-                    <span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text tooltip-top-center section-tooltip">Расчет с реальной стоимостью: -</span></span>
+                    Итоговая себест. (1 шт.)
+                    <span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text tooltip-top-center section-tooltip">Изделие + Обогащение</span></span>
                 </label>
                 <div class="calc-field section-cost">0.00 ₽</div>
             </div>
@@ -2713,11 +2721,8 @@ function addWriteoffItemSection(data = null) {
             </div>
         </div>
         <div class="markup-info hidden" style="margin-top: 8px; padding: 0 4px;">
-            <div style="font-size: 12px; color: var(--color-text-light); margin-bottom: 4px;">
-                Наценка для рыночной себестоимости = <span class="markup-market-val" style="font-weight:600; color: var(--color-text);">0 ₽ (0%)</span>
-            </div>
             <div style="font-size: 12px; color: var(--color-text-light);">
-                Наценка для реальной себестоимости = <span class="markup-actual-val" style="font-weight:600; color: var(--color-text);">0 ₽ (0%)</span>
+                Наценка = <span class="markup-actual-val" style="font-weight:600; color: var(--color-text);">0 ₽ (0%)</span>
             </div>
         </div>
 		<div class="profit-info hidden" style="margin-top: 12px; padding: 0 4px; font-weight: bold; font-size: 13px;">
@@ -2726,13 +2731,15 @@ function addWriteoffItemSection(data = null) {
     `;
     container.appendChild(div);
     
+    // Если редактируем, восстанавливаем строки обогащения
+    if (data && data.enrichmentCosts) {
+        data.enrichmentCosts.forEach(item => addEnrichmentRow(index, item));
+    }
+    
     updateRemoveButtons();
     updateWriteoffSection(index); 
-    
-    const type = document.getElementById('writeoffType').value;
-    const priceInput = div.querySelector('.section-price');
-    priceInput.disabled = (type !== 'Продажа');
 }
+
 
 
 
@@ -2822,14 +2829,16 @@ function addEnrichmentRow(sectionIndex, data = null) {
 
     const row = document.createElement('div');
     row.className = 'enrichment-row';
+    // Стиль для строки: Название (flex) + Цена (100px) + Кнопка (30px)
+    row.style.cssText = "display: flex; gap: 10px; margin-bottom: 8px;";
     
     const nameValue = data ? escapeHtml(data.name) : '';
     const costValue = data ? data.cost : '';
 
     row.innerHTML = `
-        <input type="text" class="enrichment-name" placeholder="Название детали (кольцо, свитчер...)" value="${nameValue}" oninput="updateWriteoffSection(${sectionIndex})">
-        <input type="number" class="enrichment-cost" placeholder="Цена, ₽" value="${costValue}" step="0.01" oninput="updateWriteoffSection(${sectionIndex})">
-        <button type="button" class="btn-remove-enrichment" onclick="this.parentElement.remove(); updateWriteoffSection(${sectionIndex})">✕</button>
+        <input type="text" class="enrichment-name" placeholder="Название..." value="${nameValue}" style="flex:1;" oninput="updateWriteoffSection(${sectionIndex})">
+        <input type="number" class="enrichment-cost" placeholder="Цена" value="${costValue}" step="0.01" style="width: 100px;" oninput="updateWriteoffSection(${sectionIndex})">
+        <button type="button" class="btn-remove-enrichment" onclick="this.parentElement.remove(); updateWriteoffSection(${sectionIndex})" style="width: 38px; padding: 0; display: flex; justify-content: center; align-items: center; border: 1px solid var(--color-danger); color: var(--color-danger); background: none; border-radius: 4px; cursor: pointer;">✕</button>
     `;
     container.appendChild(row);
 }
@@ -2855,6 +2864,7 @@ function recalculateAllProductStock() {
         p.availability = p.status;
     });
 }
+
 
 
 
@@ -3163,7 +3173,7 @@ function updateFinancialReport() {
         const product = db.products.find(p => p.id === w.productId);
         const costOne = product ? (product.costPer1Actual || 0) : 0;
         
-        // --- ИЗМЕНЕНИЕ: Учитываем стоимость обогащения ---
+        // --- ДОБАВЛЕНО: Учет обогащения ---
         const enrichmentCost = (w.enrichmentCosts || []).reduce((sum, item) => sum + (item.cost || 0), 0);
         const totalCostOne = costOne + enrichmentCost;
         
@@ -3179,7 +3189,6 @@ function updateFinancialReport() {
     const defectiveProducts = db.products.filter(p => { const d = new Date(p.date); return p.defective === true && d >= dStart && d <= dEnd; });
     defectiveProducts.forEach(p => sumCostUsedDefect += (p.costActualPrice || 0));
  
-
     const createRowHtml = (title, desc, expenses, costUsed, revenue, cogs, profit) => {
         const ros = revenue > 0 ? (profit / revenue) * 100 : 0;
         const markup = cogs > 0 ? (profit / cogs) * 100 : 0;
@@ -3205,7 +3214,7 @@ function updateFinancialReport() {
         </tr>`;
     };
 
-	// --- ИЗМЕНЕНИЕ: Обновляем текст подсказки ---
+    // Обновление тултипа
     const financialTable = document.getElementById('financialTable');
     if (financialTable) {
         const cogsTooltip = financialTable.querySelector('th:nth-child(5) .tooltip-text');
@@ -3227,6 +3236,7 @@ function updateFinancialReport() {
 
     tbody.innerHTML = html;
 }
+
 
 
 // ЗАМЕНИТЕ ЭТУ ФУНКЦИЮ
