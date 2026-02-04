@@ -1754,6 +1754,49 @@ function editProduct(id) {
     }
     // ------------------------------------------------
 
+    // --- ДОБАВЛЕНИЕ СЕКЦИИ СПИСАНИЙ ---
+    const modalBody = document.querySelector('#productModal .modal-body');
+    // Удаляем старую секцию, если она была (чтобы не дублировать при повторном открытии)
+    const oldSection = document.getElementById('productWriteoffsSection');
+    if (oldSection) oldSection.remove();
+
+    const writeoffSection = document.createElement('div');
+    writeoffSection.id = 'productWriteoffsSection';
+    writeoffSection.className = 'product-writeoffs-section';
+    writeoffSection.innerHTML = `<div class="product-writeoffs-title">Документы списания</div>`;
+
+    const productWriteoffs = db.writeoffs.filter(w => w.productId === productId);
+    
+    if (productWriteoffs.length === 0) {
+        writeoffSection.innerHTML += `<div style="font-size:13px; color:#94a3b8;">Нет списаний по этому изделию.</div>`;
+    } else {
+        // Сортировка: Сначала активные (дата desc), потом Подготовленные (дата desc)
+        const active = productWriteoffs.filter(w => w.type !== 'Подготовлено к продаже').sort((a,b) => new Date(b.date) - new Date(a.date));
+        const prepared = productWriteoffs.filter(w => w.type === 'Подготовлено к продаже').sort((a,b) => new Date(b.date) - new Date(a.date));
+        
+        const renderLink = (w) => {
+            let details = `${w.date} | ${w.type} | ${w.qty} шт.`;
+            if (w.type === 'Продажа') details += ` | ${w.total.toFixed(2)} ₽`;
+            return `<a class="writeoff-link-item" onclick="closeProductModal(); setTimeout(() => editWriteoff('${w.systemId}'), 200);">${details}</a>`;
+        };
+
+        if (active.length > 0) {
+            active.forEach(w => writeoffSection.innerHTML += renderLink(w));
+        }
+
+        if (prepared.length > 0) {
+            const groupDiv = document.createElement('div');
+            groupDiv.className = 'writeoff-prepared-group';
+            groupDiv.innerHTML = `<div class="writeoff-prepared-label">Подготовлено к продаже:</div>`;
+            prepared.forEach(w => groupDiv.innerHTML += renderLink(w));
+            writeoffSection.appendChild(groupDiv);
+        }
+    }
+    
+    modalBody.appendChild(writeoffSection);
+    // -----------------------------------
+
+
     productSnapshotForDirtyCheck = captureProductSnapshot();
 }
 
@@ -2112,8 +2155,6 @@ function deleteProduct(id) {
 
 
 
-
-// ЗАМЕНИТЬ эту функцию целиком
 function buildProductRow(p, isChild) {
     let weight = p.weight, length = p.length, printTime = p.printTime;
     if (p.type === 'Составное') {
@@ -2154,17 +2195,16 @@ function buildProductRow(p, isChild) {
         if (p.status === 'Брак') statusTextStyle = 'status-text-danger';
         statusHtml = `<span class="${statusTextStyle}">${escapeHtml(p.status)}</span>`;
     } else {
-        // ВОССТАНОВЛЕНО: Тултип со списком списаний
         const productWriteoffs = db.writeoffs.filter(w => w.productId === p.id);
-        if ((p.status === 'Нет в наличии' || p.status === 'В наличии частично') && productWriteoffs.length > 0) {
+        if (productWriteoffs.length > 0) {
             const linksHtml = productWriteoffs
-                .sort((a, b) => new Date(b.date) - new Date(a.date))
+                .sort((a, b) => new Date(b.date) - new Date(a.date)) // Сортируем все по дате
                 .map(w => {
                     const plainType = `<strong>${escapeHtml(w.type)}</strong>`;
-                    let linkText = w.type === 'Продажа' 
-                        ? `${w.date} ${plainType}: ${w.qty} шт. х ${w.price.toFixed(2)} ₽ = ${w.total.toFixed(2)} ₽`
-                        : `${w.date} ${plainType}: ${w.qty} шт.`;
-                    return `<a onclick="editWriteoff('${w.systemId}')">${linkText}</a>`;
+                    // ... логика текста ...
+                    // Добавляем стиль для "Подготовлено"
+                    const style = w.type === 'Подготовлено к продаже' ? 'color: #cbd5e1;' : '';
+                    return `<a onclick="editWriteoff('${w.systemId}')" style="${style}">${linkText}</a>`;
                 }).join('');
 
             statusHtml = `<div class="tooltip-container">
@@ -2595,6 +2635,15 @@ function openWriteoffModal(systemId = null) {
     const isEdit = !!systemId;
     document.getElementById('writeoffModal').setAttribute('data-edit-group', isEdit ? systemId : '');
     
+    // Обновляем список типов списания (добавляем новый)
+    const typeSelect = document.getElementById('writeoffType');
+    typeSelect.innerHTML = `
+        <option value="Продажа">Продажа</option>
+        <option value="Использовано">Использовано</option>
+        <option value="Брак">Брак</option>
+        <option value="Подготовлено к продаже">Подготовлено к продаже</option>
+    `;
+
     if (isEdit) {
         document.querySelector('#writeoffModal .modal-header-title').textContent = 'Редактировать списание';
         const items = db.writeoffs.filter(w => w.systemId === systemId);
@@ -2605,6 +2654,12 @@ function openWriteoffModal(systemId = null) {
         document.getElementById('writeoffNote').value = first.note;
         document.getElementById('writeoffItemsContainer').innerHTML = '';
         writeoffSectionCount = 0;
+        
+        // Для редактирования добавляем уже с учетом чекбокса
+        // Но при редактировании "Подготовленного" нам нужно видеть все товары.
+        // Добавим чекбокс в HTML динамически, если его нет
+        ensurePreparedCheckboxExists(); 
+        
         items.forEach(item => addWriteoffItemSection(item));
     } else {
         document.querySelector('#writeoffModal .modal-header-title').textContent = 'Добавить списание';
@@ -2616,10 +2671,42 @@ function openWriteoffModal(systemId = null) {
         document.getElementById('writeoffNote').value = '';
         document.getElementById('writeoffItemsContainer').innerHTML = '';
         writeoffSectionCount = 0;
+        
+        ensurePreparedCheckboxExists();
         addWriteoffItemSection(); 
     }
     updateWriteoffTypeUI();
 }
+
+// Вспомогательная функция для добавления чекбокса
+function ensurePreparedCheckboxExists() {
+    const container = document.querySelector('#writeoffItemsContainer').previousElementSibling; // .form-section
+    if (document.getElementById('showPreparedCheckbox')) return;
+
+    const div = document.createElement('div');
+    div.style.cssText = "display: flex; justify-content: flex-end; margin-bottom: 8px; margin-top: -10px;";
+    div.innerHTML = `
+        <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; color: #64748b;">
+            <input type="checkbox" id="showPreparedCheckbox" onchange="refreshProductSelectsInWriteoff()"> 
+            Отображать подготовленные к продаже
+        </label>
+    `;
+    container.appendChild(div);
+}
+
+// Обновляет списки товаров при клике на чекбокс
+window.refreshProductSelectsInWriteoff = function() {
+    const selects = document.querySelectorAll('.writeoff-product-select');
+    selects.forEach(select => {
+        const currentVal = select.value;
+        const sectionId = select.closest('.writeoff-item-section').id.split('_')[1];
+        // Перерисовываем опции
+        populateWriteoffProductOptions(select, currentVal);
+    });
+}
+
+
+
 
 function closeWriteoffModal() { document.getElementById('writeoffModal').classList.remove('active'); }
 
@@ -2627,10 +2714,8 @@ function updateWriteoffTypeUI() {
     const type = document.getElementById('writeoffType').value;
     const isSale = type === 'Продажа';
     document.getElementById('writeoffTotalSummary').classList.toggle('hidden', !isSale);
+    
     document.querySelectorAll('.writeoff-item-section').forEach(sec => {
-        const priceInput = sec.querySelector('.section-price');
-        priceInput.disabled = !isSale;
-        if (!isSale) priceInput.value = 0;
         const idx = sec.id.split('_')[1];
         updateWriteoffSection(idx);
     });
@@ -2641,7 +2726,14 @@ function updateWriteoffTypeUI() {
     if (type === 'Продажа') el.classList.add('select-writeoff-sale');
     else if (type === 'Использовано') el.classList.add('select-writeoff-used');
     else if (type === 'Брак') el.classList.add('select-writeoff-defective');
+    else if (type === 'Подготовлено к продаже') { 
+        el.style.backgroundColor = '#ffffff'; 
+        el.style.color = '#475569'; 
+        el.style.border = '1px solid #cbd5e1'; 
+        el.style.fontWeight = '500';
+    }
 }
+
 
 
 function addWriteoffItemSection(data = null) {
@@ -2653,21 +2745,6 @@ function addWriteoffItemSection(data = null) {
     div.className = 'writeoff-item-section';
     div.id = `writeoffSection_${index}`;
     
-    const availableProducts = db.products.filter(p => {
-        const editGroup = document.getElementById('writeoffModal').getAttribute('data-edit-group');
-        const usedElsewhere = getWriteoffQuantityForProduct(p.id, editGroup);
-        const currentStock = Math.max(0, p.quantity - usedElsewhere);
-        const hasStock = currentStock > 0;
-        const isSelected = data && data.productId === p.id;
-        return (p.type !== 'Часть составного') && (isSelected || (!p.defective && hasStock)); 
-    }).sort((a, b) => (b.systemId || '').localeCompare(a.systemId || ''));
-    
-    const options = availableProducts.map(p => {
-        const isSelected = data && data.productId === p.id;
-        const label = generateProductOptionLabel(p);
-        return `<option value="${p.id}" ${isSelected ? 'selected' : ''}>${label}</option>`;
-    }).join('');
-
     div.innerHTML = `
         <div class="writeoff-item-header">
             <span class="section-title">ИЗДЕЛИЕ ${index}</span>
@@ -2677,9 +2754,9 @@ function addWriteoffItemSection(data = null) {
             <label>Наименование изделия:</label>
             <select class="writeoff-product-select" onchange="updateWriteoffSection(${index})">
                 <option value="">-- Выберите изделие --</option>
-                ${options}
             </select>
         </div>
+        <!-- ... остальной HTML код без изменений ... -->
         <div class="form-row-3">
             <div class="form-group">
                 <label>Наличие (шт):</label>
@@ -2695,7 +2772,6 @@ function addWriteoffItemSection(data = null) {
             </div>
         </div>
         
-        <!-- СЕКЦИЯ ОБОГАЩЕНИЯ -->
         <div class="enrichment-section hidden" style="margin-top: 15px; margin-bottom: 15px; border-top: 1px dashed #ccc; padding-top: 10px;">
             <div style="font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 8px;">ОБОГАЩЕНИЕ (Доп. расходы на 1 шт.)</div>
             <div id="enrichmentContainer_${index}"></div>
@@ -2719,31 +2795,70 @@ function addWriteoffItemSection(data = null) {
                 <div class="calc-field section-total">0.00 ₽</div>
             </div>
         </div>
-
-        <!-- ВОССТАНОВЛЕННЫЙ БЛОК НАЦЕНКИ ИЗ v4.2 -->
         <div class="markup-info hidden" style="margin-top: 8px; padding: 0 4px;">
-            <div style="font-size: 12px; color: var(--color-text-light); margin-bottom: 4px;">
+            <div style="font-size: 12px; color: var(--color-text-light);">
                 Наценка для рыночной себестоимости = <span class="markup-market-val" style="font-weight:600; color: var(--color-text);">0 ₽ (0%)</span>
             </div>
             <div style="font-size: 12px; color: var(--color-text-light);">
                 Наценка для реальной себестоимости = <span class="markup-actual-val" style="font-weight:600; color: var(--color-text);">0 ₽ (0%)</span>
             </div>
         </div>
-        <!-- КОНЕЦ ВОССТАНОВЛЕННОГО БЛОКА -->
-
 		<div class="profit-info hidden" style="margin-top: 12px; padding: 0 4px; font-weight: bold; font-size: 13px;">
             Прибыль с продажи Изделия: <span class="profit-val">0.00 ₽</span>
         </div>
     `;
     container.appendChild(div);
     
-    // Если редактируем, восстанавливаем строки обогащения
+    // Заполняем список товаров с учетом чекбокса
+    const select = div.querySelector('.writeoff-product-select');
+    populateWriteoffProductOptions(select, data ? data.productId : null);
+
+    // Восстанавливаем обогащение
     if (data && data.enrichmentCosts) {
         data.enrichmentCosts.forEach(item => addEnrichmentRow(index, item));
     }
     
     updateRemoveButtons();
     updateWriteoffSection(index); 
+}
+
+// Новая функция для заполнения списка товаров
+function populateWriteoffProductOptions(selectElement, selectedId) {
+    const showPrepared = document.getElementById('showPreparedCheckbox')?.checked;
+    
+    // Собираем ID товаров, которые УЖЕ в статусе "Подготовлено" (чтобы скрыть их)
+    const preparedProductIds = new Set();
+    if (!showPrepared) {
+        db.writeoffs.forEach(w => {
+            if (w.type === 'Подготовлено к продаже') {
+                preparedProductIds.add(w.productId);
+            }
+        });
+    }
+
+    const availableProducts = db.products.filter(p => {
+        const editGroup = document.getElementById('writeoffModal').getAttribute('data-edit-group');
+        const usedElsewhere = getWriteoffQuantityForProduct(p.id, editGroup);
+        const currentStock = Math.max(0, p.quantity - usedElsewhere);
+        const hasStock = currentStock > 0;
+        const isSelected = selectedId == p.id;
+        
+        // Фильтр:
+        // 1. Не часть составного
+        // 2. И (Выбран ИЛИ (Не брак И Есть сток))
+        // 3. И (Чекбокс вкл ИЛИ Товар не в "Подготовлено")
+        return (p.type !== 'Часть составного') && 
+               (isSelected || (!p.defective && hasStock)) &&
+               (showPrepared || isSelected || !preparedProductIds.has(p.id));
+    }).sort((a, b) => (b.systemId || '').localeCompare(a.systemId || ''));
+    
+    const options = availableProducts.map(p => {
+        const isSelected = selectedId == p.id;
+        const label = generateProductOptionLabel(p);
+        return `<option value="${p.id}" ${isSelected ? 'selected' : ''}>${label}</option>`;
+    }).join('');
+    
+    selectElement.innerHTML = `<option value="">-- Выберите изделие --</option>` + options;
 }
 
 
@@ -2868,15 +2983,17 @@ function addEnrichmentRow(sectionIndex, data = null) {
 }
 
 
-// Пересчитывает остатки для ВСЕХ товаров (надежный способ)
+// Пересчитывает остатки для ВСЕХ товаров
 function recalculateAllProductStock() {
     // 1. Сбрасываем остатки до начальных (равно количеству)
     db.products.forEach(p => {
         p.inStock = p.defective ? 0 : p.quantity;
     });
 
-    // 2. Вычитаем все списания
+    // 2. Вычитаем все списания (КРОМЕ статуса "Подготовлено к продаже")
     (db.writeoffs || []).forEach(w => {
+        if (w.type === 'Подготовлено к продаже') return; // <--- ИГНОРИРУЕМ ЧЕРНОВИКИ
+
         const product = db.products.find(p => p.id === w.productId);
         if (product) {
             product.inStock -= w.qty;
@@ -2889,7 +3006,6 @@ function recalculateAllProductStock() {
         p.availability = p.status;
     });
 }
-
 
 
 
@@ -2919,10 +3035,25 @@ function calcWriteoffTotal() {
 
 function saveWriteoff() {
     const systemId = document.getElementById('writeoffSystemId').textContent;
-    const date = document.getElementById('writeoffDate').value;
+    let date = document.getElementById('writeoffDate').value; // let, так как можем менять
     const type = document.getElementById('writeoffType').value;
     const note = document.getElementById('writeoffNote').value;
-    const isEdit = !!document.getElementById('writeoffModal').getAttribute('data-edit-group');
+    const editGroup = document.getElementById('writeoffModal').getAttribute('data-edit-group');
+    const isEdit = !!editGroup;
+
+    // --- ЛОГИКА СМЕНЫ ДАТЫ ---
+    if (isEdit) {
+        // Находим старую запись (первую из группы)
+        const oldItem = db.writeoffs.find(w => w.systemId === editGroup);
+        if (oldItem) {
+            // Если было "Подготовлено", а стало НЕ "Подготовлено" -> ставим текущую дату
+            if (oldItem.type === 'Подготовлено к продаже' && type !== 'Подготовлено к продаже') {
+                date = new Date().toISOString().split('T')[0];
+                document.getElementById('writeoffDate').value = date; // Обновляем в UI тоже
+            }
+        }
+    }
+    // -------------------------
 
     const sections = document.querySelectorAll('.writeoff-item-section');
     const newItems = [];
@@ -2955,6 +3086,7 @@ function saveWriteoff() {
             sectionValid = false;
         }
         
+        // Проверка остатков
         if (pid && qty > 0) {
             const product = db.products.find(p => p.id == parseInt(pid));
             if (!product) { 
@@ -2963,7 +3095,10 @@ function saveWriteoff() {
                 if (!productUsageMap[pid]) productUsageMap[pid] = 0;
                 productUsageMap[pid] += qty;
                 
-                const editGroup = document.getElementById('writeoffModal').getAttribute('data-edit-group');
+                // Считаем доступный остаток.
+                // Если тип "Подготовлено", мы не вычитаем остаток, но при создании
+                // мы все равно должны проверить, есть ли вообще свободные товары.
+                
                 const usedElsewhere = getWriteoffQuantityForProduct(parseInt(pid), editGroup);
                 const currentStock = Math.max(0, product.quantity - usedElsewhere);
                 
@@ -2987,15 +3122,12 @@ function saveWriteoff() {
             }
         }
         
-        // Собираем данные обогащения
         const enrichmentCosts = [];
         if (type === 'Продажа') {
             sec.querySelectorAll('.enrichment-row').forEach(row => {
                 const name = row.querySelector('.enrichment-name').value.trim();
                 const cost = parseFloat(row.querySelector('.enrichment-cost').value) || 0;
-                if (name && cost > 0) {
-                    enrichmentCosts.push({ name, cost });
-                }
+                if (name && cost > 0) enrichmentCosts.push({ name, cost });
             });
         }
 
@@ -3012,7 +3144,7 @@ function saveWriteoff() {
                 price: price,
                 total: qty * price,
                 note: note,
-                enrichmentCosts: enrichmentCosts // <--- СОХРАНЯЕМ НОВОЕ ПОЛЕ
+                enrichmentCosts: enrichmentCosts
             });
         } else {
             globalValid = false;
@@ -3030,12 +3162,8 @@ function saveWriteoff() {
         db.writeoffs = db.writeoffs.filter(w => w.systemId !== systemId);
     }
     
-    // Важно: сначала удаляем старые, потом пушим новые, чтобы избежать гонки
-    // при обновлении остатков.
     newItems.forEach(item => db.writeoffs.push(item));
     
-    // Пересчет остатков (inStock) для всех продуктов.
-    // Это самый надежный способ после таких сложных операций.
     recalculateAllProductStock(); 
 
     saveToLocalStorage();
@@ -3046,6 +3174,7 @@ function saveWriteoff() {
     
     closeWriteoffModal();
 }
+
 
 
 function deleteWriteoff(systemId) {
@@ -3101,6 +3230,13 @@ function updateWriteoffTable() {
     const filterType = document.getElementById('writeoffTypeFilter').value;
     const search = document.getElementById('writeoffSearch').value.toLowerCase();
     const sortBy = document.getElementById('writeoffSortBy').value;
+	const typeFilterSelect = document.getElementById('writeoffTypeFilter');
+    if (!typeFilterSelect.querySelector('option[value="Подготовлено к продаже"]')) {
+        const opt = document.createElement('option');
+        opt.value = 'Подготовлено к продаже';
+        opt.textContent = 'Подготовлено к продаже';
+        typeFilterSelect.appendChild(opt);
+    }
     
     let list = db.writeoffs || [];
     
@@ -3124,6 +3260,7 @@ function updateWriteoffTable() {
         if (w.type === 'Продажа') statusBadge = 'badge-success';
         else if (w.type === 'Использовано') statusBadge = 'badge-purple';
         else if (w.type === 'Брак') statusBadge = 'badge-danger';
+		else if (w.type === 'Подготовлено к продаже') statusBadge = 'badge-white'; // Используем новый класс
 
         const product = db.products.find(p => p.id === w.productId);
         const actualCost = product ? (product.costPer1Actual || 0).toFixed(2) : '0.00';
@@ -3145,6 +3282,7 @@ function updateWriteoffTable() {
                     <button class="btn-danger btn-small" title="Удалить группу" onclick="deleteWriteoff('${w.systemId}')">✕</button>
                 </div>
             </td>
+			<td><span class="badge ${statusBadge}">${escapeHtml(w.type)}</span></td>
         </tr>`;
     }).join('');
 }
@@ -3188,7 +3326,13 @@ function updateFinancialReport() {
 
     const filamentsBought = db.filaments.filter(f => { const d = new Date(f.date); return d >= dStart && d <= dEnd; });
     const sumExpenses = filamentsBought.reduce((sum, f) => sum + (f.actualPrice || 0), 0);
-    const writeoffsInRange = db.writeoffs.filter(w => { const d = new Date(w.date); return d >= dStart && d <= dEnd; });
+    
+    // ФИЛЬТР: Исключаем "Подготовлено к продаже"
+    const writeoffsInRange = db.writeoffs.filter(w => { 
+        const d = new Date(w.date); 
+        return d >= dStart && d <= dEnd && w.type !== 'Подготовлено к продаже'; 
+    });
+    
     const sumRevenue = writeoffsInRange.filter(w => w.type === 'Продажа').reduce((sum, w) => sum + (w.total || 0), 0);
 
     let sumCOGS = 0; 
@@ -3197,11 +3341,8 @@ function updateFinancialReport() {
     writeoffsInRange.forEach(w => {
         const product = db.products.find(p => p.id === w.productId);
         const costOne = product ? (product.costPer1Actual || 0) : 0;
-        
-        // --- ДОБАВЛЕНО: Учет обогащения ---
         const enrichmentCost = (w.enrichmentCosts || []).reduce((sum, item) => sum + (item.cost || 0), 0);
         const totalCostOne = costOne + enrichmentCost;
-        
         const totalCost = totalCostOne * w.qty;
 
         if (w.type === 'Продажа') {

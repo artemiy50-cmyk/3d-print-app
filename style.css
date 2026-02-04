@@ -1106,3 +1106,53 @@
 			background: var(--color-danger);
 			color: white;
 		}
+
+		/* --- Стили для статуса "Подготовлено к продаже" --- */
+		.badge-white { 
+			background: #ffffff; 
+			border: 1px solid #cbd5e1; 
+			color: #475569; 
+			font-weight: 500;
+		}
+
+		/* --- Секция списка списаний в карточке изделия --- */
+		.product-writeoffs-section {
+			margin-top: 20px;
+			padding-top: 16px;
+			border-top: 2px solid var(--color-border);
+		}
+		.product-writeoffs-title {
+			font-size: 13px;
+			font-weight: 600;
+			text-transform: uppercase;
+			color: var(--color-text-light);
+			margin-bottom: 12px;
+		}
+		.writeoff-link-item {
+			display: block;
+			padding: 6px 8px;
+			background: #f8fafc;
+			border: 1px solid #e2e8f0;
+			border-radius: 4px;
+			margin-bottom: 4px;
+			font-size: 13px;
+			color: var(--color-text);
+			text-decoration: none;
+			cursor: pointer;
+			transition: background 0.2s;
+		}
+		.writeoff-link-item:hover {
+			background: #e2e8f0;
+			border-color: #cbd5e1;
+		}
+		.writeoff-prepared-group {
+			margin-top: 16px;
+			padding-top: 8px;
+			border-top: 1px dashed #e2e8f0;
+		}
+		.writeoff-prepared-label {
+			font-size: 11px;
+			color: #94a3b8;
+			margin-bottom: 6px;
+			font-style: italic;
+		}
