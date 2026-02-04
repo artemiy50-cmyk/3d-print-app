@@ -2168,7 +2168,6 @@ function buildProductRow(p, isChild) {
     const minutes = printTime % 60;
     const formattedTime = `${hours}:${String(minutes).padStart(2, '0')}`;
 
-    // ВОССТАНОВЛЕНО: Логика иконки для собранных/несобранных
     const icon = p.type === 'Составное' 
         ? (p.allPartsCreated ? '📦' : '🥡') 
         : (p.type === 'Часть составного' ? '↳' : '✓');
@@ -2198,12 +2197,17 @@ function buildProductRow(p, isChild) {
         const productWriteoffs = db.writeoffs.filter(w => w.productId === p.id);
         if (productWriteoffs.length > 0) {
             const linksHtml = productWriteoffs
-                .sort((a, b) => new Date(b.date) - new Date(a.date)) // Сортируем все по дате
+                .sort((a, b) => new Date(b.date) - new Date(a.date))
                 .map(w => {
                     const plainType = `<strong>${escapeHtml(w.type)}</strong>`;
-                    // ... логика текста ...
-                    // Добавляем стиль для "Подготовлено"
-                    const style = w.type === 'Подготовлено к продаже' ? 'color: #cbd5e1;' : '';
+                    
+                    // --- ВОССТАНОВЛЕННАЯ ЧАСТЬ КОДА ---
+                    let linkText = w.type === 'Продажа' 
+                        ? `${w.date} ${plainType}: ${w.qty} шт. х ${w.price.toFixed(2)} ₽ = ${w.total.toFixed(2)} ₽`
+                        : `${w.date} ${plainType}: ${w.qty} шт.`;
+                    // ----------------------------------
+
+                    const style = w.type === 'Подготовлено к продаже' ? 'color: #94a3b8;' : '';
                     return `<a onclick="editWriteoff('${w.systemId}')" style="${style}">${linkText}</a>`;
                 }).join('');
 
@@ -2233,7 +2237,6 @@ function buildProductRow(p, isChild) {
         ? `<div class="product-name-cell product-child-indent"><div class="product-icon-wrapper"><strong>${icon}</strong></div><span ${nameEvents} style="cursor:default">${escapeHtml(p.name)}</span>${note}</div>`
         : `<div class="product-name-cell"><div class="product-icon-wrapper"><strong>${icon}</strong></div><span ${nameEvents} style="cursor:default"><strong>${escapeHtml(p.name)}</strong></span>${note}</div>`;
 
-// ИСПРАВЛЕНИЕ: Кнопка (+) теперь всегда выглядит активной
     let addPartButtonHtml = '';
 	if (p.type === 'Составное') {
         addPartButtonHtml = `<button class="btn-secondary btn-small btn-add-part" 
@@ -2267,8 +2270,6 @@ function buildProductRow(p, isChild) {
 }
 
 
-
-// ЗАМЕНИТЕ ЭТУ ФУНКЦИЮ
 function updateChildrenTable() { 
     const eid = document.getElementById('productModal').getAttribute('data-edit-id'); 
     if(!eid) return; 
@@ -2289,8 +2290,6 @@ function updateChildrenTable() {
         </tr>`;
     }).join(''); 
 }
-
-
 
 
 function updateProductsTable() {
