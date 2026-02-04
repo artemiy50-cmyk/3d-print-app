@@ -2750,12 +2750,17 @@ function addWriteoffItemSection(data = null) {
             <button class="btn-remove-section" onclick="removeWriteoffSection(${index})">✕</button>
         </div>
         <div class="form-group">
-            <label>Наименование изделия:</label>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
+                <label style="margin-bottom:0;">Наименование изделия:</label>
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; color: #64748b; font-weight: normal;">
+                    <input type="checkbox" class="show-prepared-checkbox" onchange="updateWriteoffSection(${index}); populateWriteoffProductOptions(this.closest('.writeoff-item-section').querySelector('.writeoff-product-select'), this.closest('.writeoff-item-section').querySelector('.writeoff-product-select').value)"> 
+                    Отображать подготовленные
+                </label>
+            </div>
             <select class="writeoff-product-select" onchange="updateWriteoffSection(${index})">
                 <option value="">-- Выберите изделие --</option>
             </select>
         </div>
-        <!-- ... остальной HTML код без изменений ... -->
         <div class="form-row-3">
             <div class="form-group">
                 <label>Наличие (шт):</label>
@@ -2771,6 +2776,7 @@ function addWriteoffItemSection(data = null) {
             </div>
         </div>
         
+        <!-- СЕКЦИЯ ОБОГАЩЕНИЯ -->
         <div class="enrichment-section hidden" style="margin-top: 15px; margin-bottom: 15px; border-top: 1px dashed #ccc; padding-top: 10px;">
             <div style="font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 8px;">ОБОГАЩЕНИЕ (Доп. расходы на 1 шт.)</div>
             <div id="enrichmentContainer_${index}"></div>
@@ -2794,8 +2800,10 @@ function addWriteoffItemSection(data = null) {
                 <div class="calc-field section-total">0.00 ₽</div>
             </div>
         </div>
+        
+        <!-- БЛОКИ НАЦЕНКИ И ПРИБЫЛИ -->
         <div class="markup-info hidden" style="margin-top: 8px; padding: 0 4px;">
-            <div style="font-size: 12px; color: var(--color-text-light);">
+            <div style="font-size: 12px; color: var(--color-text-light); margin-bottom: 4px;">
                 Наценка для рыночной себестоимости = <span class="markup-market-val" style="font-weight:600; color: var(--color-text);">0 ₽ (0%)</span>
             </div>
             <div style="font-size: 12px; color: var(--color-text-light);">
@@ -2808,11 +2816,11 @@ function addWriteoffItemSection(data = null) {
     `;
     container.appendChild(div);
     
-    // Заполняем список товаров с учетом чекбокса
+    // Заполняем список
     const select = div.querySelector('.writeoff-product-select');
+    // При открытии "отображать подготовленные" выключено по умолчанию
     populateWriteoffProductOptions(select, data ? data.productId : null);
 
-    // Восстанавливаем обогащение
     if (data && data.enrichmentCosts) {
         data.enrichmentCosts.forEach(item => addEnrichmentRow(index, item));
     }
@@ -2821,11 +2829,16 @@ function addWriteoffItemSection(data = null) {
     updateWriteoffSection(index); 
 }
 
-// Новая функция для заполнения списка товаров
+
+
+
 function populateWriteoffProductOptions(selectElement, selectedId) {
-    const showPrepared = document.getElementById('showPreparedCheckbox')?.checked;
+    // Ищем чекбокс внутри ТОЙ ЖЕ секции (он теперь локальный для каждого изделия, или можно сделать глобальным, но в ТЗ просили "в строке")
+    // В данном коде я сделал чекбокс ЛОКАЛЬНЫМ для каждого блока изделия, как просилось "в строке наименование".
+    const section = selectElement.closest('.writeoff-item-section');
+    const checkbox = section.querySelector('.show-prepared-checkbox');
+    const showPrepared = checkbox ? checkbox.checked : false;
     
-    // Собираем ID товаров, которые УЖЕ в статусе "Подготовлено" (чтобы скрыть их)
     const preparedProductIds = new Set();
     if (!showPrepared) {
         db.writeoffs.forEach(w => {
@@ -2842,10 +2855,6 @@ function populateWriteoffProductOptions(selectElement, selectedId) {
         const hasStock = currentStock > 0;
         const isSelected = selectedId == p.id;
         
-        // Фильтр:
-        // 1. Не часть составного
-        // 2. И (Выбран ИЛИ (Не брак И Есть сток))
-        // 3. И (Чекбокс вкл ИЛИ Товар не в "Подготовлено")
         return (p.type !== 'Часть составного') && 
                (isSelected || (!p.defective && hasStock)) &&
                (showPrepared || isSelected || !preparedProductIds.has(p.id));
@@ -2858,6 +2867,7 @@ function populateWriteoffProductOptions(selectElement, selectedId) {
     }).join('');
     
     selectElement.innerHTML = `<option value="">-- Выберите изделие --</option>` + options;
+    if(selectedId) selectElement.value = selectedId;
 }
 
 
@@ -2873,19 +2883,21 @@ function updateWriteoffSection(index) {
     const priceInput = section.querySelector('.section-price');
     const enrichmentSection = section.querySelector('.enrichment-section');
     
-    // Показываем/скрываем блок обогащения в зависимости от типа "Продажа"
     const type = document.getElementById('writeoffType').value;
     const isSale = type === 'Продажа';
+    const isPrepared = type === 'Подготовлено к продаже';
     
-    enrichmentSection.classList.toggle('hidden', !isSale);
-    priceInput.disabled = !isSale;
+    // --- ИСПРАВЛЕНИЕ: Обогащение для Продажи И Подготовленного ---
+    enrichmentSection.classList.toggle('hidden', !(isSale || isPrepared));
+    priceInput.disabled = !(isSale || isPrepared);
     
-    if (!isSale) {
-        section.querySelector('.markup-info').classList.add('hidden');
-        section.querySelector('.profit-info').classList.add('hidden');
-    } else {
+    // Блоки прибыли показываем только для этих двух типов
+    if (isSale || isPrepared) {
         section.querySelector('.markup-info').classList.remove('hidden');
         section.querySelector('.profit-info').classList.remove('hidden');
+    } else {
+        section.querySelector('.markup-info').classList.add('hidden');
+        section.querySelector('.profit-info').classList.add('hidden');
     }
 
     const product = db.products.find(p => p.id === pid);
@@ -2895,7 +2907,6 @@ function updateWriteoffSection(index) {
         section.querySelector('.section-remaining').textContent = '0 шт.';
         section.querySelector('.section-cost').textContent = '0.00 ₽';
         section.querySelector('.section-total').textContent = '0.00 ₽';
-        section.querySelector('.section-tooltip').textContent = 'Изделие + Обогащение';
         calcWriteoffTotal();
         return;
     }
@@ -2910,7 +2921,6 @@ function updateWriteoffSection(index) {
     const remaining = Math.max(0, currentStock - qty); 
     section.querySelector('.section-remaining').textContent = remaining + ' шт.';
 
-    // Считаем стоимость обогащения
     let totalEnrichmentCost = 0;
     section.querySelectorAll('.enrichment-row').forEach(row => {
         totalEnrichmentCost += parseFloat(row.querySelector('.enrichment-cost').value) || 0;
@@ -2922,14 +2932,13 @@ function updateWriteoffSection(index) {
     const totalCostM = costM + totalEnrichmentCost;
     const totalCostA = costA + totalEnrichmentCost;
 
-    section.querySelector('.section-cost').textContent = totalCostM.toFixed(2) + ' ₽'; // Показываем рыночную (как обычно)
+    section.querySelector('.section-cost').textContent = totalCostM.toFixed(2) + ' ₽';
     section.querySelector('.section-tooltip').textContent = `Себест. (реальная) изделия: ${costA.toFixed(2)} ₽ + Обогащение: ${totalEnrichmentCost.toFixed(2)} ₽ = Итого: ${totalCostA.toFixed(2)} ₽`;
     
     const price = parseFloat(priceInput.value) || 0;
     section.querySelector('.section-total').textContent = (price * qty).toFixed(2) + ' ₽';
     
-    if (isSale) {
-        // Наценка (Рынок)
+    if (isSale || isPrepared) {
         const markupM_money = price - totalCostM;
         const markupM_percent = totalCostM > 0 ? (markupM_money / totalCostM) * 100 : 0;
         const mkM_El = section.querySelector('.markup-market-val');
@@ -2938,7 +2947,6 @@ function updateWriteoffSection(index) {
             mkM_El.style.color = markupM_money < 0 ? 'var(--color-danger)' : 'var(--color-success)';
         }
 
-        // Наценка (Реальная)
         const markupA_money = price - totalCostA;
         const markupA_percent = totalCostA > 0 ? (markupA_money / totalCostA) * 100 : 0;
         const mkA_El = section.querySelector('.markup-actual-val');
@@ -2947,7 +2955,6 @@ function updateWriteoffSection(index) {
             mkA_El.style.color = markupA_money < 0 ? 'var(--color-danger)' : 'var(--color-success)';
         }
 
-        // Прибыль (Считаем от реальной)
         const itemProfit = (price * qty) - (totalCostA * qty);
         const profitValSpan = section.querySelector('.profit-val');
         profitValSpan.textContent = `${itemProfit.toFixed(2)} ₽`;
@@ -3111,24 +3118,30 @@ function saveWriteoff() {
             }
         }
 
-        let price = 0;
-        if (type === 'Продажа') {
+		let price = 0;
+        // --- ИЗМЕНЕНИЕ: Разрешаем цену для "Подготовлено" тоже ---
+        if (type === 'Продажа' || type === 'Подготовлено к продаже') {
             const priceInput = sec.querySelector('.section-price');
             price = parseFloat(priceInput.value);
-            if (isNaN(price) || price <= 0) {
+            // Для "Подготовлено" цена может быть 0 или не заполнена (это черновик), поэтому валидацию можно смягчить
+            if (type === 'Продажа' && (isNaN(price) || price <= 0)) {
                 priceInput.classList.add('error');
                 sectionValid = false;
             }
         }
         
         const enrichmentCosts = [];
-        if (type === 'Продажа') {
+        // --- ИЗМЕНЕНИЕ: Собираем обогащение для обоих типов ---
+        if (type === 'Продажа' || type === 'Подготовлено к продаже') {
             sec.querySelectorAll('.enrichment-row').forEach(row => {
                 const name = row.querySelector('.enrichment-name').value.trim();
                 const cost = parseFloat(row.querySelector('.enrichment-cost').value) || 0;
-                if (name && cost > 0) enrichmentCosts.push({ name, cost });
+                if (name && cost > 0) {
+                    enrichmentCosts.push({ name, cost });
+                }
             });
         }
+        
 
         if (sectionValid) {
             const product = db.products.find(p => p.id == parseInt(pid));
@@ -3259,20 +3272,24 @@ function updateWriteoffTable() {
         if (w.type === 'Продажа') statusBadge = 'badge-success';
         else if (w.type === 'Использовано') statusBadge = 'badge-purple';
         else if (w.type === 'Брак') statusBadge = 'badge-danger';
-		else if (w.type === 'Подготовлено к продаже') statusBadge = 'badge-white'; // Используем новый класс
+        else if (w.type === 'Подготовлено к продаже') statusBadge = 'badge-white';
 
         const product = db.products.find(p => p.id === w.productId);
         const actualCost = product ? (product.costPer1Actual || 0).toFixed(2) : '0.00';
 
+        // --- ИЗМЕНЕНИЕ: Добавлены обработчики событий для превью картинки ---
+        // Использованы те же функции showProductImagePreview, что и в таблице изделий
+        const nameEvents = w.productId ? `onmouseenter="showProductImagePreview(this, ${w.productId})" onmousemove="moveProductImagePreview(event)" onmouseleave="hideProductImagePreview(this)"` : '';
+
         return `<tr>
             <td>${w.date}</td>
             <td><small>${w.systemId}</small></td>
-            <td><strong>${escapeHtml(w.productName)}</strong></td>
+            <td ${nameEvents} style="cursor:default"><strong>${escapeHtml(w.productName)}</strong></td>
             <td><span class="badge ${statusBadge}">${escapeHtml(w.type)}</span></td>
             <td>${actualCost} ₽</td>
             <td>${w.qty}</td>
-            <td>${w.type === 'Продажа' ? w.price.toFixed(2) : '-'}</td>
-            <td>${w.type === 'Продажа' ? w.total.toFixed(2) : '-'}</td>
+            <td>${(w.type === 'Продажа' || w.type === 'Подготовлено к продаже') ? w.price.toFixed(2) : '-'}</td>
+            <td>${(w.type === 'Продажа' || w.type === 'Подготовлено к продаже') ? w.total.toFixed(2) : '-'}</td>
             <td>${escapeHtml(w.note || '')}</td>
             <td class="text-center">
                 <div class="action-buttons">
@@ -3281,7 +3298,6 @@ function updateWriteoffTable() {
                     <button class="btn-danger btn-small" title="Удалить группу" onclick="deleteWriteoff('${w.systemId}')">✕</button>
                 </div>
             </td>
-			<td><span class="badge ${statusBadge}">${escapeHtml(w.type)}</span></td>
         </tr>`;
     }).join('');
 }
