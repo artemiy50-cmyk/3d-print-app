@@ -1,4 +1,4 @@
-console.log("Version: 5.1 (2026-02-04 23-12)");
+console.log("Version: 5.1 (2026-02-04 23-25)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -2634,7 +2634,7 @@ function openWriteoffModal(systemId = null) {
     const isEdit = !!systemId;
     document.getElementById('writeoffModal').setAttribute('data-edit-group', isEdit ? systemId : '');
     
-    // Обновляем список типов списания (добавляем новый)
+    // Обновляем список типов списания
     const typeSelect = document.getElementById('writeoffType');
     typeSelect.innerHTML = `
         <option value="Продажа">Продажа</option>
@@ -2654,10 +2654,7 @@ function openWriteoffModal(systemId = null) {
         document.getElementById('writeoffItemsContainer').innerHTML = '';
         writeoffSectionCount = 0;
         
-        // Для редактирования добавляем уже с учетом чекбокса
-        // Но при редактировании "Подготовленного" нам нужно видеть все товары.
-        // Добавим чекбокс в HTML динамически, если его нет
-        ensurePreparedCheckboxExists(); 
+        // УДАЛЕНО: ensurePreparedCheckboxExists(); 
         
         items.forEach(item => addWriteoffItemSection(item));
     } else {
@@ -2671,11 +2668,12 @@ function openWriteoffModal(systemId = null) {
         document.getElementById('writeoffItemsContainer').innerHTML = '';
         writeoffSectionCount = 0;
         
-        ensurePreparedCheckboxExists();
+        // УДАЛЕНО: ensurePreparedCheckboxExists();
         addWriteoffItemSection(); 
     }
     updateWriteoffTypeUI();
 }
+
 
 // Вспомогательная функция для добавления чекбокса
 function ensurePreparedCheckboxExists() {
@@ -2707,12 +2705,19 @@ window.refreshProductSelectsInWriteoff = function() {
 
 
 
-function closeWriteoffModal() { document.getElementById('writeoffModal').classList.remove('active'); }
+function closeWriteoffModal() { 
+	document.getElementById('writeoffModal').classList.remove('active'); 
+}
+
+
 
 function updateWriteoffTypeUI() {
     const type = document.getElementById('writeoffType').value;
     const isSale = type === 'Продажа';
-    document.getElementById('writeoffTotalSummary').classList.toggle('hidden', !isSale);
+    const isPrepared = type === 'Подготовлено к продаже';
+    
+    // --- ИЗМЕНЕНИЕ: Показываем сводку и для Подготовленного ---
+    document.getElementById('writeoffTotalSummary').classList.toggle('hidden', !(isSale || isPrepared));
     
     document.querySelectorAll('.writeoff-item-section').forEach(sec => {
         const idx = sec.id.split('_')[1];
@@ -2722,6 +2727,8 @@ function updateWriteoffTypeUI() {
     
     const el = document.getElementById('writeoffType');
     el.className = '';
+    el.style = ''; // Сброс инлайн стилей
+    
     if (type === 'Продажа') el.classList.add('select-writeoff-sale');
     else if (type === 'Использовано') el.classList.add('select-writeoff-used');
     else if (type === 'Брак') el.classList.add('select-writeoff-defective');
@@ -2752,7 +2759,8 @@ function addWriteoffItemSection(data = null) {
         <div class="form-group">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
                 <label style="margin-bottom:0;">Наименование изделия:</label>
-                <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; color: #64748b; font-weight: normal;">
+                <!-- ИЗМЕНЕНИЕ: white-space: nowrap для предотвращения переноса -->
+                <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; color: #64748b; font-weight: normal; white-space: nowrap;">
                     <input type="checkbox" class="show-prepared-checkbox" onchange="updateWriteoffSection(${index}); populateWriteoffProductOptions(this.closest('.writeoff-item-section').querySelector('.writeoff-product-select'), this.closest('.writeoff-item-section').querySelector('.writeoff-product-select').value)"> 
                     Отображать подготовленные
                 </label>
@@ -2761,6 +2769,7 @@ function addWriteoffItemSection(data = null) {
                 <option value="">-- Выберите изделие --</option>
             </select>
         </div>
+        <!-- ... (остальной HTML без изменений) ... -->
         <div class="form-row-3">
             <div class="form-group">
                 <label>Наличие (шт):</label>
@@ -2776,7 +2785,6 @@ function addWriteoffItemSection(data = null) {
             </div>
         </div>
         
-        <!-- СЕКЦИЯ ОБОГАЩЕНИЯ -->
         <div class="enrichment-section hidden" style="margin-top: 15px; margin-bottom: 15px; border-top: 1px dashed #ccc; padding-top: 10px;">
             <div style="font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 8px;">ОБОГАЩЕНИЕ (Доп. расходы на 1 шт.)</div>
             <div id="enrichmentContainer_${index}"></div>
@@ -2801,7 +2809,6 @@ function addWriteoffItemSection(data = null) {
             </div>
         </div>
         
-        <!-- БЛОКИ НАЦЕНКИ И ПРИБЫЛИ -->
         <div class="markup-info hidden" style="margin-top: 8px; padding: 0 4px;">
             <div style="font-size: 12px; color: var(--color-text-light); margin-bottom: 4px;">
                 Наценка для рыночной себестоимости = <span class="markup-market-val" style="font-weight:600; color: var(--color-text);">0 ₽ (0%)</span>
@@ -2818,7 +2825,6 @@ function addWriteoffItemSection(data = null) {
     
     // Заполняем список
     const select = div.querySelector('.writeoff-product-select');
-    // При открытии "отображать подготовленные" выключено по умолчанию
     populateWriteoffProductOptions(select, data ? data.productId : null);
 
     if (data && data.enrichmentCosts) {
@@ -2828,6 +2834,7 @@ function addWriteoffItemSection(data = null) {
     updateRemoveButtons();
     updateWriteoffSection(index); 
 }
+
 
 
 
