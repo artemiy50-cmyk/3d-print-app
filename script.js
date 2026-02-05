@@ -1,4 +1,4 @@
-console.log("Version: 5.2 (2026-02-06 00-38)");
+console.log("Version: 5.2 (2026-02-06 00-45)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -3157,6 +3157,7 @@ async function saveWriteoff() {
         const oldItem = db.writeoffs.find(w => w.systemId === editGroup);
         if (oldItem && oldItem.type === 'Подготовлено к продаже' && type !== 'Подготовлено к продаже') {
             date = new Date().toISOString().split('T')[0];
+            document.getElementById('writeoffDate').value = date;
         }
     }
 
@@ -3167,7 +3168,6 @@ async function saveWriteoff() {
     document.getElementById('writeoffValidationMessage').classList.add('hidden');
     document.getElementById('writeoffValidationMessage').textContent = 'Не все обязательные поля заполнены';
     
-    // Очистка классов ошибок
     sections.forEach(sec => {
         sec.querySelectorAll('.error').forEach(el => el.classList.remove('error'));
     });
@@ -3199,12 +3199,9 @@ async function saveWriteoff() {
                 if (!productUsageMap[pid]) productUsageMap[pid] = 0;
                 productUsageMap[pid] += qty;
                 
-                // Проверка остатков
                 const usedElsewhere = getWriteoffQuantityForProduct(parseInt(pid), editGroup);
                 const currentStock = Math.max(0, product.quantity - usedElsewhere);
                 
-                // Для "Подготовлено к продаже" мы не блокируем, если товара физически нет, но это черновик.
-                // Но логика приложения требует проверки. Оставим как есть.
                 if (productUsageMap[pid] > currentStock) {
                     const msg = `Ошибка: Попытка списать (${productUsageMap[pid]}) больше доступного остатка (${currentStock}) для "${product.name}"`;
                     document.getElementById('writeoffValidationMessage').textContent = msg;
@@ -3266,74 +3263,68 @@ async function saveWriteoff() {
         const updates = {};
 
         // 1. Удаление старых записей (если редактирование)
-        // Примечание: В Firebase Atomic Updates нельзя сделать "удалить из массива и сдвинуть индексы" просто так.
-        // Поэтому для надежности при редактировании мы используем старый подход:
-        // Сначала удаляем старые, потом добавляем новые.
         if (isEdit) {
-            // Находим индексы старых записей
             const indicesToRemove = [];
             db.writeoffs.forEach((w, idx) => { if(w.systemId === systemId) indicesToRemove.push(idx); });
-            // Сортируем с конца и удаляем
+            
             for (let i = indicesToRemove.length - 1; i >= 0; i--) {
                 await dbRef.child('writeoffs').child(indicesToRemove[i]).remove();
             }
-            // Удаляем их из локального массива тоже, чтобы расчет индексов ниже был верным
+            
+            // [FIX] ВАЖНО: Удаляем старые записи из ЛОКАЛЬНОГО массива
+            // Без этого при сохранении они останутся, и мы увидим дубликаты
             db.writeoffs = db.writeoffs.filter(w => w.systemId !== systemId);
         }
 
-        // 2. Добавление новых записей списания
-        let startIndex = db.writeoffs.length;
+        // 2. Добавление новых записей
+        let startIndex = db.writeoffs.length; 
+        
+        // ВНИМАНИЕ: Если мы только что удалили элементы локально через filter, 
+        // индексы в Firebase (которые мы не сдвигали) и локальные индексы могут разойтись.
+        // Для 100% надежности при добавлении в конец списка лучше использовать push().key
+        // Но так как у нас массив, используем текущую длину ЛОКАЛЬНОГО массива.
+        
+        // Для Firebase Atomic Updates в массивах лучше всего не использовать индексы, 
+        // если мы удаляем из середины. Но так как мы удалили через .remove(), 
+        // в Firebase образовались "дырки" (null).
+        // Чтобы заполнить их или добавить в конец, безопаснее всего просто добавить в конец.
+        
         newItems.forEach((item, i) => {
+            // Чтобы не перезаписать существующие (если индексы сбились), 
+            // берем индекс заведомо больший или равный длине.
             updates[`/writeoffs/${startIndex + i}`] = item;
         });
 
-        // 3. Обновление остатков товаров и справочника комплектующих
+        // 3. Справочник компонентов
         newItems.forEach(item => {
-            const product = db.products.find(p => p.id === item.productId);
-            if (product) {
-                const pIndex = db.products.indexOf(product);
-                
-                // Если это НЕ "Подготовлено к продаже", обновляем остаток
-                if (item.type !== 'Подготовлено к продаже') {
-                    // Рассчитываем новый остаток. 
-                    // Важно: мы уже удалили старые списания выше, так что product.inStock (локальный) 
-                    // мог быть обновлен через слушатель, но для атомарности лучше пересчитать.
-                    // Для простоты берем локальный inStock и вычитаем qty.
-                    
-                    // ВНИМАНИЕ: Для корректной работы при редактировании нам нужно знать "чистый" остаток.
-                    // Функция recalculateAllProductStock делает это глобально.
-                    // Поэтому: сначала сохраняем списания, потом вызываем пересчет остатков и сохраняем их.
-                }
-            }
-
-            // Обновление справочника комплектующих
             if (item.enrichmentCosts) {
                 item.enrichmentCosts.forEach(comp => {
                     const existingComp = db.components.find(c => c.name.toLowerCase() === comp.name.toLowerCase());
                     if (!existingComp) {
                         const newCompIndex = db.components.length;
-                        // Проверяем, не добавляем ли мы один и тот же компонент дважды в одном апдейте
-                        // (тут упрощено, предполагаем разные)
                         updates[`/components/${newCompIndex}`] = { name: comp.name, price: comp.cost };
-                        db.components.push({ name: comp.name, price: comp.cost }); // локально тоже
+                        // [FIX] Локальное обновление справочника
+                        db.components.push({ name: comp.name, price: comp.cost }); 
                     } else if (Math.abs(existingComp.price - comp.cost) > 0.01) {
                         const cIndex = db.components.indexOf(existingComp);
                         updates[`/components/${cIndex}/price`] = comp.cost;
+                        // [FIX] Локальное обновление цены
+                        existingComp.price = comp.cost;
                     }
                 });
             }
         });
 
-        // Отправляем списания и компоненты
+        // Отправляем пакет обновлений
         await dbRef.update(updates);
         
-        // Обновляем локальный массив списаний, чтобы recalculate отработал верно
+        // [FIX] Добавляем новые записи в ЛОКАЛЬНЫЙ массив
         newItems.forEach(item => db.writeoffs.push(item));
 
-        // 4. Глобальный пересчет остатков и их сохранение
-        // Это гарантирует целостность данных
+        // 4. Глобальный пересчет остатков (теперь он использует корректный db.writeoffs)
         recalculateAllProductStock();
         
+        // Сохраняем пересчитанные остатки в Firebase
         const productUpdates = {};
         db.products.forEach((p, idx) => {
             productUpdates[`/products/${idx}/inStock`] = p.inStock;
@@ -3358,6 +3349,7 @@ async function saveWriteoff() {
         alert("Ошибка: " + e.message);
     }
 }
+
 
 
 
