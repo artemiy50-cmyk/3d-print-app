@@ -1,4 +1,4 @@
-console.log("Version: 5.2 (2026-02-05 22-31)");
+console.log("Version: 5.2 (2026-02-05 22-53)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -40,6 +40,8 @@ let currentProductFiles = [];
 let dbRef;
 let activePreviewProductId = null;
 let writeoffSectionCount = 0; // Для списаний
+let isModalOpen = false; // Флаг, блокирующий авто-обновление UI при открытых модальных окнах
+
 
 
 // ==================== ИНИЦИАЛИЗАЦИЯ И МНОГОПОЛЬЗОВАТЕЛЬСКАЯ ЛОГИКА ====================
@@ -175,54 +177,77 @@ window.addEventListener('DOMContentLoaded', () => {
         const authContainer = document.getElementById('authContainer');
         const verifyContainer = document.getElementById('verificationWait');
         
+        // Отписываемся от старого слушателя, если он был (при смене пользователя)
+        if (dbRef) dbRef.off();
+
         if (user) {
             currentUser = user;
-            console.log("Logged in:", user.email, "Verified:", user.emailVerified);
-
-            // ПРОВЕРКА ПОДТВЕРЖДЕНИЯ ПОЧТЫ
             if (!user.emailVerified) {
                 authContainer.style.display = 'none';
                 verifyContainer.style.display = 'block';
                 document.getElementById('verifyEmailSpan').textContent = user.email;
-                return; // НЕ ЗАГРУЖАЕМ ДАННЫЕ
+                return;
             }
 
-            // Если почта подтверждена
             if(overlay) overlay.style.display = 'none'; 
             
-            // === КЛЮЧЕВОЙ МОМЕНТ: ИЗОЛЯЦИЯ ДАННЫХ ===
-            // Каждый пользователь получает свой путь: users/{uid}/data
             dbRef = firebase.database().ref('users/' + user.uid + '/data');
             
             setupUserSidebar(user);
             
-            // Загрузка данных КОНКРЕТНОГО пользователя
-            await loadData();
+            // --- НОВЫЙ REALTIME-СЛУШАТЕЛЬ ---
+            dbRef.on('value', (snapshot) => {
+                // Если открыто модальное окно - НЕ обновляем UI, чтобы не сбить ввод
+                if (isModalOpen) {
+                    console.log('Modal is open, skipping real-time UI refresh to prevent data loss.');
+                    return;
+                }
+
+                console.log('Real-time data received from Firebase.');
+
+                const loadedData = snapshot.val();
+                // Заполняем наш локальный объект db
+                if (loadedData) {
+                    db.filaments = loadedData.filaments || [];
+                    db.products = loadedData.products || [];
+                    db.writeoffs = loadedData.writeoffs || [];
+                    db.brands = loadedData.brands || [];
+                    db.components = loadedData.components || [];
+                    db.colors = loadedData.colors || [];
+                    db.plasticTypes = loadedData.plasticTypes || [];
+                    db.filamentStatuses = loadedData.filamentStatuses || [];
+                    db.printers = loadedData.printers || [];
+                    db.electricityCosts = loadedData.electricityCosts || [{ id: Date.now(), date: '2020-01-01', cost: 6 }];
+                }
+
+                // Пересчитываем и обновляем всё
+                recalculateAllProductCosts();
+                recalculateAllProductStock(); // Добавим на всякий случай
+                updateAllSelects();
+                
+                // Обновляем все таблицы и дашборд
+                try { updateFilamentsTable(); } catch(e) { console.error('Filament update failed', e); }
+                try { updateProductsTable(); } catch(e) { console.error('Products update failed', e); }
+                try { updateWriteoffTable(); } catch(e) { console.error('Writeoff update failed', e); }
+                try { updateReports(); } catch(e) { console.error('Reports update failed', e); }
+                try { updateDashboard(); } catch(e) { console.error('Dashboard update failed', e); }
+            });
             
-            recalculateAllProductCosts(); 
+            // Загрузка настроек (это можно делать один раз)
             loadShowChildren();
             updateAllDates();
-            updateAllSelects();
-            
-            try { updateFilamentsTable(); } catch(e) {}
-            try { updateProductsTable(); } catch(e) {}
-            try { updateWriteoffTable(); } catch(e) {}
-            try { updateReports(); } catch(e) {}
-            try { updateDashboard(); } catch(e) {}
-
             setupEventListeners();
-        } else {
-            // Пользователь не вошел
+
+        } else { // Пользователь не вошел
             currentUser = null;
             if(overlay) overlay.style.display = 'flex';
             authContainer.style.display = 'block';
             verifyContainer.style.display = 'none';
-            
-            // Очистка интерфейса
             db.filaments = []; db.products = []; db.writeoffs = [];
         }
     });
 });
+
 
 
 function setupUserSidebar(user) {
@@ -417,39 +442,6 @@ async function saveData() {
 // Алиас для совместимости с кодом из v3.7
 function saveToLocalStorage() { saveData(); }
 
-async function loadData() {
-    if (!dbRef) return;
-    try {
-        const snapshot = await dbRef.once('value');
-        const loadedData = snapshot.val();
-        if (loadedData) {
-            db.filaments = loadedData.filaments || [];
-            db.products = loadedData.products || [];
-            db.writeoffs = loadedData.writeoffs || [];
-            db.brands = loadedData.brands || [];
-            
-            // --- ДОБАВЛЕНО: Загрузка комплектующих ---
-            db.components = loadedData.components || []; 
-            
-            db.colors = loadedData.colors || [];
-            db.plasticTypes = loadedData.plasticTypes || [];
-            db.filamentStatuses = loadedData.filamentStatuses || [];
-            db.printers = loadedData.printers || [];
-            db.electricityCosts = loadedData.electricityCosts || [{ id: Date.now(), date: '2020-01-01', cost: 6 }];
-
-            // Восстановление данных
-            db.filaments.forEach(f => { f.remainingLength = f.length - (f.usedLength || 0); });
-            db.products.forEach(p => {
-                if (p.inStock === undefined) p.inStock = p.quantity;
-                if (!p.status) p.status = p.availability || 'В наличии полностью';
-            });
-             // Пересчет ID списаний
-             db.writeoffs.forEach(w => {
-                if (!w.systemId) w.systemId = String(w.id);
-            });
-        } 
-    } catch (err) { alert("Ошибка загрузки данных."); }
-}
 
 
 // ==================== HELPERS ====================
@@ -898,8 +890,10 @@ function updateFilamentColorPreview() {
     if (c) document.getElementById('filamentColorPreview').style.background = c.hex;
 }
 
-function openFilamentModal() { document.getElementById('filamentModal').classList.add('active'); clearFilamentForm(); setTimeout(() => document.getElementById('filamentCustomId').focus(), 100); }
-function closeFilamentModal() { document.getElementById('filamentModal').classList.remove('active'); document.getElementById('filamentModal').removeAttribute('data-edit-id'); document.querySelector('#filamentModal .modal-header-title').textContent = 'Добавить филамент'; clearFilamentForm(); }
+// --- FILAMENT ---
+function openFilamentModal() { isModalOpen = true; document.getElementById('filamentModal').classList.add('active'); clearFilamentForm(); setTimeout(() => document.getElementById('filamentCustomId').focus(), 100); }
+function closeFilamentModal() { isModalOpen = false; document.getElementById('filamentModal').classList.remove('active'); document.getElementById('filamentModal').removeAttribute('data-edit-id'); document.querySelector('#filamentModal .modal-header-title').textContent = 'Добавить филамент'; clearFilamentForm(); }
+
 
 function clearFilamentForm() {
     document.getElementById('filamentCustomId').value = ''; document.getElementById('filamentName').value = ''; document.getElementById('filamentLink').value = ''; document.getElementById('filamentType').value = 'PLA';
@@ -1300,7 +1294,8 @@ function updateParentSelect(ensureParentId = null) {
 }
 
 function openProductModal() {
-    const modal = document.getElementById('productModal');
+    isModalOpen = true; 
+	const modal = document.getElementById('productModal');
     modal.classList.add('active');
     
     // Если это добавление нового (нет атрибута редактирования)
@@ -1319,7 +1314,8 @@ function openProductModal() {
 }
 
 function closeProductModal() { 
-    const modal = document.getElementById('productModal');
+    isModalOpen = false;
+	const modal = document.getElementById('productModal');
     modal.classList.remove('active'); 
     modal.removeAttribute('data-edit-id'); 
     modal.removeAttribute('data-system-id');
@@ -2629,6 +2625,7 @@ function updateRemoveButtons() {
 
 
 function openWriteoffModal(systemId = null) {
+	isModalOpen = true;
     document.getElementById('writeoffModal').classList.add('active');
     document.getElementById('writeoffValidationMessage').classList.add('hidden');
     const isEdit = !!systemId;
@@ -2706,6 +2703,7 @@ window.refreshProductSelectsInWriteoff = function() {
 
 
 function closeWriteoffModal() { 
+	isModalOpen = false;
 	document.getElementById('writeoffModal').classList.remove('active'); 
 }
 
