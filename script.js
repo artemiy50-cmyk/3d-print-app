@@ -427,6 +427,10 @@ async function loadData() {
             db.products = loadedData.products || [];
             db.writeoffs = loadedData.writeoffs || [];
             db.brands = loadedData.brands || [];
+            
+            // --- ДОБАВЛЕНО: Загрузка комплектующих ---
+            db.components = loadedData.components || []; 
+            
             db.colors = loadedData.colors || [];
             db.plasticTypes = loadedData.plasticTypes || [];
             db.filamentStatuses = loadedData.filamentStatuses || [];
@@ -439,13 +443,14 @@ async function loadData() {
                 if (p.inStock === undefined) p.inStock = p.quantity;
                 if (!p.status) p.status = p.availability || 'В наличии полностью';
             });
-             // Пересчет ID списаний если они старого формата
+             // Пересчет ID списаний
              db.writeoffs.forEach(w => {
                 if (!w.systemId) w.systemId = String(w.id);
             });
         } 
     } catch (err) { alert("Ошибка загрузки данных."); }
 }
+
 
 // ==================== HELPERS ====================
 
@@ -2797,7 +2802,7 @@ function addWriteoffItemSection(data = null) {
             <div class="form-group">
                 <label class="label-with-tooltip" style="justify-content:center;">
                     Итоговая себест. (1 шт.)
-                    <span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text tooltip-top-center section-tooltip">Изделие + Обогащение</span></span>
+                    <span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text tooltip-top-center section-tooltip">Изделие + Комплектующие</span></span>
                 </label>
                 <div class="calc-field section-cost">0.00 ₽</div>
             </div>
@@ -2896,7 +2901,7 @@ function updateWriteoffSection(index) {
     const isSale = type === 'Продажа';
     const isPrepared = type === 'Подготовлено к продаже';
     
-    // --- ИСПРАВЛЕНИЕ: Обогащение для Продажи И Подготовленного ---
+    // --- ИСПРАВЛЕНИЕ: Комплектующие для Продажи И Подготовленного ---
     enrichmentSection.classList.toggle('hidden', !(isSale || isPrepared));
     priceInput.disabled = !(isSale || isPrepared);
     
@@ -2942,7 +2947,7 @@ function updateWriteoffSection(index) {
     const totalCostA = costA + totalEnrichmentCost;
 
     section.querySelector('.section-cost').textContent = totalCostM.toFixed(2) + ' ₽';
-    section.querySelector('.section-tooltip').textContent = `Себест. (реальная) изделия: ${costA.toFixed(2)} ₽ + Обогащение: ${totalEnrichmentCost.toFixed(2)} ₽ = Итого: ${totalCostA.toFixed(2)} ₽`;
+    section.querySelector('.section-tooltip').textContent = `Себест. (реальная) изделия: ${costA.toFixed(2)} ₽ + Комплектующие: ${totalEnrichmentCost.toFixed(2)} ₽ = Итого: ${totalCostA.toFixed(2)} ₽`;
     
     const price = parseFloat(priceInput.value) || 0;
     section.querySelector('.section-total').textContent = (price * qty).toFixed(2) + ' ₽';
@@ -3076,7 +3081,7 @@ function calcWriteoffTotal() {
 
 function saveWriteoff() {
     const systemId = document.getElementById('writeoffSystemId').textContent;
-    let date = document.getElementById('writeoffDate').value; // let, так как можем менять
+    let date = document.getElementById('writeoffDate').value;
     const type = document.getElementById('writeoffType').value;
     const note = document.getElementById('writeoffNote').value;
     const editGroup = document.getElementById('writeoffModal').getAttribute('data-edit-group');
@@ -3084,17 +3089,14 @@ function saveWriteoff() {
 
     // --- ЛОГИКА СМЕНЫ ДАТЫ ---
     if (isEdit) {
-        // Находим старую запись (первую из группы)
         const oldItem = db.writeoffs.find(w => w.systemId === editGroup);
         if (oldItem) {
-            // Если было "Подготовлено", а стало НЕ "Подготовлено" -> ставим текущую дату
             if (oldItem.type === 'Подготовлено к продаже' && type !== 'Подготовлено к продаже') {
                 date = new Date().toISOString().split('T')[0];
-                document.getElementById('writeoffDate').value = date; // Обновляем в UI тоже
+                document.getElementById('writeoffDate').value = date;
             }
         }
     }
-    // -------------------------
 
     const sections = document.querySelectorAll('.writeoff-item-section');
     const newItems = [];
@@ -3136,10 +3138,6 @@ function saveWriteoff() {
                 if (!productUsageMap[pid]) productUsageMap[pid] = 0;
                 productUsageMap[pid] += qty;
                 
-                // Считаем доступный остаток.
-                // Если тип "Подготовлено", мы не вычитаем остаток, но при создании
-                // мы все равно должны проверить, есть ли вообще свободные товары.
-                
                 const usedElsewhere = getWriteoffQuantityForProduct(parseInt(pid), editGroup);
                 const currentStock = Math.max(0, product.quantity - usedElsewhere);
                 
@@ -3153,12 +3151,10 @@ function saveWriteoff() {
             }
         }
 
-		let price = 0;
-        // --- ИЗМЕНЕНИЕ: Разрешаем цену для "Подготовлено" тоже ---
+        let price = 0;
         if (type === 'Продажа' || type === 'Подготовлено к продаже') {
             const priceInput = sec.querySelector('.section-price');
             price = parseFloat(priceInput.value);
-            // Для "Подготовлено" цена может быть 0 или не заполнена (это черновик), поэтому валидацию можно смягчить
             if (type === 'Продажа' && (isNaN(price) || price <= 0)) {
                 priceInput.classList.add('error');
                 sectionValid = false;
@@ -3166,29 +3162,26 @@ function saveWriteoff() {
         }
         
         const enrichmentCosts = [];
-        // --- ИЗМЕНЕНИЕ: Собираем обогащение для обоих типов ---
         if (type === 'Продажа' || type === 'Подготовлено к продаже') {
             sec.querySelectorAll('.enrichment-row').forEach(row => {
                 const name = row.querySelector('.enrichment-name').value.trim();
                 const cost = parseFloat(row.querySelector('.enrichment-cost').value) || 0;
+                
                 if (name && cost > 0) {
                     enrichmentCosts.push({ name, cost });
-					// --- ЛОГИКА АВТО-ДОБАВЛЕНИЯ В СПРАВОЧНИК ---
-                    // Проверяем, есть ли такой компонент с ТАКОЙ ценой
+
+                    // --- ДОБАВЛЕНО: АВТО-СОХРАНЕНИЕ В СПРАВОЧНИК ---
                     const exists = db.components.find(c => c.name.toLowerCase() === name.toLowerCase());
-                    
                     if (!exists) {
-                        // Если нет имени вообще - добавляем
                         db.components.push({ name: name, price: cost });
                     } else if (Math.abs(exists.price - cost) > 0.01) {
-                        // Если имя есть, но цена отличается -> обновляем цену в справочнике?
-                        // Или добавляем дубль? Обычно лучше обновить цену "последней актуальной".
+                        // Обновляем цену в справочнике на актуальную
                         exists.price = cost;
-                    }							
+                    }
+                    // -----------------------------------------------
                 }
             });
         }
-        
 
         if (sectionValid) {
             const product = db.products.find(p => p.id == parseInt(pid));
@@ -3226,13 +3219,17 @@ function saveWriteoff() {
     recalculateAllProductStock(); 
 
     saveToLocalStorage();
+    
+    // Обновляем таблицы и селекты (чтобы новый компонент появился в справочнике сразу)
     updateWriteoffTable(); 
     updateProductsTable(); 
     updateDashboard(); 
     updateReports(); 
+    updateAllSelects(); // Обновит список комплектующих в UI
     
     closeWriteoffModal();
 }
+
 
 
 
