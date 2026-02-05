@@ -1,4 +1,4 @@
-console.log("Version: 5.1 (2026-02-05 07-55)");
+console.log("Version: 5.1 (2026-02-05 22-31)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1767,12 +1767,19 @@ function editProduct(id) {
     const oldSection = document.getElementById('productWriteoffsSection');
     if (oldSection) oldSection.remove();
 
-    const writeoffSection = document.createElement('div');
-    writeoffSection.id = 'productWriteoffsSection';
-    writeoffSection.className = 'product-writeoffs-section';
-    writeoffSection.innerHTML = `<div class="product-writeoffs-title">Документы списания</div>`;
+    // Показываем секцию ТОЛЬКО если это НЕ "Часть составного"
+    if (p.type !== 'Часть составного') {
+        const writeoffSection = document.createElement('div');
+        writeoffSection.id = 'productWriteoffsSection';
+        writeoffSection.className = 'product-writeoffs-section';
+        writeoffSection.innerHTML = `<div class="product-writeoffs-title">Документы списания</div>`;
 
-    const productWriteoffs = db.writeoffs.filter(w => w.productId === productId);
+        // ... (далее код заполнения секции без изменений) ...
+        const productWriteoffs = db.writeoffs.filter(w => w.productId === productId);
+        // ...
+        
+        modalBody.appendChild(writeoffSection);
+    }
     
     if (productWriteoffs.length === 0) {
         writeoffSection.innerHTML += `<div style="font-size:13px; color:#94a3b8;">Нет списаний по этому изделию.</div>`;
@@ -2090,62 +2097,48 @@ function deleteProduct(id) {
     }
     if (!confirm(`Удалить изделие "${p.name}" и вернуть филамент?`)) return;
     
-  
-	// === БЕЗОПАСНОЕ УДАЛЕНИЕ ФАЙЛОВ ИЗ ОБЛАКА ===
-    // Удаляем только если этот файл НЕ используется в других карточках
-    
-    if (p.imageUrl && !isResourceUsedByOthers(p.imageUrl, id)) {
-        deleteFileFromCloud(p.imageUrl);
-    }
-    
-    if (p.fileUrls && Array.isArray(p.fileUrls)) {
-        p.fileUrls.forEach(f => {
-            // Для файлов логика та же (на будущее), хотя сейчас они не копируются
-            if (f.url && !isResourceUsedByOthers(f.url, id)) {
-                deleteFileFromCloud(f.url);
-            }
-        });
-    }
-    // ============================================
-	
-    
-    // Возврат филамента для простого или дочернего изделия
-    if (p.filament && p.type !== 'Составное') { 
-        const dbFilament = db.filaments.find(f => f.id === p.filament.id);
+    // === УДАЛЕНИЕ ФАЙЛОВ ИЗ ОБЛАКА ===
+    if (p.imageUrl && !isResourceUsedByOthers(p.imageUrl, id)) deleteFileFromCloud(p.imageUrl);
+    if (p.fileUrls) p.fileUrls.forEach(f => { if(f.url && !isResourceUsedByOthers(f.url, id)) deleteFileFromCloud(f.url); });
+
+    // 1. Возврат филамента для САМОСТОЯТЕЛЬНОГО или ЧАСТИ
+    if (p.type !== 'Составное' && p.filament) { 
+        const filId = (typeof p.filament === 'object') ? p.filament.id : p.filament;
+        const dbFilament = db.filaments.find(f => f.id == filId);
         if (dbFilament) {
-            dbFilament.usedLength -= p.length; 
-            dbFilament.usedWeight -= p.weight; 
+            dbFilament.usedLength -= (p.length || 0); 
+            dbFilament.usedWeight -= (p.weight || 0); 
             dbFilament.remainingLength = Math.max(0, dbFilament.length - dbFilament.usedLength); 
             if (dbFilament.remainingLength > 0) dbFilament.availability = 'В наличии'; 
         }
     }
     
-    // ... (Остальной код удаления родителя/детей остаётся без изменений) ...
-    
-    // Возврат филамента для всех частей составного изделия
+    // 2. Возврат филамента для СОСТАВНОГО (удаляем детей и возвращаем их филамент)
     if (p.type === 'Составное') { 
         const kids = db.products.filter(k => k.parentId === id); 
         kids.forEach(k => { 
-            // !! Важно: Удаляем файлы и у детей тоже !!
-            if (k.imageUrl) deleteFileFromCloud(k.imageUrl);
-            if (k.fileUrls) k.fileUrls.forEach(f => { if(f.url) deleteFileFromCloud(f.url); });
+            // Удаляем файлы детей
+            if (k.imageUrl && !isResourceUsedByOthers(k.imageUrl, k.id)) deleteFileFromCloud(k.imageUrl);
+            if (k.fileUrls) k.fileUrls.forEach(f => { if(f.url && !isResourceUsedByOthers(f.url, k.id)) deleteFileFromCloud(f.url); });
 
+            // Возвращаем филамент детей
             if (k.filament) { 
-                const dbFilament = db.filaments.find(f => f.id === k.filament.id);
-                if (dbFilament) {
-                    dbFilament.usedLength -= k.length; 
-                    dbFilament.usedWeight -= k.weight; 
-                    dbFilament.remainingLength = Math.max(0, dbFilament.length - dbFilament.usedLength); 
-                    if (dbFilament.remainingLength > 0) dbFilament.availability = 'В наличии'; 
+                const kFilId = (typeof k.filament === 'object') ? k.filament.id : k.filament;
+                const kFilament = db.filaments.find(f => f.id == kFilId);
+                if (kFilament) {
+                    kFilament.usedLength -= (k.length || 0); 
+                    kFilament.usedWeight -= (k.weight || 0); 
+                    kFilament.remainingLength = Math.max(0, kFilament.length - kFilament.usedLength); 
+                    if (kFilament.remainingLength > 0) kFilament.availability = 'В наличии'; 
                 }
-            } 
+            }
         }); 
-        // Удаляем и родителя, и всех детей
-        db.products = db.products.filter(x => x.parentId !== id && x.id !== id); 
-    } else { 
-        // Удаляем простое или дочернее изделие
-        db.products = db.products.filter(x => x.id !== id); 
-    }
+        // Удаляем детей из базы
+        db.products = db.products.filter(x => x.parentId !== id); 
+    } 
+    
+    // Удаляем само изделие
+    db.products = db.products.filter(x => x.id !== id); 
     
     // Пересчет родителя, если удалялась его часть
     if (p.type === 'Часть составного' && p.parentId) { 
@@ -3064,10 +3057,23 @@ function calcWriteoffTotal() {
         const price = parseFloat(sec.querySelector('.section-price').value) || 0;
         const pid = parseInt(sec.querySelector('.writeoff-product-select').value);
         const product = db.products.find(p => p.id === pid);
-        const costA = product ? (product.costPer1Actual || 0) : 0;
+        
+        if (product) {
+            const costA = product.costPer1Actual || 0;
+            
+            // Считаем стоимость комплектующих для этой секции
+            let totalEnrichmentCost = 0;
+            sec.querySelectorAll('.enrichment-row').forEach(row => {
+                totalEnrichmentCost += parseFloat(row.querySelector('.enrichment-cost').value) || 0;
+            });
 
-        totalSale += (qty * price);
-        totalProfit += (qty * price) - (qty * costA);
+            // Итоговая себестоимость одной единицы
+            const totalCostPerUnit = costA + totalEnrichmentCost;
+
+            totalSale += (qty * price);
+            // Прибыль = (Цена продажи - Полная себестоимость) * Кол-во
+            totalProfit += (price - totalCostPerUnit) * qty;
+        }
     });
 
     const amountSpan = document.getElementById('writeoffTotalAmount');
@@ -3077,6 +3083,7 @@ function calcWriteoffTotal() {
     profitSpan.textContent = `${totalProfit.toFixed(2)} ₽`;
     profitSpan.style.color = totalProfit < 0 ? 'var(--color-danger)' : 'var(--color-success)';
 }
+
 
 
 function saveWriteoff() {
