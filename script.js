@@ -1,4 +1,4 @@
-console.log("Version: 5.1 (2026-02-04 23-25)");
+console.log("Version: 5.1 (2026-02-05 07-35)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -26,7 +26,8 @@ const cloudinaryConfig = {
 // ==================== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ====================
 const db = {
     filaments: [], products: [], writeoffs: [], brands: ['Prusament', 'MatterHackers', 'Prusament Pro'],
-    colors: [ { id: 1, name: 'Белый', hex: '#ffffff' }, { id: 2, name: 'Чёрный', hex: '#000000' }, { id: 3, name: 'Красный', hex: '#ff0000' }, { id: 4, name: 'Синий', hex: '#0000ff' }, { id: 5, name: 'Зелёный', hex: '#00ff00' } ],
+    components: [],
+	colors: [ { id: 1, name: 'Белый', hex: '#ffffff' }, { id: 2, name: 'Чёрный', hex: '#000000' }, { id: 3, name: 'Красный', hex: '#ff0000' }, { id: 4, name: 'Синий', hex: '#0000ff' }, { id: 5, name: 'Зелёный', hex: '#00ff00' } ],
     plasticTypes: ['PLA', 'ABS', 'PETG', 'TPU', 'Nylon', 'ASA', 'PC', 'PVA'],
     filamentStatuses: ['В наличии', 'Израсходовано'],
     printers: [ { id: 1, model: 'Creality Ender 3', power: 0.35 } ],
@@ -742,6 +743,7 @@ function updateAllSelects() {
     updateFilamentStatusList(); 
     updatePrintersList(); 
     updateElectricityCostList();
+	updateComponentsList();
 }
 
 // ==================== DASHBOARD ====================
@@ -2786,7 +2788,7 @@ function addWriteoffItemSection(data = null) {
         </div>
         
         <div class="enrichment-section hidden" style="margin-top: 15px; margin-bottom: 15px; border-top: 1px dashed #ccc; padding-top: 10px;">
-            <div style="font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 8px;">ОБОГАЩЕНИЕ (Доп. расходы на 1 шт.)</div>
+            <div style="font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 8px;">КОМПЛЕКТУЮЩИЕ (Доп. расходы на 1 шт.)</div>
             <div id="enrichmentContainer_${index}"></div>
             <button type="button" class="btn-secondary btn-small" onclick="addEnrichmentRow(${index})" style="width: 100%; justify-content: center; border-style: dashed;">+ Добавить деталь</button>
         </div>
@@ -2974,26 +2976,52 @@ function updateWriteoffSection(index) {
 
 
 
-// Добавляет строку обогащения в секцию изделия
+// Добавляет строку комплектующего
 function addEnrichmentRow(sectionIndex, data = null) {
     const container = document.getElementById(`enrichmentContainer_${sectionIndex}`);
     if (!container) return;
 
     const row = document.createElement('div');
     row.className = 'enrichment-row';
-    // Стиль для строки: Название (flex) + Цена (160px - стало шире) + Кнопка (38px)
     row.style.cssText = "display: flex; gap: 10px; margin-bottom: 8px;";
     
     const nameValue = data ? escapeHtml(data.name) : '';
     const costValue = data ? data.cost : '';
+    
+    // Генерируем опции для datalist
+    const sortedComps = [...db.components].sort((a, b) => a.name.localeCompare(b.name));
+    const datalistOptions = sortedComps.map(c => `<option value="${escapeHtml(c.name)}" data-price="${c.price}"></option>`).join('');
+    const listId = `compList_${sectionIndex}_${Math.random().toString(36).substr(2, 9)}`;
 
     row.innerHTML = `
-        <input type="text" class="enrichment-name" placeholder="Название..." value="${nameValue}" style="flex:1;" oninput="updateWriteoffSection(${sectionIndex})">
+        <div style="flex:1; position:relative;">
+            <input type="text" list="${listId}" class="enrichment-name" placeholder="Название детали..." value="${nameValue}" 
+                   oninput="onComponentInput(this, ${sectionIndex})" onchange="updateWriteoffSection(${sectionIndex})">
+            <datalist id="${listId}">${datalistOptions}</datalist>
+        </div>
         <input type="number" class="enrichment-cost" placeholder="Цена" value="${costValue}" step="0.01" style="width: 160px;" oninput="updateWriteoffSection(${sectionIndex})">
         <button type="button" class="btn-remove-enrichment" onclick="this.parentElement.remove(); updateWriteoffSection(${sectionIndex})" style="width: 38px; padding: 0; display: flex; justify-content: center; align-items: center; border: 1px solid var(--color-danger); color: var(--color-danger); background: none; border-radius: 4px; cursor: pointer;">✕</button>
     `;
     container.appendChild(row);
 }
+
+// Хелпер для подстановки цены при выборе из списка
+window.onComponentInput = function(input, sectionIndex) {
+    const list = document.getElementById(input.getAttribute('list'));
+    const options = list.options;
+    for(let i = 0; i < options.length; i++) {
+        if(options[i].value === input.value) {
+            const price = options[i].getAttribute('data-price');
+            // Находим соседнее поле цены и ставим значение
+            const priceInput = input.parentElement.nextElementSibling;
+            priceInput.value = price;
+            updateWriteoffSection(sectionIndex);
+            break;
+        }
+    }
+};
+
+
 
 
 // Пересчитывает остатки для ВСЕХ товаров
@@ -3145,6 +3173,18 @@ function saveWriteoff() {
                 const cost = parseFloat(row.querySelector('.enrichment-cost').value) || 0;
                 if (name && cost > 0) {
                     enrichmentCosts.push({ name, cost });
+					// --- ЛОГИКА АВТО-ДОБАВЛЕНИЯ В СПРАВОЧНИК ---
+                    // Проверяем, есть ли такой компонент с ТАКОЙ ценой
+                    const exists = db.components.find(c => c.name.toLowerCase() === name.toLowerCase());
+                    
+                    if (!exists) {
+                        // Если нет имени вообще - добавляем
+                        db.components.push({ name: name, price: cost });
+                    } else if (Math.abs(exists.price - cost) > 0.01) {
+                        // Если имя есть, но цена отличается -> обновляем цену в справочнике?
+                        // Или добавляем дубль? Обычно лучше обновить цену "последней актуальной".
+                        exists.price = cost;
+                    }							
                 }
             });
         }
@@ -3447,6 +3487,71 @@ function updateReports() {
 
 // ==================== REFERENCES UI ====================
 
+
+// --- COMPONENTS REFERENCE ---
+function updateComponentsList() {
+    const listDiv = document.getElementById('componentsList');
+    if (!listDiv) return;
+    
+    // Сортировка по имени
+    const sorted = [...db.components].sort((a, b) => a.name.localeCompare(b.name));
+    
+    listDiv.innerHTML = sorted.map((c, i) => `
+        <div style="display:flex;justify-content:space-between;padding:8px 4px;border-bottom:1px solid #eee;align-items:center;">
+            <span>${escapeHtml(c.name)} — <strong>${c.price.toFixed(2)} ₽</strong></span>
+            <div class="action-buttons">
+                <button class="btn-secondary btn-small" onclick="editComponent(${i})">✎</button>
+                <button class="btn-danger btn-small" onclick="removeComponent(${i})">✕</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function addComponent() {
+    const name = document.getElementById('newComponentName').value.trim();
+    const price = parseFloat(document.getElementById('newComponentPrice').value);
+    
+    if (name && !isNaN(price)) {
+        db.components.push({ name, price });
+        document.getElementById('newComponentName').value = '';
+        document.getElementById('newComponentPrice').value = '';
+        saveToLocalStorage();
+        updateComponentsList();
+    } else {
+        alert('Введите название и цену');
+    }
+}
+
+function removeComponent(index) {
+    const sorted = [...db.components].sort((a, b) => a.name.localeCompare(b.name));
+    const toRemove = sorted[index];
+    const realIndex = db.components.indexOf(toRemove);
+    if (realIndex > -1) {
+        db.components.splice(realIndex, 1);
+        saveToLocalStorage();
+        updateComponentsList();
+    }
+}
+
+function editComponent(index) {
+    const sorted = [...db.components].sort((a, b) => a.name.localeCompare(b.name));
+    const comp = sorted[index];
+    const realIndex = db.components.indexOf(comp);
+    
+    const newName = prompt("Название:", comp.name);
+    if (newName) {
+        const newPrice = prompt("Цена:", comp.price);
+        if (newPrice && !isNaN(parseFloat(newPrice))) {
+            db.components[realIndex].name = newName.trim();
+            db.components[realIndex].price = parseFloat(newPrice);
+            saveToLocalStorage();
+            updateComponentsList();
+        }
+    }
+}
+
+
+
 function updateBrandsList(){ document.getElementById('brandsList').innerHTML = db.brands.map((b,i)=>`<div style="display:flex;justify-content:space-between;padding:8px 4px;border-bottom:1px solid #eee;align-items:center;">
     <div style="display:flex; align-items:center;">
         <div class="sort-buttons">
@@ -3694,6 +3799,7 @@ function setupEventListeners() {
     document.getElementById('addFilamentStatusBtn')?.addEventListener('click', addFilamentStatus);
     document.getElementById('addPrinterBtn')?.addEventListener('click', addPrinter);
     document.getElementById('addElectricityCostBtn')?.addEventListener('click', addElectricityCost);
+	document.getElementById('addComponentBtn')?.addEventListener('click', addComponent);
 
     // --- FILES UI (Product Modal) ---
     document.querySelector('.image-upload-container')?.addEventListener('click', () => document.getElementById('productImageInput').click());
