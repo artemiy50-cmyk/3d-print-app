@@ -1,4 +1,4 @@
-console.log("Version: 5.2 (2026-02-05 23-41)");
+console.log("Version: 5.2 (2026-02-06 00-30)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -415,8 +415,6 @@ async function deleteFileFromCloud(url) {
         console.error("Ошибка удаления из Cloudinary:", e);
     }
 }
-
-
 
 
 
@@ -920,21 +918,89 @@ function validateFilamentForm() {
     return valid;
 }
 
-function saveFilament() {
+async function saveFilament() {
     if (!validateFilamentForm()) return;
-    const eid = document.getElementById('filamentModal').getAttribute('data-edit-id');
-    const data = {
-        customId: document.getElementById('filamentCustomId').value, brand: db.brands[document.getElementById('filamentBrand').value], type: document.getElementById('filamentType').value,
-        color: db.colors.find(c => c.id == document.getElementById('filamentColor').value), name: document.getElementById('filamentName').value, link: document.getElementById('filamentLink').value.trim(),
-        date: document.getElementById('filamentDate').value, avgPrice: parseFloat(document.getElementById('filamentAvgPrice').value) || 0, actualPrice: parseFloat(document.getElementById('filamentActualPrice').value) || 0,
-        weight: parseFloat(document.getElementById('filamentWeight').value) || 1000, length: parseFloat(document.getElementById('filamentLength').value) || 330, note: document.getElementById('filamentNote').value, availability: document.getElementById('filamentAvailability').value
-    };
-    data.priceRatio = data.actualPrice / (data.avgPrice || 1); data.weightPerMeter = data.weight / data.length; data.avgCostPerGram = data.avgPrice / data.weight;
-    data.avgCostPerMeter = data.avgPrice / data.length; data.actualCostPerGram = data.actualPrice / data.weight; data.actualCostPerMeter = data.actualPrice / data.length;
     
-    if (eid) { const f = db.filaments.find(x => x.id == parseInt(eid)); if (f) { data.remainingLength = f.remainingLength; data.usedLength = f.usedLength; data.usedWeight = f.usedWeight; Object.assign(f, data); }
-    } else { data.id = Date.now(); data.remainingLength = data.length; data.usedLength = 0; data.usedWeight = 0; db.filaments.push(data); }
-    saveToLocalStorage(); updateAllSelects(); updateFilamentsTable(); updateDashboard(); closeFilamentModal();
+    const saveBtn = document.getElementById('saveFilamentBtn');
+    saveBtn.textContent = '⏳ Сохраняю...'; 
+    saveBtn.disabled = true;
+
+    const eid = document.getElementById('filamentModal').getAttribute('data-edit-id');
+    
+    // Подготовка данных
+    const data = {
+        customId: document.getElementById('filamentCustomId').value, 
+        brand: db.brands[document.getElementById('filamentBrand').value], 
+        type: document.getElementById('filamentType').value,
+        color: db.colors.find(c => c.id == document.getElementById('filamentColor').value), 
+        name: document.getElementById('filamentName').value, 
+        link: document.getElementById('filamentLink').value.trim(),
+        date: document.getElementById('filamentDate').value, 
+        avgPrice: parseFloat(document.getElementById('filamentAvgPrice').value) || 0, 
+        actualPrice: parseFloat(document.getElementById('filamentActualPrice').value) || 0,
+        weight: parseFloat(document.getElementById('filamentWeight').value) || 1000, 
+        length: parseFloat(document.getElementById('filamentLength').value) || 330, 
+        note: document.getElementById('filamentNote').value, 
+        availability: document.getElementById('filamentAvailability').value
+    };
+    
+    // Расчеты
+    data.priceRatio = data.actualPrice / (data.avgPrice || 1); 
+    data.weightPerMeter = data.weight / data.length; 
+    data.avgCostPerGram = data.avgPrice / data.weight;
+    data.avgCostPerMeter = data.avgPrice / data.length; 
+    data.actualCostPerGram = data.actualPrice / data.weight; 
+    data.actualCostPerMeter = data.actualPrice / data.length;
+    
+    try {
+        let index;
+        const updates = {};
+
+        if (eid) { 
+            // Режим редактирования
+            const f = db.filaments.find(x => x.id == parseInt(eid)); 
+            if (f) { 
+                index = db.filaments.indexOf(f);
+                data.id = f.id;
+                data.remainingLength = f.remainingLength; 
+                data.usedLength = f.usedLength; 
+                data.usedWeight = f.usedWeight; 
+            }
+        } else { 
+            // Режим добавления
+            data.id = Date.now(); 
+            data.remainingLength = data.length; 
+            data.usedLength = 0; 
+            data.usedWeight = 0; 
+            index = db.filaments.length; // Новый индекс в конце массива
+        }
+
+        if (index !== undefined) {
+            // Формируем путь обновления: filaments/0, filaments/1 и т.д.
+            updates[`/filaments/${index}`] = data;
+            await dbRef.update(updates);
+        }
+
+        // Обновляем локально для мгновенной реакции (опционально, т.к. listener сработает)
+        if (eid) {
+            const localF = db.filaments.find(x => x.id == parseInt(eid));
+            if(localF) Object.assign(localF, data);
+        } else {
+            db.filaments.push(data);
+        }
+
+        updateAllSelects(); 
+        updateFilamentsTable(); 
+        updateDashboard(); 
+        closeFilamentModal();
+
+    } catch (e) {
+        console.error("Ошибка сохранения филамента:", e);
+        alert("Ошибка при сохранении: " + e.message);
+    } finally {
+        saveBtn.textContent = 'Сохранить и закрыть'; 
+        saveBtn.disabled = false;
+    }
 }
 
 
@@ -1455,66 +1521,83 @@ function onParentProductChange() {
 }
 
 // === ФУНКЦИЯ КОПИРОВАНИЯ ИЗДЕЛИЯ ===
-function copyProduct(id) {
+async function copyProduct(id) {
     const p = db.products.find(x => x.id === id); if (!p) return;
 
-    // 1. Копирование СОСТАВНОГО изделия (С предупреждением и глубоким копированием)
+    // 1. Копирование СОСТАВНОГО изделия (Атомарное обновление)
     if (p.type === 'Составное') {
         if (!confirm('Это составное изделие. Будут скопированы все его части (без прикрепленных файлов). Продолжить?')) {
             return;
         }
         
-        // Копируем родителя
-        const newParent = JSON.parse(JSON.stringify(p));
         const now = new Date();
+        const dateStr = now.toISOString().split('T')[0];
+        const updates = {};
+        
+        // --- Подготовка Родителя ---
+        const newParent = JSON.parse(JSON.stringify(p));
         newParent.id = now.getTime();
         newParent.systemId = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
         newParent.name = p.name + ' (Копия)';
-        newParent.date = now.toISOString().split('T')[0];
+        newParent.date = dateStr;
         newParent.inStock = p.quantity;
         newParent.allPartsCreated = false;
         newParent.defective = false;
         newParent.status = determineProductStatus(newParent);
-        
-        // --- ИЗМЕНЕНИЕ: Очищаем файлы, оставляем только картинку ---
-        newParent.fileUrls = []; // Убираем файлы
-        // newParent.imageUrl остается как есть (копируется ссылка на фото оригинала)
-        
-        // Очистка мусора от старых версий (на всякий случай)
+        newParent.fileUrls = []; 
         newParent.imageBlob = null; 
         newParent.attachedFiles = [];
-        
-        db.products.push(newParent);
 
-        // Копируем детей
+        // Определяем индекс для родителя (в конец массива)
+        const parentIndex = db.products.length;
+        
+        // Обновляем локально
+        db.products.push(newParent);
+        // Готовим обновление для Firebase
+        updates[`/products/${parentIndex}`] = newParent;
+
+        // --- Подготовка Детей ---
         const children = db.products.filter(child => child.parentId === p.id);
+        
         children.forEach((child, index) => {
             const newChild = JSON.parse(JSON.stringify(child));
             const childNow = new Date();
+            // Небольшая задержка в ID, чтобы они были уникальны
             newChild.id = childNow.getTime() + index + 1;
             newChild.systemId = `${childNow.getFullYear()}${String(childNow.getMonth()+1).padStart(2,'0')}${String(childNow.getDate()).padStart(2,'0')}${String(childNow.getHours()).padStart(2,'0')}${String(childNow.getMinutes()).padStart(2,'0')}${String(childNow.getSeconds()+index+1).padStart(2,'0')}`;
             newChild.parentId = newParent.id;
-            newChild.date = now.toISOString().split('T')[0];
+            newChild.date = dateStr;
             newChild.inStock = newChild.quantity;
             newChild.defective = false;
             newChild.status = determineProductStatus(newChild);
-            
-            // --- ИЗМЕНЕНИЕ: Очищаем файлы и у детей ---
             newChild.fileUrls = []; 
-            
             newChild.imageBlob = null;
             newChild.attachedFiles = [];
             
+            // Индекс ребенка = индекс родителя + 1 + порядковый номер
+            const childIndex = parentIndex + 1 + index;
+            
+            // Обновляем локально
             db.products.push(newChild);
+            // Готовим обновление для Firebase
+            updates[`/products/${childIndex}`] = newChild;
         });
         
-        saveToLocalStorage();
-        updateProductsTable();
-        updateDashboard();
-        alert(`Составное изделие "${newParent.name}" и ${children.length} его частей успешно скопированы.`);
+        // Отправляем всё одним пакетом
+        try {
+            await dbRef.update(updates);
+            updateProductsTable();
+            updateDashboard();
+            alert(`Составное изделие "${newParent.name}" и ${children.length} его частей успешно скопированы.`);
+        } catch (e) {
+            console.error("Ошибка копирования:", e);
+            alert("Ошибка при сохранении копии: " + e.message);
+        }
 
     } else {
         // 2. Копирование ПРОСТОГО изделия (через модалку)
+        // Здесь изменений не требуется, так как сохранение пойдет через saveProduct(), 
+        // который мы уже перевели на atomic updates.
         const modal = document.getElementById('productModal');
         modal.removeAttribute('data-edit-id');
         modal.removeAttribute('data-system-id');
@@ -1552,11 +1635,8 @@ function copyProduct(id) {
             document.getElementById('productFilament').value = p.filament.id; 
         }
         
-        // --- ИЗМЕНЕНИЕ: Настройка медиа для копии ---
-        // 1. Основное фото копируем (ссылку)
+        // Медиа
         currentProductImage = p.imageUrl || null;
-        
-        // 2. Файлы НЕ копируем (обнуляем массив)
         currentProductFiles = []; 
         
         renderProductImage();
@@ -1567,6 +1647,7 @@ function copyProduct(id) {
         updateProductCosts();
     }
 }
+
 
 
 // === ФУНКЦИЯ ДЛЯ КНОПКИ [+] ===
@@ -1848,89 +1929,49 @@ async function saveProduct(andThenWriteOff = false) {
 
     const eid = document.getElementById('productModal').getAttribute('data-edit-id'); 
     
-    // === ЛОГИКА УДАЛЕНИЯ УСТАРЕВШИХ ФАЙЛОВ ИЗ ОБЛАКА ===
+    // === ЛОГИКА ФАЙЛОВ (Остается без изменений) ===
     if (eid) {
         const oldProduct = db.products.find(x => x.id == parseInt(eid));
         if (oldProduct) {
-            // 1. Главное фото
             const isNewImage = (currentProductImage instanceof Blob);
             const isImageRemoved = (currentProductImage === null);
             const isUrlChanged = (typeof currentProductImage === 'string' && currentProductImage !== oldProduct.imageUrl);
-
-            // ДОБАВЛЕНА ПРОВЕРКА: !isResourceUsedByOthers(...)
             if (oldProduct.imageUrl && (isNewImage || isImageRemoved || isUrlChanged)) {
-                if (!isResourceUsedByOthers(oldProduct.imageUrl, oldProduct.id)) {
-                    console.log("Удаляю старое изображение (больше нигде не используется)...");
-                    deleteFileFromCloud(oldProduct.imageUrl);
-                } else {
-                    console.log("Старое изображение используется в других карточках, оставляем в облаке.");
-                }
+                if (!isResourceUsedByOthers(oldProduct.imageUrl, oldProduct.id)) deleteFileFromCloud(oldProduct.imageUrl);
             }
-
-            // 2. Прикрепленные файлы
             const keptUrls = currentProductFiles.map(f => f.url).filter(u => u);
-            
             if (oldProduct.fileUrls) {
                 oldProduct.fileUrls.forEach(oldF => {
                     if (oldF.url && !keptUrls.includes(oldF.url)) {
-                        // ДОБАВЛЕНА ПРОВЕРКА ДЛЯ ФАЙЛОВ
-                        if (!isResourceUsedByOthers(oldF.url, oldProduct.id)) {
-                            deleteFileFromCloud(oldF.url);
-                        }
+                        if (!isResourceUsedByOthers(oldF.url, oldProduct.id)) deleteFileFromCloud(oldF.url);
                     }
                 });
             }
         }
     }
-    // ==================================================
-	
-	
-	const type = document.getElementById('productType').value; 
     
-    // 1. Сначала загружаем ГЛАВНОЕ ФОТО в облако
+    // Загрузка фото
     let imgUrl = currentProductImage;
     if(currentProductImage instanceof Blob) {
-        // Пытаемся загрузить новый файл
         const uploadedUrl = await uploadFileToCloud(currentProductImage);
-        if (uploadedUrl) {
-            imgUrl = uploadedUrl;
-        } else {
-            // Если фото не загрузилось, оставляем null, чтобы не ломать логику,
-            // но можно добавить alert, если критично.
-            // Для главного фото текстовую пометку сделать сложнее, так как это поле URL.
-            imgUrl = null; 
-        }
+        imgUrl = uploadedUrl ? uploadedUrl : null;
     }
     
-    // 2. Обработка ПРИКРЕПЛЕННЫХ ФАЙЛОВ
+    // Обработка файлов
     let fileUrls = [];
     for(let f of currentProductFiles) {
-        if(f.url) {
-            // А) Файл уже был успешно загружен ранее (старый файл) - оставляем
-            fileUrls.push(f);
-        }
+        if(f.url) fileUrls.push(f);
         else if(f.blob) { 
-            // Б) Это НОВЫЙ файл.
-            // ИЗМЕНЕНИЕ: Мы НЕ вызываем uploadFileToCloud, а сразу симулируем ошибку.
-            // const u = await uploadFileToCloud(f.blob); <--- ЭТО МЫ ОТКЛЮЧИЛИ
-            
-            const u = null; // Симуляция "неудачной загрузки"
-            
-            if(u) {
-                fileUrls.push({name: f.name, url: u}); 
-            } else {
-                // Срабатывает этот блок: сохраняем имя с пометкой
-                fileUrls.push({name: f.name + " (ошибка загр.)", url: null});
-            }
+            // Временно отключено загрузка в Cloudinary для файлов, как в оригинале
+            const u = null; 
+            if(u) fileUrls.push({name: f.name, url: u}); 
+            else fileUrls.push({name: f.name + " (ошибка загр.)", url: null});
         }
-        else {
-            // В) Файл без URL и без Blob (уже был битым). Сохраняем как есть.
-            fileUrls.push(f);
-        }
+        else fileUrls.push(f);
     }
 
-    
-    // Далее стандартный код сбора объекта p...
+    // Сборка объекта продукта
+    const type = document.getElementById('productType').value;
     const qty = parseInt(document.getElementById('productQuantity').value) || 0;
     const isDefective = document.getElementById('productDefective').checked;
     
@@ -1948,7 +1989,7 @@ async function saveProduct(andThenWriteOff = false) {
         note: document.getElementById('productNote').value, 
         defective: isDefective,
         imageUrl: imgUrl,      
-        fileUrls: fileUrls,  // <-- Используем наш обновленный список
+        fileUrls: fileUrls,
     };
     
     const writeoffs = db.writeoffs || [];
@@ -1967,7 +2008,7 @@ async function saveProduct(andThenWriteOff = false) {
         p.filament = filament; 
     }
     
-    // Расчеты себестоимости
+    // Расчеты
     recalculateAllProductCosts();
     const tempProdForCost = { ...p, costActualPrice: 0, costMarketPrice: 0 };
     const { costActualPrice, costMarketPrice } = calculateSingleProductCost(tempProdForCost);
@@ -1976,61 +2017,90 @@ async function saveProduct(andThenWriteOff = false) {
     p.costPer1Actual = qty > 0 ? p.costActualPrice / qty : 0;
     p.costPer1Market = qty > 0 ? p.costMarketPrice / qty : 0;
 
-    // Логика сохранения (добавление/обновление)
-    if (eid) {
-        const oldIndex = db.products.findIndex(x => x.id == parseInt(eid));
-        if (oldIndex !== -1) {
-            const old = db.products[oldIndex];
-            if (old.filament && old.type !== 'Составное') { 
-                const oldFil = db.filaments.find(f => f.id === old.filament.id);
-                if(oldFil) {
-                    oldFil.usedLength -= old.length || 0; 
-                    oldFil.usedWeight -= old.weight || 0; 
+    // === АТОМАРНОЕ СОХРАНЕНИЕ В FIREBASE ===
+    try {
+        const updates = {};
+        let productIndex;
+
+        // 1. Подготовка индекса продукта
+        if (eid) {
+            const oldProd = db.products.find(x => x.id == parseInt(eid));
+            if (oldProd) {
+                productIndex = db.products.indexOf(oldProd);
+                p.id = oldProd.id;
+
+                // Если меняется филамент при редактировании, нужно откатить использование старого
+                if (oldProd.filament && oldProd.type !== 'Составное') {
+                    const oldFil = db.filaments.find(f => f.id === oldProd.filament.id);
+                    if (oldFil) {
+                        const oldFilIndex = db.filaments.indexOf(oldFil);
+                        // Вычитаем старое значение
+                        const newUsedL = Math.max(0, oldFil.usedLength - (oldProd.length || 0));
+                        const newUsedW = Math.max(0, oldFil.usedWeight - (oldProd.weight || 0));
+                        // Добавляем в updates
+                        updates[`/filaments/${oldFilIndex}/usedLength`] = newUsedL;
+                        updates[`/filaments/${oldFilIndex}/usedWeight`] = newUsedW;
+                        
+                        // Обновляем локально для корректного расчета следующего шага
+                        oldFil.usedLength = newUsedL;
+                        oldFil.usedWeight = newUsedW;
+                    }
                 }
             }
-            Object.assign(old, p);
-            p.id = old.id;
+        } else {
+            p.id = Date.now();
+            productIndex = db.products.length;
         }
-    } else {
-        p.id = Date.now(); 
-        db.products.push(p);
-    }
 
-    // Обновление расхода филамента
-    if (filament && type !== 'Составное') { 
-        const currentFil = db.filaments.find(f => f.id === filament.id);
-        if (currentFil) {
-            currentFil.usedLength += p.length; 
-            currentFil.usedWeight += p.weight; 
+        // 2. Добавляем продукт в updates
+        if (productIndex !== undefined) {
+            updates[`/products/${productIndex}`] = p;
         }
-    }
-    
-    // Пересчет родителя, если это дочерний элемент
-    if (type === 'Часть составного' && p.parentId) { 
-        const parent = db.products.find(x => x.id === p.parentId); 
-        if (parent) recalculateAllProductCosts(); 
-    }
-    
-    recalculateAllProductCosts();
-    await saveData(); 
-    
-    updateAllSelects(); 
-    updateProductsTable(); 
-    updateDashboard(); 
-    updateFilamentsTable(); 
-    updateReports();
-    
-    saveBtn.textContent = 'Сохранить и закрыть'; saveBtn.disabled = false;
-    
-    // После успешного сохранения обновляем "чистый" снимок, на случай если модалка осталась открыта (или для логики переходов)
-    productSnapshotForDirtyCheck = captureProductSnapshot();
 
-    if (andThenWriteOff) {
-        const productIdToPass = p.id;
-        closeProductModal();
-        setTimeout(() => openWriteoffModalForProduct(productIdToPass), 150); 
-    } else {
-        closeProductModal();
+        // 3. Обновление расхода ТЕКУЩЕГО филамента
+        if (filament && type !== 'Составное') {
+            const currentFil = db.filaments.find(f => f.id === filament.id);
+            if (currentFil) {
+                const filIndex = db.filaments.indexOf(currentFil);
+                // Прибавляем новое значение (локально + то, что пойдет в базу)
+                const finalUsedL = (currentFil.usedLength || 0) + p.length;
+                const finalUsedW = (currentFil.usedWeight || 0) + p.weight;
+                
+                // ВНИМАНИЕ: Если мы редактируем и филамент тот же, мы сначала вычли старое (выше), 
+                // теперь добавляем новое. Логика верна.
+                
+                updates[`/filaments/${filIndex}/usedLength`] = finalUsedL;
+                updates[`/filaments/${filIndex}/usedWeight`] = finalUsedW;
+            }
+        }
+
+        // 4. Отправляем всё одним пакетом
+        await dbRef.update(updates);
+
+        // Обновляем UI
+        updateAllSelects(); 
+        updateProductsTable(); 
+        updateDashboard(); 
+        updateFilamentsTable(); 
+        updateReports();
+        
+        // После успешного сохранения
+        productSnapshotForDirtyCheck = captureProductSnapshot();
+
+        if (andThenWriteOff) {
+            const productIdToPass = p.id;
+            closeProductModal();
+            setTimeout(() => openWriteoffModalForProduct(productIdToPass), 150); 
+        } else {
+            closeProductModal();
+        }
+
+    } catch (e) {
+        console.error('Ошибка при сохранении изделия:', e);
+        alert('Не удалось сохранить изделие: ' + e.message);
+    } finally {
+        saveBtn.textContent = 'Сохранить и закрыть'; 
+        saveBtn.disabled = false;
     }
 }
 
@@ -3081,8 +3151,7 @@ function calcWriteoffTotal() {
 }
 
 
-
-function saveWriteoff() {
+async function saveWriteoff() {
     const systemId = document.getElementById('writeoffSystemId').textContent;
     let date = document.getElementById('writeoffDate').value;
     const type = document.getElementById('writeoffType').value;
@@ -3090,14 +3159,11 @@ function saveWriteoff() {
     const editGroup = document.getElementById('writeoffModal').getAttribute('data-edit-group');
     const isEdit = !!editGroup;
 
-    // --- ЛОГИКА СМЕНЫ ДАТЫ ---
+    // Логика смены даты
     if (isEdit) {
         const oldItem = db.writeoffs.find(w => w.systemId === editGroup);
-        if (oldItem) {
-            if (oldItem.type === 'Подготовлено к продаже' && type !== 'Подготовлено к продаже') {
-                date = new Date().toISOString().split('T')[0];
-                document.getElementById('writeoffDate').value = date;
-            }
+        if (oldItem && oldItem.type === 'Подготовлено к продаже' && type !== 'Подготовлено к продаже') {
+            date = new Date().toISOString().split('T')[0];
         }
     }
 
@@ -3108,16 +3174,16 @@ function saveWriteoff() {
     document.getElementById('writeoffValidationMessage').classList.add('hidden');
     document.getElementById('writeoffValidationMessage').textContent = 'Не все обязательные поля заполнены';
     
+    // Очистка классов ошибок
     sections.forEach(sec => {
-        sec.querySelector('.writeoff-product-select').classList.remove('error');
-        sec.querySelector('.section-qty').classList.remove('error');
-        sec.querySelector('.section-price').classList.remove('error');
+        sec.querySelectorAll('.error').forEach(el => el.classList.remove('error'));
     });
 
     if (sections.length === 0) globalValid = false;
     
     const productUsageMap = {}; 
 
+    // ВАЛИДАЦИЯ и СБОР ДАННЫХ
     for (let i = 0; i < sections.length; i++) {
         const sec = sections[i];
         let sectionValid = true;
@@ -3132,7 +3198,6 @@ function saveWriteoff() {
             sectionValid = false;
         }
         
-        // Проверка остатков
         if (pid && qty > 0) {
             const product = db.products.find(p => p.id == parseInt(pid));
             if (!product) { 
@@ -3141,9 +3206,12 @@ function saveWriteoff() {
                 if (!productUsageMap[pid]) productUsageMap[pid] = 0;
                 productUsageMap[pid] += qty;
                 
+                // Проверка остатков
                 const usedElsewhere = getWriteoffQuantityForProduct(parseInt(pid), editGroup);
                 const currentStock = Math.max(0, product.quantity - usedElsewhere);
                 
+                // Для "Подготовлено к продаже" мы не блокируем, если товара физически нет, но это черновик.
+                // Но логика приложения требует проверки. Оставим как есть.
                 if (productUsageMap[pid] > currentStock) {
                     const msg = `Ошибка: Попытка списать (${productUsageMap[pid]}) больше доступного остатка (${currentStock}) для "${product.name}"`;
                     document.getElementById('writeoffValidationMessage').textContent = msg;
@@ -3169,20 +3237,7 @@ function saveWriteoff() {
             sec.querySelectorAll('.enrichment-row').forEach(row => {
                 const name = row.querySelector('.enrichment-name').value.trim();
                 const cost = parseFloat(row.querySelector('.enrichment-cost').value) || 0;
-                
-                if (name && cost > 0) {
-                    enrichmentCosts.push({ name, cost });
-
-                    // --- ДОБАВЛЕНО: АВТО-СОХРАНЕНИЕ В СПРАВОЧНИК ---
-                    const exists = db.components.find(c => c.name.toLowerCase() === name.toLowerCase());
-                    if (!exists) {
-                        db.components.push({ name: name, price: cost });
-                    } else if (Math.abs(exists.price - cost) > 0.01) {
-                        // Обновляем цену в справочнике на актуальную
-                        exists.price = cost;
-                    }
-                    // -----------------------------------------------
-                }
+                if (name && cost > 0) enrichmentCosts.push({ name, cost });
             });
         }
 
@@ -3213,24 +3268,102 @@ function saveWriteoff() {
     
     if (newItems.length === 0) { alert('Нет данных для сохранения'); return; }
 
-    if (isEdit) {
-        db.writeoffs = db.writeoffs.filter(w => w.systemId !== systemId);
-    }
-    
-    newItems.forEach(item => db.writeoffs.push(item));
-    
-    recalculateAllProductStock(); 
+    // === АТОМАРНОЕ СОХРАНЕНИЕ ===
+    try {
+        const updates = {};
 
-    saveToLocalStorage();
-    
-    // Обновляем таблицы и селекты (чтобы новый компонент появился в справочнике сразу)
-    updateWriteoffTable(); 
-    updateProductsTable(); 
-    updateDashboard(); 
-    updateReports(); 
-    updateAllSelects(); // Обновит список комплектующих в UI
-    
-    closeWriteoffModal();
+        // 1. Удаление старых записей (если редактирование)
+        // Примечание: В Firebase Atomic Updates нельзя сделать "удалить из массива и сдвинуть индексы" просто так.
+        // Поэтому для надежности при редактировании мы используем старый подход:
+        // Сначала удаляем старые, потом добавляем новые.
+        if (isEdit) {
+            // Находим индексы старых записей
+            const indicesToRemove = [];
+            db.writeoffs.forEach((w, idx) => { if(w.systemId === systemId) indicesToRemove.push(idx); });
+            // Сортируем с конца и удаляем
+            for (let i = indicesToRemove.length - 1; i >= 0; i--) {
+                await dbRef.child('writeoffs').child(indicesToRemove[i]).remove();
+            }
+            // Удаляем их из локального массива тоже, чтобы расчет индексов ниже был верным
+            db.writeoffs = db.writeoffs.filter(w => w.systemId !== systemId);
+        }
+
+        // 2. Добавление новых записей списания
+        let startIndex = db.writeoffs.length;
+        newItems.forEach((item, i) => {
+            updates[`/writeoffs/${startIndex + i}`] = item;
+        });
+
+        // 3. Обновление остатков товаров и справочника комплектующих
+        newItems.forEach(item => {
+            const product = db.products.find(p => p.id === item.productId);
+            if (product) {
+                const pIndex = db.products.indexOf(product);
+                
+                // Если это НЕ "Подготовлено к продаже", обновляем остаток
+                if (item.type !== 'Подготовлено к продаже') {
+                    // Рассчитываем новый остаток. 
+                    // Важно: мы уже удалили старые списания выше, так что product.inStock (локальный) 
+                    // мог быть обновлен через слушатель, но для атомарности лучше пересчитать.
+                    // Для простоты берем локальный inStock и вычитаем qty.
+                    
+                    // ВНИМАНИЕ: Для корректной работы при редактировании нам нужно знать "чистый" остаток.
+                    // Функция recalculateAllProductStock делает это глобально.
+                    // Поэтому: сначала сохраняем списания, потом вызываем пересчет остатков и сохраняем их.
+                }
+            }
+
+            // Обновление справочника комплектующих
+            if (item.enrichmentCosts) {
+                item.enrichmentCosts.forEach(comp => {
+                    const existingComp = db.components.find(c => c.name.toLowerCase() === comp.name.toLowerCase());
+                    if (!existingComp) {
+                        const newCompIndex = db.components.length;
+                        // Проверяем, не добавляем ли мы один и тот же компонент дважды в одном апдейте
+                        // (тут упрощено, предполагаем разные)
+                        updates[`/components/${newCompIndex}`] = { name: comp.name, price: comp.cost };
+                        db.components.push({ name: comp.name, price: comp.cost }); // локально тоже
+                    } else if (Math.abs(existingComp.price - comp.cost) > 0.01) {
+                        const cIndex = db.components.indexOf(existingComp);
+                        updates[`/components/${cIndex}/price`] = comp.cost;
+                    }
+                });
+            }
+        });
+
+        // Отправляем списания и компоненты
+        await dbRef.update(updates);
+        
+        // Обновляем локальный массив списаний, чтобы recalculate отработал верно
+        newItems.forEach(item => db.writeoffs.push(item));
+
+        // 4. Глобальный пересчет остатков и их сохранение
+        // Это гарантирует целостность данных
+        recalculateAllProductStock();
+        
+        const productUpdates = {};
+        db.products.forEach((p, idx) => {
+            productUpdates[`/products/${idx}/inStock`] = p.inStock;
+            productUpdates[`/products/${idx}/status`] = p.status;
+            productUpdates[`/products/${idx}/availability`] = p.status;
+        });
+        
+        if (Object.keys(productUpdates).length > 0) {
+            await dbRef.update(productUpdates);
+        }
+
+        updateWriteoffTable(); 
+        updateProductsTable(); 
+        updateDashboard(); 
+        updateReports(); 
+        updateAllSelects();
+        
+        closeWriteoffModal();
+
+    } catch (e) {
+        console.error("Ошибка сохранения списания:", e);
+        alert("Ошибка: " + e.message);
+    }
 }
 
 
@@ -3245,7 +3378,7 @@ async function deleteWriteoff(systemId) {
     const stockUpdates = {};
 
     itemsToDelete.forEach(item => {
-        // === ИСПРАВЛЕНИЕ: Пропускаем возврат на склад для "Подготовлено к продаже" ===
+        // Пропускаем возврат на склад для "Подготовлено к продаже"
         if (item.type === 'Подготовлено к продаже') {
             return; 
         }
@@ -3265,27 +3398,26 @@ async function deleteWriteoff(systemId) {
         }
     });
 
-    // Применяем изменения к остаткам только если есть что менять
+    // Применяем изменения к остаткам
     if (Object.keys(stockUpdates).length > 0) {
         await dbRef.update(stockUpdates);
     }
 
     // --- УДАЛЕНИЕ ЗАПИСЕЙ ---
-
-    // Теперь удаляем сами записи о списании
     const indicesToRemove = [];
-
     db.writeoffs.forEach((w, index) => {
-        if (w.systemId === systemId) {
-            indicesToRemove.push(index);
-        }
+        if (w.systemId === systemId) indicesToRemove.push(index);
     });
 
-    // Удаляем с конца, чтобы не сбивать индексы
+    // Удаляем с конца, чтобы не сбивать индексы (хотя при использовании child().remove() порядок не так важен для Firebase, но важен для логики)
     for (let i = indicesToRemove.length - 1; i >= 0; i--) {
         await dbRef.child('writeoffs').child(indicesToRemove[i]).remove();
     }
+    
 }
+
+
+
 
 function openWriteoffModalForProduct(pid) {
     if (!pid) return;
@@ -3521,33 +3653,38 @@ function updateComponentsList() {
     `).join('');
 }
 
-function addComponent() {
+// --- COMPONENTS ---
+async function addComponent() {
     const name = document.getElementById('newComponentName').value.trim();
     const price = parseFloat(document.getElementById('newComponentPrice').value);
     
     if (name && !isNaN(price)) {
-        db.components.push({ name, price });
+        const newComp = { name, price };
+        db.components.push(newComp);
+        
+        const index = db.components.length - 1;
+        await dbRef.child('components').child(index).set(newComp);
+        
         document.getElementById('newComponentName').value = '';
         document.getElementById('newComponentPrice').value = '';
-        saveToLocalStorage();
         updateComponentsList();
     } else {
         alert('Введите название и цену');
     }
 }
 
-function removeComponent(index) {
+async function removeComponent(index) {
     const sorted = [...db.components].sort((a, b) => a.name.localeCompare(b.name));
     const toRemove = sorted[index];
     const realIndex = db.components.indexOf(toRemove);
     if (realIndex > -1) {
         db.components.splice(realIndex, 1);
-        saveToLocalStorage();
+        await dbRef.child('components').set(db.components);
         updateComponentsList();
     }
 }
 
-function editComponent(index) {
+async function editComponent(index) {
     const sorted = [...db.components].sort((a, b) => a.name.localeCompare(b.name));
     const comp = sorted[index];
     const realIndex = db.components.indexOf(comp);
@@ -3556,9 +3693,15 @@ function editComponent(index) {
     if (newName) {
         const newPrice = prompt("Цена:", comp.price);
         if (newPrice && !isNaN(parseFloat(newPrice))) {
+            const updates = {};
+            updates[`/components/${realIndex}/name`] = newName.trim();
+            updates[`/components/${realIndex}/price`] = parseFloat(newPrice);
+            
+            // Обновляем локально
             db.components[realIndex].name = newName.trim();
             db.components[realIndex].price = parseFloat(newPrice);
-            saveToLocalStorage();
+            
+            await dbRef.update(updates);
             updateComponentsList();
         }
     }
@@ -3631,59 +3774,338 @@ function updateElectricityCostList() {
 }
 
 // Функции управления (Add/Remove/Edit)
-function addBrand(){ const v=document.getElementById('newBrand').value.trim(); if(v && !db.brands.includes(v)){ db.brands.push(v); document.getElementById('newBrand').value=''; saveToLocalStorage(); updateAllSelects(); }}
-function removeBrand(i){ const val = db.brands[i]; if(db.filaments.some(f => f.brand === val)) { alert('Нельзя удалить: используется.'); return; } db.brands.splice(i,1); saveToLocalStorage(); updateAllSelects(); }
-function editBrand(i) { const newVal = prompt("Изменить:", db.brands[i]); if(newVal && newVal.trim()) { const oldVal = db.brands[i]; db.brands[i] = newVal.trim(); db.filaments.forEach(f => { if(f.brand === oldVal) f.brand = newVal.trim(); }); saveToLocalStorage(); updateAllSelects(); } }
 
-function addColor(){ const n=document.getElementById('newColor').value.trim(); const h=document.getElementById('newColorCode').value; if(n){ db.colors.push({id:Date.now(),name:n,hex:h}); document.getElementById('newColor').value=''; saveToLocalStorage(); updateAllSelects(); }}
-function removeColor(id){ if(db.filaments.some(f => f.color && f.color.id === id)) { alert('Нельзя удалить: используется.'); return; } db.colors=db.colors.filter(c=>c.id!==id); saveToLocalStorage(); updateAllSelects(); }
-function editColor(id) { const c = db.colors.find(x => x.id === id); if(!c) return; const newName = prompt("Изменить:", c.name); if(newName && newName.trim()) { c.name = newName.trim(); saveToLocalStorage(); updateAllSelects(); } }
-
-function addFilamentType(){ const v=document.getElementById('newFilamentType').value.trim(); if(v && !db.plasticTypes.includes(v)){ db.plasticTypes.push(v); document.getElementById('newFilamentType').value=''; saveToLocalStorage(); updateAllSelects(); }}
-function removeFilamentType(i){ const val = db.plasticTypes[i]; if(db.filaments.some(f => f.type === val)) { alert('Нельзя удалить: используется.'); return; } db.plasticTypes.splice(i,1); saveToLocalStorage(); updateAllSelects(); }
-function editFilamentType(i) { const newVal = prompt("Изменить:", db.plasticTypes[i]); if(newVal && newVal.trim()) { const oldVal = db.plasticTypes[i]; db.plasticTypes[i] = newVal.trim(); db.filaments.forEach(f => { if(f.type === oldVal) f.type = newVal.trim(); }); saveToLocalStorage(); updateAllSelects(); } }
-
-function addFilamentStatus(){ const v=document.getElementById('newFilamentStatus').value.trim(); if(v && !db.filamentStatuses.includes(v)){ db.filamentStatuses.push(v); document.getElementById('newFilamentStatus').value=''; saveToLocalStorage(); updateAllSelects(); }}
-function removeFilamentStatus(i){ const val = db.filamentStatuses[i]; if(db.filaments.some(f => f.availability === val)) { alert('Нельзя удалить: используется.'); return; } db.filamentStatuses.splice(i,1); saveToLocalStorage(); updateAllSelects(); }
-function editFilamentStatus(i) { const newVal = prompt("Изменить:", db.filamentStatuses[i]); if(newVal && newVal.trim()) { const oldVal = db.filamentStatuses[i]; db.filamentStatuses[i] = newVal.trim(); db.filaments.forEach(f => { if(f.availability === oldVal) f.availability = newVal.trim(); }); saveToLocalStorage(); updateAllSelects(); } }
-
-function addPrinter(){ const m=document.getElementById('newPrinterModel').value.trim(); const p=parseFloat(document.getElementById('newPrinterPower').value); if(m){ db.printers.push({id:Date.now(),model:m,power:p||0}); document.getElementById('newPrinterModel').value=''; saveToLocalStorage(); updateAllSelects(); }}
-function removePrinter(id){ if(db.products.some(p => p.printer && p.printer.id === id)) { alert('Нельзя удалить: используется.'); return; } db.printers=db.printers.filter(p=>p.id!==id); saveToLocalStorage(); updateAllSelects(); }
-function editPrinter(id) { const p = db.printers.find(x => x.id === id); if(!p) return; const newModel = prompt("Модель:", p.model); if(newModel && newModel.trim()) { const newPowerStr = prompt("Мощность (кВт):", p.power); const newPower = parseFloat(newPowerStr); p.model = newModel.trim(); if(!isNaN(newPower)) p.power = newPower; saveToLocalStorage(); updateAllSelects(); } }
-
-function addElectricityCost() { const date = document.getElementById('newElectricityDate').value; const cost = parseFloat(document.getElementById('newElectricityCost').value); if (!date || isNaN(cost) || cost <= 0) { alert('Ошибка ввода.'); return; } if (db.electricityCosts.some(c => c.date === date)) { alert('Тариф на эту дату уже есть.'); return; } db.electricityCosts.push({ id: Date.now(), date: date, cost: cost }); document.getElementById('newElectricityDate').value=''; document.getElementById('newElectricityCost').value=''; recalculateAllProductCosts(); saveToLocalStorage(); updateAllSelects(); updateProductsTable(); }
-function removeElectricityCost(id) { if (db.electricityCosts.length <= 1) { alert('Нельзя удалить последний тариф.'); return; } if(confirm('Удалить?')){ db.electricityCosts = db.electricityCosts.filter(c => c.id !== id); recalculateAllProductCosts(); saveToLocalStorage(); updateAllSelects(); updateProductsTable(); } }
-
-function moveReferenceItemUp(arrayName, index) {
-    if (index === 0) return; // Already at the top
-    const arr = db[arrayName];
-    [arr[index], arr[index - 1]] = [arr[index - 1], arr[index]]; // Swap
-    saveToLocalStorage();
-    updateAllSelects(); // This will re-render everything
+// --- Brands  ---
+async function addBrand(){ 
+    const v=document.getElementById('newBrand').value.trim(); 
+    if(v && !db.brands.includes(v)){ 
+        const index = db.brands.length;
+        await dbRef.child('brands').child(index).set(v); // Добавляем в конец
+        document.getElementById('newBrand').value=''; 
+        // Локально обновлять не обязательно, listener сделает это
+    }
 }
 
-function moveReferenceItemDown(arrayName, index) {
-    const arr = db[arrayName];
-    if (index >= arr.length - 1) return; // Already at the bottom
-    [arr[index], arr[index + 1]] = [arr[index + 1], arr[index]]; // Swap
-    saveToLocalStorage();
-    updateAllSelects(); // This will re-render everything
+async function removeBrand(i){ 
+    const val = db.brands[i]; 
+    if(db.filaments.some(f => f.brand === val)) { alert('Нельзя удалить: используется.'); return; } 
+    await dbRef.child('brands').child(i).remove();
 }
 
-function recalculateFilamentUsage() {
+async function editBrand(i) { 
+    const newVal = prompt("Изменить:", db.brands[i]); 
+    if(newVal && newVal.trim()) { 
+        const oldVal = db.brands[i]; 
+        // Обновляем бренд в списке
+        await dbRef.child('brands').child(i).set(newVal.trim());
+        
+        // ВНИМАНИЕ: Нужно обновить все филаменты, использующие этот бренд
+        const updates = {};
+        db.filaments.forEach((f, idx) => { 
+            if(f.brand === oldVal) updates[`/filaments/${idx}/brand`] = newVal.trim(); 
+        });
+        if(Object.keys(updates).length > 0) await dbRef.update(updates);
+    } 
+}
+
+
+// --- COLORS ---
+async function addColor(){ 
+    const n = document.getElementById('newColor').value.trim(); 
+    const h = document.getElementById('newColorCode').value; 
+    if(n){ 
+        const newColor = {id: Date.now(), name: n, hex: h};
+        // Обновляем локально
+        db.colors.push(newColor);
+        // Отправляем в Firebase (добавляем в конец списка)
+        const index = db.colors.length - 1;
+        await dbRef.child('colors').child(index).set(newColor);
+        
+        document.getElementById('newColor').value=''; 
+        updateAllSelects(); 
+    }
+}
+
+async function removeColor(id){ 
+    if(db.filaments.some(f => f.color && f.color.id === id)) { 
+        alert('Нельзя удалить: используется.'); return; 
+    } 
+    // Удаляем локально
+    db.colors = db.colors.filter(c => c.id !== id);
+    // Перезаписываем список цветов, чтобы убрать дырки в индексах
+    await dbRef.child('colors').set(db.colors);
+    updateAllSelects(); 
+}
+
+async function editColor(id) { 
+    const c = db.colors.find(x => x.id === id); 
+    if(!c) return; 
+    const newName = prompt("Изменить:", c.name); 
+    if(newName && newName.trim()) { 
+        const oldName = c.name;
+        c.name = newName.trim(); // Локальное обновление
+        
+        const updates = {};
+        const index = db.colors.indexOf(c);
+        
+        // 1. Обновляем имя в справочнике
+        updates[`/colors/${index}/name`] = c.name;
+        
+        // 2. Обновляем имя цвета во всех филаментах, где он используется
+        db.filaments.forEach((f, idx) => {
+            if(f.color && f.color.id === id) {
+                // Обновляем вложенный объект цвета внутри филамента
+                updates[`/filaments/${idx}/color/name`] = c.name;
+                // Обновляем локально тоже, чтобы UI сразу перерисовался корректно
+                f.color.name = c.name;
+            }
+        });
+        
+        if(Object.keys(updates).length > 0) await dbRef.update(updates);
+        updateAllSelects(); 
+    } 
+}
+
+// --- FILAMENT TYPES ---
+async function addFilamentType(){ 
+    const v = document.getElementById('newFilamentType').value.trim(); 
+    if(v && !db.plasticTypes.includes(v)){ 
+        db.plasticTypes.push(v);
+        const index = db.plasticTypes.length - 1;
+        await dbRef.child('plasticTypes').child(index).set(v);
+        
+        document.getElementById('newFilamentType').value=''; 
+        updateAllSelects(); 
+    }
+}
+
+async function removeFilamentType(i){ 
+    const val = db.plasticTypes[i]; 
+    if(db.filaments.some(f => f.type === val)) { 
+        alert('Нельзя удалить: используется.'); return; 
+    } 
+    db.plasticTypes.splice(i, 1);
+    await dbRef.child('plasticTypes').set(db.plasticTypes); // Перезапись массива
+    updateAllSelects(); 
+}
+
+async function editFilamentType(i) { 
+    const newVal = prompt("Изменить:", db.plasticTypes[i]); 
+    if(newVal && newVal.trim()) { 
+        const oldVal = db.plasticTypes[i]; 
+        const cleanedVal = newVal.trim();
+        
+        // Локально
+        db.plasticTypes[i] = cleanedVal;
+        
+        const updates = {};
+        // 1. Обновляем справочник
+        updates[`/plasticTypes/${i}`] = cleanedVal;
+        
+        // 2. Обновляем филаменты
+        db.filaments.forEach((f, idx) => {
+            if(f.type === oldVal) {
+                updates[`/filaments/${idx}/type`] = cleanedVal;
+                f.type = cleanedVal; // Локально
+            }
+        });
+        
+        await dbRef.update(updates);
+        updateAllSelects(); 
+    } 
+}
+
+// --- FILAMENT STATUSES ---
+async function addFilamentStatus(){ 
+    const v = document.getElementById('newFilamentStatus').value.trim(); 
+    if(v && !db.filamentStatuses.includes(v)){ 
+        db.filamentStatuses.push(v);
+        const index = db.filamentStatuses.length - 1;
+        await dbRef.child('filamentStatuses').child(index).set(v);
+        
+        document.getElementById('newFilamentStatus').value=''; 
+        updateAllSelects(); 
+    }
+}
+
+async function removeFilamentStatus(i){ 
+    const val = db.filamentStatuses[i]; 
+    if(db.filaments.some(f => f.availability === val)) { 
+        alert('Нельзя удалить: используется.'); return; 
+    } 
+    db.filamentStatuses.splice(i, 1);
+    await dbRef.child('filamentStatuses').set(db.filamentStatuses);
+    updateAllSelects(); 
+}
+
+async function editFilamentStatus(i) { 
+    const newVal = prompt("Изменить:", db.filamentStatuses[i]); 
+    if(newVal && newVal.trim()) { 
+        const oldVal = db.filamentStatuses[i]; 
+        const cleanedVal = newVal.trim();
+        
+        db.filamentStatuses[i] = cleanedVal;
+        
+        const updates = {};
+        updates[`/filamentStatuses/${i}`] = cleanedVal;
+        
+        db.filaments.forEach((f, idx) => {
+            if(f.availability === oldVal) {
+                updates[`/filaments/${idx}/availability`] = cleanedVal;
+                f.availability = cleanedVal;
+            }
+        });
+        
+        await dbRef.update(updates);
+        updateAllSelects(); 
+    } 
+}
+
+// --- PRINTERS ---
+async function addPrinter(){ 
+    const m = document.getElementById('newPrinterModel').value.trim(); 
+    const p = parseFloat(document.getElementById('newPrinterPower').value); 
+    if(m){ 
+        const newPrinter = {id: Date.now(), model: m, power: p||0};
+        db.printers.push(newPrinter);
+        const index = db.printers.length - 1;
+        await dbRef.child('printers').child(index).set(newPrinter);
+        
+        document.getElementById('newPrinterModel').value=''; 
+        updateAllSelects(); 
+    }
+}
+
+async function removePrinter(id){ 
+    if(db.products.some(p => p.printer && p.printer.id === id)) { 
+        alert('Нельзя удалить: используется.'); return; 
+    } 
+    db.printers = db.printers.filter(p => p.id !== id);
+    await dbRef.child('printers').set(db.printers);
+    updateAllSelects(); 
+}
+
+async function editPrinter(id) { 
+    const p = db.printers.find(x => x.id === id); 
+    if(!p) return; 
+    const newModel = prompt("Модель:", p.model); 
+    if(newModel && newModel.trim()) { 
+        const newPowerStr = prompt("Мощность (кВт):", p.power); 
+        const newPower = parseFloat(newPowerStr); 
+        
+        // Локальное обновление
+        p.model = newModel.trim(); 
+        if(!isNaN(newPower)) p.power = newPower; 
+        
+        const updates = {};
+        const index = db.printers.indexOf(p);
+        
+        // 1. Обновляем справочник
+        updates[`/printers/${index}`] = p;
+        
+        // 2. Обновляем изделия
+        db.products.forEach((prod, idx) => {
+            if(prod.printer && prod.printer.id === id) {
+                updates[`/products/${idx}/printer`] = p;
+                prod.printer = p; // Локально
+            }
+        });
+        
+        await dbRef.update(updates);
+        updateAllSelects(); 
+    } 
+}
+
+// --- ELECTRICITY COSTS ---
+async function addElectricityCost() { 
+    const date = document.getElementById('newElectricityDate').value; 
+    const cost = parseFloat(document.getElementById('newElectricityCost').value); 
+    if (!date || isNaN(cost) || cost <= 0) { alert('Ошибка ввода.'); return; } 
+    if (db.electricityCosts.some(c => c.date === date)) { alert('Тариф на эту дату уже есть.'); return; } 
+    
+    const newCost = { id: Date.now(), date: date, cost: cost };
+    db.electricityCosts.push(newCost);
+    
+    const index = db.electricityCosts.length - 1;
+    await dbRef.child('electricityCosts').child(index).set(newCost);
+    
+    document.getElementById('newElectricityDate').value=''; 
+    document.getElementById('newElectricityCost').value=''; 
+    
+    recalculateAllProductCosts(); // Тариф влияет на себестоимость, нужен пересчет
+    
+    // ВАЖНО: При изменении тарифа нужно обновить себестоимость всех изделий в базе
+    const updates = {};
+    db.products.forEach((prod, idx) => {
+        updates[`/products/${idx}/costActualPrice`] = prod.costActualPrice;
+        updates[`/products/${idx}/costMarketPrice`] = prod.costMarketPrice;
+        updates[`/products/${idx}/costPer1Actual`] = prod.costPer1Actual;
+        updates[`/products/${idx}/costPer1Market`] = prod.costPer1Market;
+    });
+    if(Object.keys(updates).length > 0) await dbRef.update(updates);
+
+    updateAllSelects(); 
+    updateProductsTable(); 
+}
+
+async function removeElectricityCost(id) { 
+    if (db.electricityCosts.length <= 1) { alert('Нельзя удалить последний тариф.'); return; } 
+    if(confirm('Удалить?')){ 
+        db.electricityCosts = db.electricityCosts.filter(c => c.id !== id);
+        await dbRef.child('electricityCosts').set(db.electricityCosts);
+        
+        recalculateAllProductCosts();
+        
+        // Массовое обновление цен изделий
+        const updates = {};
+        db.products.forEach((prod, idx) => {
+            updates[`/products/${idx}/costActualPrice`] = prod.costActualPrice;
+            updates[`/products/${idx}/costMarketPrice`] = prod.costMarketPrice;
+            updates[`/products/${idx}/costPer1Actual`] = prod.costPer1Actual;
+            updates[`/products/${idx}/costPer1Market`] = prod.costPer1Market;
+        });
+        if(Object.keys(updates).length > 0) await dbRef.update(updates);
+
+        updateAllSelects(); 
+        updateProductsTable(); 
+    } 
+}
+
+// --- SORTING HELPERS ---
+async function moveReferenceItemUp(arrayName, index) {
+    if (index === 0) return; 
+    const arr = db[arrayName];
+    [arr[index], arr[index - 1]] = [arr[index - 1], arr[index]]; // Swap local
+    
+    // Перезаписываем весь массив в Firebase, так как порядок изменился
+    await dbRef.child(arrayName).set(arr);
+    updateAllSelects(); 
+}
+
+async function moveReferenceItemDown(arrayName, index) {
+    const arr = db[arrayName];
+    if (index >= arr.length - 1) return;
+    [arr[index], arr[index + 1]] = [arr[index + 1], arr[index]]; // Swap local
+    
+    await dbRef.child(arrayName).set(arr);
+    updateAllSelects(); 
+}
+
+
+async function recalculateFilamentUsage() {
     if (!confirm('Пересчитать реальный расход филамента по всем существующим изделиям?\n\nЭто обнулит текущие счетчики расхода у катушек и заново просуммирует вес и длину всех изделий в базе.')) {
         return;
     }
 
-    // 1. Сбрасываем счетчики у всех катушек
+    // 1. Сбрасываем счетчики у всех катушек локально
     db.filaments.forEach(f => {
         f.usedLength = 0;
         f.usedWeight = 0;
     });
 
-    // 2. Проходим по всем изделиям и суммируем расход
+    // 2. Проходим по всем изделиям и суммируем расход локально
     db.products.forEach(p => {
-        if (p.type === 'Составное') return; // Пропускаем папки
+        if (p.type === 'Составное') return; // Пропускаем папки (их части учитываются отдельно)
 
         if (p.filament && p.filament.id) {
             const filamentInDb = db.filaments.find(f => f.id === p.filament.id);
@@ -3694,18 +4116,37 @@ function recalculateFilamentUsage() {
         }
     });
 
-    // 3. Обновляем остаток
+    // 3. Обновляем остаток локально
     db.filaments.forEach(f => {
         f.remainingLength = Math.max(0, f.length - (f.usedLength || 0));
+        // Логика смены статуса (опционально, если хотите авто-смену статуса)
+        // if (f.remainingLength > 0) f.availability = 'В наличии';
     });
 
-    // 4. Сохраняем в Firebase и обновляем интерфейс
-    saveData();
-    updateFilamentsTable();
-    updateDashboard(); 
+    // 4. === АТОМАРНОЕ СОХРАНЕНИЕ ===
+    // Вместо saveData() формируем пакет обновлений только для полей расхода
+    const updates = {};
     
-    alert('Пересчет успешно выполнен!');
+    db.filaments.forEach((f, index) => {
+        updates[`/filaments/${index}/usedLength`] = f.usedLength;
+        updates[`/filaments/${index}/usedWeight`] = f.usedWeight;
+        updates[`/filaments/${index}/remainingLength`] = f.remainingLength;
+    });
+
+    try {
+        if (Object.keys(updates).length > 0) {
+            await dbRef.update(updates);
+        }
+        
+        updateFilamentsTable();
+        updateDashboard(); 
+        alert('Пересчет успешно выполнен!');
+    } catch (e) {
+        console.error("Ошибка пересчета:", e);
+        alert("Не удалось сохранить результаты пересчета: " + e.message);
+    }
 }
+
 
 
 // ==================== EVENT LISTENERS ====================
