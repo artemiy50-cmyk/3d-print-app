@@ -1,4 +1,4 @@
-console.log("Version: 5.2 (2026-02-06 00-45)");
+console.log("Version: 5.2 (2026-02-06 01-00)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -195,18 +195,11 @@ window.addEventListener('DOMContentLoaded', () => {
             
             setupUserSidebar(user);
             
-            // --- НОВЫЙ REALTIME-СЛУШАТЕЛЬ ---
-            dbRef.on('value', (snapshot) => {
-                // Если открыто модальное окно - НЕ обновляем UI, чтобы не сбить ввод
-                if (isModalOpen) {
-                    console.log('Modal is open, skipping real-time UI refresh to prevent data loss.');
-                    return;
-                }
-
-                console.log('Real-time data received from Firebase.');
-
+            // Вынесли логику обновления в отдельную функцию
+            window.updateAppFromSnapshot = function(snapshot) {
+                console.log('Updating UI from Firebase snapshot...');
                 const loadedData = snapshot.val();
-                // Заполняем наш локальный объект db
+                
                 if (loadedData) {
                     db.filaments = loadedData.filaments || [];
                     db.products = loadedData.products || [];
@@ -220,18 +213,24 @@ window.addEventListener('DOMContentLoaded', () => {
                     db.electricityCosts = loadedData.electricityCosts || [{ id: Date.now(), date: '2020-01-01', cost: 6 }];
                 }
 
-                // Пересчитываем и обновляем всё
                 recalculateAllProductCosts();
-                recalculateAllProductStock(); // Добавим на всякий случай
+                recalculateAllProductStock();
                 updateAllSelects();
                 
-                // Обновляем все таблицы и дашборд
                 try { updateFilamentsTable(); } catch(e) { console.error('Filament update failed', e); }
                 try { updateProductsTable(); } catch(e) { console.error('Products update failed', e); }
                 try { updateWriteoffTable(); } catch(e) { console.error('Writeoff update failed', e); }
                 try { updateReports(); } catch(e) { console.error('Reports update failed', e); }
                 try { updateDashboard(); } catch(e) { console.error('Dashboard update failed', e); }
+            };
+
+            // Слушатель теперь просто вызывает эту функцию
+            dbRef.on('value', (snapshot) => {
+                // Если окно открыто - игнорируем входящие (чтобы не сбить ввод)
+                if (isModalOpen) return;
+                window.updateAppFromSnapshot(snapshot);
             });
+
             
             // Загрузка настроек (это можно делать один раз)
             loadShowChildren();
@@ -890,7 +889,17 @@ function updateFilamentColorPreview() {
 
 // --- FILAMENT ---
 function openFilamentModal() { isModalOpen = true; document.getElementById('filamentModal').classList.add('active'); clearFilamentForm(); setTimeout(() => document.getElementById('filamentCustomId').focus(), 100); }
-function closeFilamentModal() { isModalOpen = false; document.getElementById('filamentModal').classList.remove('active'); document.getElementById('filamentModal').removeAttribute('data-edit-id'); document.querySelector('#filamentModal .modal-header-title').textContent = 'Добавить филамент'; clearFilamentForm(); }
+
+function closeFilamentModal() { 
+    isModalOpen = false; // Разблокируем прием данных
+    // Принудительно запрашиваем актуальные данные, вдруг что-то пропустили
+    if(dbRef) dbRef.once('value').then(window.updateAppFromSnapshot);
+
+    document.getElementById('filamentModal').classList.remove('active'); 
+    document.getElementById('filamentModal').removeAttribute('data-edit-id'); 
+    document.querySelector('#filamentModal .modal-header-title').textContent = 'Добавить филамент'; 
+    clearFilamentForm(); 
+}
 
 
 function clearFilamentForm() {
@@ -1372,13 +1381,16 @@ function openProductModal() {
 }
 
 function closeProductModal() { 
-    isModalOpen = false;
+    isModalOpen = false; // Разблокируем
+    if(dbRef) dbRef.once('value').then(window.updateAppFromSnapshot);
+
 	const modal = document.getElementById('productModal');
     modal.classList.remove('active'); 
     modal.removeAttribute('data-edit-id'); 
     modal.removeAttribute('data-system-id');
     clearProductForm(); 
 }
+
 
 function clearProductForm() {
     const setVal = (id, v) => { const el = document.getElementById(id); if(el) el.value = v; };
@@ -2764,7 +2776,9 @@ window.refreshProductSelectsInWriteoff = function() {
 
 
 function closeWriteoffModal() { 
-	isModalOpen = false;
+	isModalOpen = false; // Разблокируем
+    if(dbRef) dbRef.once('value').then(window.updateAppFromSnapshot);
+
 	document.getElementById('writeoffModal').classList.remove('active'); 
 }
 
@@ -3850,6 +3864,7 @@ async function editColor(id) {
         updateAllSelects(); 
     } 
 }
+
 
 // --- FILAMENT TYPES ---
 async function addFilamentType(){ 
