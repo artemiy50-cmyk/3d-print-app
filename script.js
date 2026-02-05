@@ -978,7 +978,7 @@ function copyFilament(id) {
     document.querySelector('#filamentModal .modal-header-title').textContent = 'Копирование';
 }
 
-function deleteFilament(id) {
+async function deleteFilament(id) {
     const f = db.filaments.find(x => x.id === id);
     if (!f) return;
 
@@ -990,11 +990,10 @@ function deleteFilament(id) {
 
     if (!confirm(`Удалить филамент "${f.customId}"?`)) return;
 
-    db.filaments = db.filaments.filter(fil => fil.id !== id);
-    saveToLocalStorage();
-    updateAllSelects();
-    updateFilamentsTable();
-    updateDashboard();
+    const index = db.filaments.findIndex(fil => fil.id === id);
+    if(index > -1) {
+        await dbRef.child('filaments').child(index).remove();
+    }
 }
 
 function updateFilamentStatusUI() {
@@ -1627,8 +1626,6 @@ window.addChildPart = function(parentId) {
 
 
 
-
-
 function editProduct(id) {
     const productId = parseInt(id);
     const p = db.products.find(x => x.id === productId);
@@ -1698,11 +1695,9 @@ function editProduct(id) {
 
     updateProductCosts();
 
-    // --- ВОССТАНОВЛЕННАЯ ЛОГИКА БЛОКИРОВКИ (v3.7) ---
     const allInputs = document.querySelectorAll('#productModal input, #productModal select, #productModal textarea');
     allInputs.forEach(el => el.disabled = false);
 
-    // Техническая блокировка расчетных полей для Составного (они суммируются автоматически)
     if (p.type === 'Составное') {
         const compositeLockedFields = ['productFilament','productPrinter','productPrintTimeHours','productPrintTimeMinutes','productWeight','productLength'];
         compositeLockedFields.forEach(id => {
@@ -1712,7 +1707,6 @@ function editProduct(id) {
     }
 
     let hasWriteoffs = db.writeoffs && db.writeoffs.some(w => w.productId === productId);
-    // Проверка списаний у родителя, если это часть
     if (!hasWriteoffs && p.type === 'Часть составного' && p.parentId) {
         if (db.writeoffs.some(w => w.productId === p.parentId)) hasWriteoffs = true;
     }
@@ -1755,60 +1749,52 @@ function editProduct(id) {
             validationMessage.classList.remove('hidden');
         }
     }
-    // ------------------------------------------------
 
-    // --- ДОБАВЛЕНИЕ СЕКЦИИ СПИСАНИЙ ---
+    // --- ИСПРАВЛЕНИЕ 2: Секция списаний ---
     const modalBody = document.querySelector('#productModal .modal-body');
-    // Удаляем старую секцию, если она была (чтобы не дублировать при повторном открытии)
     const oldSection = document.getElementById('productWriteoffsSection');
     if (oldSection) oldSection.remove();
 
-    // Показываем секцию ТОЛЬКО если это НЕ "Часть составного"
+    // Перемещаем всю логику внутрь проверки, чтобы не было обращения к несуществующим переменным
     if (p.type !== 'Часть составного') {
         const writeoffSection = document.createElement('div');
         writeoffSection.id = 'productWriteoffsSection';
         writeoffSection.className = 'product-writeoffs-section';
         writeoffSection.innerHTML = `<div class="product-writeoffs-title">Документы списания</div>`;
 
-        // ... (далее код заполнения секции без изменений) ...
         const productWriteoffs = db.writeoffs.filter(w => w.productId === productId);
-        // ...
         
+        if (productWriteoffs.length === 0) {
+            writeoffSection.innerHTML += `<div style="font-size:13px; color:#94a3b8;">Нет списаний по этому изделию.</div>`;
+        } else {
+            const active = productWriteoffs.filter(w => w.type !== 'Подготовлено к продаже').sort((a,b) => new Date(b.date) - new Date(a.date));
+            const prepared = productWriteoffs.filter(w => w.type === 'Подготовлено к продаже').sort((a,b) => new Date(b.date) - new Date(a.date));
+            
+            const renderLink = (w) => {
+                let details = `${w.date} | ${w.type} | ${w.qty} шт.`;
+                if (w.type === 'Продажа') details += ` | ${w.total.toFixed(2)} ₽`;
+                return `<a class="writeoff-link-item" onclick="closeProductModal(); setTimeout(() => editWriteoff('${w.systemId}'), 200);">${details}</a>`;
+            };
+
+            if (active.length > 0) {
+                active.forEach(w => writeoffSection.innerHTML += renderLink(w));
+            }
+
+            if (prepared.length > 0) {
+                const groupDiv = document.createElement('div');
+                groupDiv.className = 'writeoff-prepared-group';
+                groupDiv.innerHTML = `<div class="writeoff-prepared-label">Подготовлено к продаже:</div>`;
+                prepared.forEach(w => groupDiv.innerHTML += renderLink(w));
+                writeoffSection.appendChild(groupDiv);
+            }
+        }
         modalBody.appendChild(writeoffSection);
     }
     
-    if (productWriteoffs.length === 0) {
-        writeoffSection.innerHTML += `<div style="font-size:13px; color:#94a3b8;">Нет списаний по этому изделию.</div>`;
-    } else {
-        // Сортировка: Сначала активные (дата desc), потом Подготовленные (дата desc)
-        const active = productWriteoffs.filter(w => w.type !== 'Подготовлено к продаже').sort((a,b) => new Date(b.date) - new Date(a.date));
-        const prepared = productWriteoffs.filter(w => w.type === 'Подготовлено к продаже').sort((a,b) => new Date(b.date) - new Date(a.date));
-        
-        const renderLink = (w) => {
-            let details = `${w.date} | ${w.type} | ${w.qty} шт.`;
-            if (w.type === 'Продажа') details += ` | ${w.total.toFixed(2)} ₽`;
-            return `<a class="writeoff-link-item" onclick="closeProductModal(); setTimeout(() => editWriteoff('${w.systemId}'), 200);">${details}</a>`;
-        };
-
-        if (active.length > 0) {
-            active.forEach(w => writeoffSection.innerHTML += renderLink(w));
-        }
-
-        if (prepared.length > 0) {
-            const groupDiv = document.createElement('div');
-            groupDiv.className = 'writeoff-prepared-group';
-            groupDiv.innerHTML = `<div class="writeoff-prepared-label">Подготовлено к продаже:</div>`;
-            prepared.forEach(w => groupDiv.innerHTML += renderLink(w));
-            writeoffSection.appendChild(groupDiv);
-        }
-    }
-    
-    modalBody.appendChild(writeoffSection);
-    // -----------------------------------
-
-
+    // ИСПРАВЛЕНИЕ 3: Делаем снимок в самом конце, чтобы избежать ложного предупреждения
     productSnapshotForDirtyCheck = captureProductSnapshot();
 }
+
 
 
 
@@ -2036,6 +2022,9 @@ async function saveProduct(andThenWriteOff = false) {
     
     saveBtn.textContent = 'Сохранить и закрыть'; saveBtn.disabled = false;
     
+    // После успешного сохранения обновляем "чистый" снимок, на случай если модалка осталась открыта (или для логики переходов)
+    productSnapshotForDirtyCheck = captureProductSnapshot();
+
     if (andThenWriteOff) {
         const productIdToPass = p.id;
         closeProductModal();
@@ -2083,70 +2072,79 @@ function calculateSingleProductCost(p) {
     return { costActualPrice, costMarketPrice };
 }
 
-
-function deleteProduct(id) {
-    const p = db.products.find(x => x.id === id); 
+// --- ИСПРАВЛЕНА ЛОГИКА УДАЛЕНИЯ ---
+async function deleteProduct(id) {
+    const p = db.products.find(x => x.id === id);
     if (!p) return;
     if (db.writeoffs && db.writeoffs.some(w => w.productId === id)) { 
         alert('Нельзя удалить изделие, по которому уже есть списания!'); 
         return; 
     }
     if (!confirm(`Удалить изделие "${p.name}" и вернуть филамент?`)) return;
-    
-    // === УДАЛЕНИЕ ФАЙЛОВ ИЗ ОБЛАКА ===
+
+    // --- Удаление файлов (остается как было) ---
     if (p.imageUrl && !isResourceUsedByOthers(p.imageUrl, id)) deleteFileFromCloud(p.imageUrl);
     if (p.fileUrls) p.fileUrls.forEach(f => { if(f.url && !isResourceUsedByOthers(f.url, id)) deleteFileFromCloud(f.url); });
 
-    // 1. Возврат филамента для САМОСТОЯТЕЛЬНОГО или ЧАСТИ
+    // --- ВОЗВРАТ ФИЛАМЕНТА (ОЧЕНЬ ВАЖНО) ---
+    // Этот код должен выполниться ДО удаления из базы, иначе мы потеряем данные
+    // о том, какой филамент был использован.
+
+    const allUpdates = {}; // Объект для массового обновления
+
+    // 1. Возврат для самого изделия (если оно простое)
     if (p.type !== 'Составное' && p.filament) { 
         const filId = (typeof p.filament === 'object') ? p.filament.id : p.filament;
         const dbFilament = db.filaments.find(f => f.id == filId);
         if (dbFilament) {
+            const index = db.filaments.indexOf(dbFilament);
             dbFilament.usedLength -= (p.length || 0); 
-            dbFilament.usedWeight -= (p.weight || 0); 
-            dbFilament.remainingLength = Math.max(0, dbFilament.length - dbFilament.usedLength); 
-            if (dbFilament.remainingLength > 0) dbFilament.availability = 'В наличии'; 
+            dbFilament.usedWeight -= (p.weight || 0);
+            // Готовим путь для обновления
+            allUpdates[`/filaments/${index}/usedLength`] = dbFilament.usedLength;
+            allUpdates[`/filaments/${index}/usedWeight`] = dbFilament.usedWeight;
         }
     }
     
-    // 2. Возврат филамента для СОСТАВНОГО (удаляем детей и возвращаем их филамент)
+    // 2. Возврат для детей (если это составное)
     if (p.type === 'Составное') { 
         const kids = db.products.filter(k => k.parentId === id); 
         kids.forEach(k => { 
-            // Удаляем файлы детей
-            if (k.imageUrl && !isResourceUsedByOthers(k.imageUrl, k.id)) deleteFileFromCloud(k.imageUrl);
-            if (k.fileUrls) k.fileUrls.forEach(f => { if(f.url && !isResourceUsedByOthers(f.url, k.id)) deleteFileFromCloud(f.url); });
-
-            // Возвращаем филамент детей
             if (k.filament) { 
                 const kFilId = (typeof k.filament === 'object') ? k.filament.id : k.filament;
                 const kFilament = db.filaments.find(f => f.id == kFilId);
                 if (kFilament) {
+                    const index = db.filaments.indexOf(kFilament);
                     kFilament.usedLength -= (k.length || 0); 
-                    kFilament.usedWeight -= (k.weight || 0); 
-                    kFilament.remainingLength = Math.max(0, kFilament.length - kFilament.usedLength); 
-                    if (kFilament.remainingLength > 0) kFilament.availability = 'В наличии'; 
+                    kFilament.usedWeight -= (k.weight || 0);
+                    allUpdates[`/filaments/${index}/usedLength`] = kFilament.usedLength;
+                    allUpdates[`/filaments/${index}/usedWeight`] = kFilament.usedWeight;
                 }
             }
-        }); 
-        // Удаляем детей из базы
-        db.products = db.products.filter(x => x.parentId !== id); 
-    } 
-    
-    // Удаляем само изделие
-    db.products = db.products.filter(x => x.id !== id); 
-    
-    // Пересчет родителя, если удалялась его часть
-    if (p.type === 'Часть составного' && p.parentId) { 
-        recalculateAllProductCosts();
+        });
+        // Удаляем детей
+        const childIndices = kids.map(k => db.products.findIndex(prod => prod.id === k.id)).filter(i => i > -1);
+        childIndices.forEach(index => {
+            allUpdates[`/products/${index}`] = null; // null для Firebase = удаление
+        });
     }
-    
-    saveToLocalStorage(); 
-    updateAllSelects(); 
-    updateProductsTable(); 
-    updateDashboard(); 
-    updateReports(); 
-    updateFilamentsTable();
+
+    // --- ОБНОВЛЕНИЕ ДАННЫХ В FIREBASE ---
+    try {
+        // Сначала обновляем расход филамента
+        await dbRef.update(allUpdates);
+
+        // Теперь удаляем сам продукт
+        const productIndex = db.products.findIndex(prod => prod.id === id);
+        if (productIndex > -1) {
+            await dbRef.child('products').child(productIndex).remove();
+        }
+        
+        console.log('Изделие успешно удалено');
+    } catch (e) {
+        console.error("Ошибка удаления:", e);
+        alert("Не удалось удалить изделие.");
+    }
 }
 
 
@@ -3237,43 +3235,57 @@ function saveWriteoff() {
 
 
 
+async function deleteWriteoff(systemId) {
+    if (!confirm('Удалить списание? Изделия будут возвращены на склад (кроме статуса "Подготовлено к продаже").')) return;
 
-function deleteWriteoff(systemId) {
-    if (!confirm('Удалить списание? Изделия будут возвращены на склад.')) return;
-    
-    const items = db.writeoffs.filter(w => w.systemId === systemId);
-    
-    items.forEach(item => {
+    // --- ПЕРЕСЧЕТ ОСТАТКОВ ---
+    const itemsToDelete = db.writeoffs.filter(w => w.systemId === systemId);
+
+    // Сначала готовим обновления для остатков, чтобы не потерять данные
+    const stockUpdates = {};
+
+    itemsToDelete.forEach(item => {
+        // === ИСПРАВЛЕНИЕ: Пропускаем возврат на склад для "Подготовлено к продаже" ===
+        if (item.type === 'Подготовлено к продаже') {
+            return; 
+        }
+
         const p = db.products.find(x => x.id === item.productId);
+
         if(p) {
-            p.inStock += item.qty;
-            p.status = determineProductStatus(p); 
-            p.availability = p.status;
+            const productIndex = db.products.indexOf(p);
 
-            if (p.type === 'Составное' && item.hasDeductedParts === true) {
-                const children = db.products.filter(child => child.parentId == p.id && !child.defective);
-                const parentTotalQty = p.quantity || 1; 
+            // Мы должны увеличить остаток, так как отменяем списание
+            p.inStock += item.qty; 
 
-                children.forEach(child => {
-                    const ratio = (child.quantity || 1) / parentTotalQty;
-                    child.inStock += (ratio * item.qty);
-                    child.status = determineProductStatus(child);
-                    child.availability = child.status;
-                });
-            }
+            // Формируем пути для обновления в Firebase
+            stockUpdates[`/products/${productIndex}/inStock`] = p.inStock;
+            stockUpdates[`/products/${productIndex}/status`] = determineProductStatus(p);
+            stockUpdates[`/products/${productIndex}/availability`] = determineProductStatus(p);
         }
     });
-    
-    db.writeoffs = db.writeoffs.filter(w => w.systemId !== systemId);
-    
-    saveToLocalStorage();
-    updateWriteoffTable();
-    updateProductsTable();
-    updateDashboard();
-    updateReports();
+
+    // Применяем изменения к остаткам только если есть что менять
+    if (Object.keys(stockUpdates).length > 0) {
+        await dbRef.update(stockUpdates);
+    }
+
+    // --- УДАЛЕНИЕ ЗАПИСЕЙ ---
+
+    // Теперь удаляем сами записи о списании
+    const indicesToRemove = [];
+
+    db.writeoffs.forEach((w, index) => {
+        if (w.systemId === systemId) {
+            indicesToRemove.push(index);
+        }
+    });
+
+    // Удаляем с конца, чтобы не сбивать индексы
+    for (let i = indicesToRemove.length - 1; i >= 0; i--) {
+        await dbRef.child('writeoffs').child(indicesToRemove[i]).remove();
+    }
 }
-
-
 
 function openWriteoffModalForProduct(pid) {
     if (!pid) return;
