@@ -1,4 +1,4 @@
-console.log("Version: 5.2 (2026-02-06 01-20)");
+console.log("Version: 5.2 (2026-02-06 13-37)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1546,7 +1546,7 @@ function onParentProductChange() {
 async function copyProduct(id) {
     const p = db.products.find(x => x.id === id); if (!p) return;
 
-    // 1. Копирование СОСТАВНОГО изделия (Атомарная транзакция)
+    // 1. Копирование СОСТАВНОГО изделия
     if (p.type === 'Составное') {
         if (!confirm('Это составное изделие. Будут скопированы все его части (без прикрепленных файлов). Продолжить?')) {
             return;
@@ -1568,6 +1568,7 @@ async function copyProduct(id) {
         newParent.fileUrls = []; 
         newParent.imageBlob = null; 
         newParent.attachedFiles = [];
+        newParent.printer = newParent.printer || null; // Fix undefined
 
         // --- Подготовка Детей ---
         const children = db.products.filter(child => child.parentId === p.id);
@@ -1584,21 +1585,25 @@ async function copyProduct(id) {
             newChild.fileUrls = []; 
             newChild.imageBlob = null;
             newChild.attachedFiles = [];
+            newChild.printer = newChild.printer || null; // Fix undefined
+            newChild.filament = newChild.filament || null; // Fix undefined
             return newChild;
         });
         
-        // [FIX] ИСПОЛЬЗУЕМ ТРАНЗАКЦИЮ
         try {
-            await dbRef.child('products').transaction(currentProducts => {
+            // [FIX] Транзакция и обновление ИЗ РЕЗУЛЬТАТА
+            const result = await dbRef.child('products').transaction(currentProducts => {
                 if (!currentProducts) currentProducts = [];
                 currentProducts.push(newParent);
                 newChildren.forEach(child => currentProducts.push(child));
                 return currentProducts;
             });
 
-            // Локальное обновление
-            db.products.push(newParent);
-            newChildren.forEach(child => db.products.push(child));
+            if (result.committed && result.snapshot.val()) {
+                // Обновляем локальную базу полной копией с сервера
+                // Это предотвращает рассинхронизацию и дублирование
+                db.products = result.snapshot.val();
+            }
 
             updateProductsTable();
             updateDashboard();
@@ -1609,7 +1614,7 @@ async function copyProduct(id) {
         }
 
     } else {
-        // 2. Копирование ПРОСТОГО изделия (через модалку) - не меняем, вызывает saveProduct
+        // 2. Копирование ПРОСТОГО изделия
         const modal = document.getElementById('productModal');
         modal.removeAttribute('data-edit-id');
         modal.removeAttribute('data-system-id');
@@ -1658,6 +1663,7 @@ async function copyProduct(id) {
         updateProductCosts();
     }
 }
+
 
 
 
@@ -1982,6 +1988,9 @@ async function saveProduct(andThenWriteOff = false) {
     const qty = parseInt(document.getElementById('productQuantity').value) || 0;
     const isDefective = document.getElementById('productDefective').checked;
     
+    // [FIX] Добавляем || null для безопасности транзакции
+    const printerObj = db.printers.find(x => x.id == document.getElementById('productPrinter').value);
+    
     const p = { 
         name: document.getElementById('productName').value, 
         systemId: eid ? document.getElementById('productModal').getAttribute('data-system-id') : document.getElementById('productSystemId').textContent, 
@@ -1991,7 +2000,7 @@ async function saveProduct(andThenWriteOff = false) {
         weight: parseFloat(document.getElementById('productWeight').value) || 0, 
         length: parseFloat(document.getElementById('productLength').value) || 0, 
         printTime: (parseInt(document.getElementById('productPrintTimeHours').value)||0)*60 + (parseInt(document.getElementById('productPrintTimeMinutes').value)||0), 
-        printer: db.printers.find(x => x.id == document.getElementById('productPrinter').value), 
+        printer: printerObj || null, // <--- ИСПРАВЛЕНИЕ ОШИБКИ
         type: type, 
         note: document.getElementById('productNote').value, 
         defective: isDefective,
@@ -2012,7 +2021,9 @@ async function saveProduct(andThenWriteOff = false) {
     if (type !== 'Составное') { 
         const filId = document.getElementById('productFilament').value;
         filament = db.filaments.find(x => x.id == filId); 
-        p.filament = filament; 
+        p.filament = filament || null; // <--- ИСПРАВЛЕНИЕ ОШИБКИ
+    } else {
+        p.filament = null; // Для составного филамента нет
     }
     
     recalculateAllProductCosts();
@@ -2023,7 +2034,6 @@ async function saveProduct(andThenWriteOff = false) {
     p.costPer1Actual = qty > 0 ? p.costActualPrice / qty : 0;
     p.costPer1Market = qty > 0 ? p.costMarketPrice / qty : 0;
 
-    // Инициализация ID при создании
     if (!eid) {
         p.id = Date.now();
     } else {
@@ -2032,9 +2042,9 @@ async function saveProduct(andThenWriteOff = false) {
     }
 
     try {
-        const updates = {}; // Для обновлений филамента
+        const updates = {};
 
-        // 1. Подготовка обновлений филамента (ОСТАЕТСЯ КАК ОБЫЧНЫЙ UPDATE)
+        // 1. Обновления филамента (стандартный update)
         if (eid) {
             const oldProd = db.products.find(x => x.id == parseInt(eid));
             if (oldProd && oldProd.filament && oldProd.type !== 'Составное') {
@@ -2045,7 +2055,6 @@ async function saveProduct(andThenWriteOff = false) {
                     const newUsedW = Math.max(0, oldFil.usedWeight - (oldProd.weight || 0));
                     updates[`/filaments/${oldFilIndex}/usedLength`] = newUsedL;
                     updates[`/filaments/${oldFilIndex}/usedWeight`] = newUsedW;
-                    // Локально для UI
                     oldFil.usedLength = newUsedL;
                     oldFil.usedWeight = newUsedW;
                 }
@@ -2056,45 +2065,36 @@ async function saveProduct(andThenWriteOff = false) {
             const currentFil = db.filaments.find(f => f.id === filament.id);
             if (currentFil) {
                 const filIndex = db.filaments.indexOf(currentFil);
-                // ВАЖНО: Если мы редактируем и филамент тот же, мы уже вычли старое выше
                 const finalUsedL = (currentFil.usedLength || 0) + p.length;
                 const finalUsedW = (currentFil.usedWeight || 0) + p.weight;
                 updates[`/filaments/${filIndex}/usedLength`] = finalUsedL;
                 updates[`/filaments/${filIndex}/usedWeight`] = finalUsedW;
-                // Локально
                 currentFil.usedLength = finalUsedL;
                 currentFil.usedWeight = finalUsedW;
             }
         }
 
-        // 2. ОТПРАВЛЯЕМ ОБНОВЛЕНИЯ ФИЛАМЕНТА (если есть)
         if (Object.keys(updates).length > 0) {
             await dbRef.update(updates);
         }
 
-        // 3. [FIX] ТРАНЗАКЦИЯ ДЛЯ ИЗДЕЛИЯ (Решает проблему перезаписи)
-        // Мы используем transaction для списка products, чтобы безопасно добавить в конец
-        await dbRef.child('products').transaction((currentProducts) => {
-            if (currentProducts === null) return [p]; // Если список пуст, создаем
+        // 2. Транзакция для изделия
+        const result = await dbRef.child('products').transaction((currentProducts) => {
+            if (currentProducts === null) return [p];
             
             const index = currentProducts.findIndex(x => x && x.id === p.id);
             if (index > -1) {
-                // Редактирование: обновляем существующий
                 currentProducts[index] = p;
             } else {
-                // Создание: добавляем в конец массива (гарантированно уникальный индекс на сервере)
                 currentProducts.push(p);
             }
             return currentProducts;
         });
 
-        // 4. ЛОКАЛЬНОЕ ОБНОВЛЕНИЕ UI
-        // Нам нужно обновить локальный db.products, чтобы пользователь увидел изменения мгновенно
-        if (eid) {
-            const localP = db.products.find(x => x.id == parseInt(eid));
-            if (localP) Object.assign(localP, p);
-        } else {
-            db.products.push(p);
+        // [FIX] ОБНОВЛЕНИЕ ЛОКАЛЬНЫХ ДАННЫХ ИЗ РЕЗУЛЬТАТА ТРАНЗАКЦИИ
+        // Вместо ручного push, мы берем то, что реально сохранилось на сервере
+        if (result.committed && result.snapshot.val()) {
+            db.products = result.snapshot.val();
         }
 
         updateAllSelects(); 
@@ -2115,12 +2115,13 @@ async function saveProduct(andThenWriteOff = false) {
 
     } catch (e) {
         console.error('Ошибка при сохранении изделия:', e);
-        alert('Не удалось сохранить изделие (конфликт данных): ' + e.message);
+        alert('Не удалось сохранить изделие: ' + e.message);
     } finally {
         saveBtn.textContent = 'Сохранить и закрыть'; 
         saveBtn.disabled = false;
     }
 }
+
 
 
 
