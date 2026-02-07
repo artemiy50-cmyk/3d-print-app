@@ -3606,7 +3606,7 @@ function updateFinancialReport() {
     if (financialTable) {
         const cogsTooltip = financialTable.querySelector('th:nth-child(5) .tooltip-text');
         if (cogsTooltip) {
-            cogsTooltip.innerHTML = 'Суммарная реальная себестоимость проданных изделий, включая стоимость "обогащения"';
+            cogsTooltip.innerHTML = 'Суммарная реальная себестоимость проданных изделий, включая стоимость комплектующих';
         }
     }
 
