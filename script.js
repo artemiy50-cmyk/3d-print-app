@@ -1,4 +1,4 @@
-console.log("Version: 5.2 (2026-02-07 07-36)");
+console.log("Version: 5.2 (2026-02-07 10-14)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -255,29 +255,82 @@ function setupUserSidebar(user) {
     // Если элементы уже есть, не создаем дубли
     if (document.getElementById('logoutBtn')) return; 
 
-    // 1. Создаем блок с Email пользователя
+    // --- 1. Блок с Email ---
     const userDiv = document.createElement('div');
     userDiv.className = 'user-profile-info';
-    // Используем title, чтобы при наведении был виден полный email, если он длинный
     userDiv.title = user.email; 
     userDiv.innerHTML = `<span class="user-profile-icon">👤</span><span style="overflow:hidden;text-overflow:ellipsis;">${escapeHtml(user.email)}</span>`;
 
-    // 2. Создаем кнопку Выхода
+    // --- 2. Блок с ID (Кликабельный) ---
+    const uidDiv = document.createElement('div');
+    uidDiv.style.cssText = 'padding: 2px 16px 8px 42px; font-size: 11px; color: #64748b; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: color 0.2s;';
+    uidDiv.title = 'Нажмите, чтобы скопировать ID';
+    
+    // Показываем первые 12 символов
+    const shortUid = user.uid.substring(0, 12) + '...';
+    uidDiv.innerHTML = `ID: <span style="font-family:monospace; color: #94a3b8;">${shortUid}</span> <span style="font-size:10px">📋</span>`;
+
+    // Логика копирования
+    uidDiv.onclick = function() {
+        navigator.clipboard.writeText(user.uid).then(() => {
+            const originalHTML = uidDiv.innerHTML;
+            uidDiv.innerHTML = `<span style="color:#4ade80; font-weight:bold;">✅ Скопировано!</span>`;
+            setTimeout(() => {
+                uidDiv.innerHTML = originalHTML;
+            }, 2000);
+        }).catch(err => {
+            prompt("Ваш ID (скопируйте вручную):", user.uid);
+        });
+    };
+
+    // --- 3. Кнопка Выхода ---
     const btn = document.createElement('button');
     btn.className = 'menu-item';
     btn.id = 'logoutBtn';
     btn.innerHTML = '🚪 Выйти';
-    // Убираем margin-top, так как отступ теперь дает блок с email
-    btn.style.marginTop = '8px'; 
-    // Убираем border-top, так как линия теперь у userDiv
+    btn.style.marginTop = '4px'; 
     btn.style.borderTop = 'none'; 
     btn.onclick = () => { if(confirm('Выйти из аккаунта?')) firebase.auth().signOut().then(() => window.location.reload()); };
 
-    // 3. Вставляем элементы перед копирайтом (последним элементом)
-    const copyright = sidebar.lastElementChild;
-    sidebar.insertBefore(userDiv, copyright);
-    sidebar.insertBefore(btn, copyright);
+    // --- 4. Ссылка на поддержку (над копирайтом) ---
+    const supportDiv = document.createElement('div');
+    supportDiv.style.cssText = 'margin-top: auto; padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 12px; text-align: center;';
+    
+    // ЗАМЕНИТЕ 'Artemiy50' на ваш реальный ник, если он отличается
+    supportDiv.innerHTML = `
+        <a href="https://t.me/Artem_Kiyashko" target="_blank" style="color: #94a3b8; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; transition: color 0.2s;">
+            <span>💬</span> Связаться / Поддержка
+        </a>
+    `;
+    // Эффект наведения
+    supportDiv.querySelector('a').onmouseover = function() { this.style.color = '#fff'; };
+    supportDiv.querySelector('a').onmouseout = function() { this.style.color = '#94a3b8'; };
+
+
+    // --- Вставка элементов в панель ---
+    const copyright = sidebar.lastElementChild; // Это элемент с копирайтом (Artem Kiyashko Project)
+    
+    // Вставляем профиль и выход ПОСЛЕ бэкапов, но ДО "подвала"
+    // sidebar.insertBefore вставляет ПЕРЕД указанным элементом.
+    
+    // Сначала вставляем блок поддержки прямо перед копирайтом
+    sidebar.insertBefore(supportDiv, copyright);
+    
+    // Теперь вставляем профиль перед блоком поддержки (чтобы он был выше)
+    // Но так как у нас flex-контейнер, используем порядок вставки относительно copyright или supportDiv
+    
+    // Чтобы профиль был сразу под кнопками меню, но не прижат к низу:
+    // Находим место вставки (перед supportDiv, который теперь предпоследний)
+    
+    sidebar.insertBefore(userDiv, supportDiv);
+    sidebar.insertBefore(uidDiv, supportDiv);
+    sidebar.insertBefore(btn, supportDiv);
+    
+    // Корректировка отступов: убираем margin-top: auto у копирайта, если он там был (в css он есть)
+    // Переносим margin-top: auto на supportDiv, чтобы прижать его и копирайт к низу
+    copyright.style.marginTop = '0'; 
 }
+
 
 
 
