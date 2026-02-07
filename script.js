@@ -1,4 +1,4 @@
-console.log("Version: 5.3 (2026-02-07 12-50)");
+console.log("Version: 5.3 (2026-02-07 13-00)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -282,7 +282,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
 
 
-
 function setupUserSidebar(user) {
     const sidebar = document.querySelector('.sidebar');
     
@@ -294,9 +293,8 @@ function setupUserSidebar(user) {
     userDiv.title = user.email; 
     userDiv.innerHTML = `<span class="user-profile-icon">👤</span><span style="overflow:hidden;text-overflow:ellipsis;">${escapeHtml(user.email)}</span>`;
 
-    // 2. ID (Выровнено по иконке)
+    // 2. ID
     const uidDiv = document.createElement('div');
-    // padding-left: 16px (как у user-profile-info)
     uidDiv.style.cssText = 'padding: 2px 16px 4px 16px; font-size: 11px; color: #64748b; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: color 0.2s;';
     uidDiv.title = 'Нажмите, чтобы скопировать ID';
     const shortUid = user.uid.substring(0, 12) + '...';
@@ -309,10 +307,10 @@ function setupUserSidebar(user) {
         }).catch(() => prompt("Ваш ID:", user.uid));
     };
 
-    // 3. Статус подписки (Выровнено по иконке)
+    // 3. Статус подписки (Убран курсор-вопрос)
     const subDiv = document.createElement('div');
     subDiv.id = 'sidebarSubStatus';
-    subDiv.style.cssText = 'padding: 0 16px 12px 16px; font-size: 10px; color: #64748b; opacity: 0.8; cursor: help;';
+    subDiv.style.cssText = 'padding: 0 16px 12px 16px; font-size: 10px; color: #64748b; opacity: 0.8;';
     subDiv.innerHTML = 'Загрузка...';
 
     // 4. Кнопка Выхода
@@ -324,10 +322,9 @@ function setupUserSidebar(user) {
     btn.style.borderTop = 'none'; 
     btn.onclick = () => { if(confirm('Выйти из аккаунта?')) firebase.auth().signOut().then(() => window.location.reload()); };
 
-    // 5. Кнопка Инструкции (С синим вопросом)
+    // 5. Кнопка Инструкции
     const helpBtn = document.createElement('button');
     helpBtn.className = 'menu-item';
-    // Синий вопрос через span
     helpBtn.innerHTML = '<span style="color: #60a5fa; font-weight: bold; font-size: 15px; margin-right: 2px;">?</span> Инструкция';
     helpBtn.onclick = () => {
         const modal = document.getElementById('helpModal');
@@ -353,6 +350,7 @@ function setupUserSidebar(user) {
     
     copyright.style.marginTop = '0'; 
 }
+
 
 
 
@@ -539,6 +537,7 @@ function checkSubscription(subData) {
         if (diffDays <= 0) { color = '#f87171'; text = 'Истекла'; } // Красный
         
         sidebarStatus.innerHTML = `<span style="color:${color}">●</span> ${text}`;
+        sidebarStatus.removeAttribute('title'); // Убираем всплывающую подсказку, если она была
     }
     // ==================================
 
@@ -574,6 +573,7 @@ function checkSubscription(subData) {
         if(warning) warning.style.display = 'none';
     }
 }
+
 
 
 
