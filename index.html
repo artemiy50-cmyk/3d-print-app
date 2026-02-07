@@ -847,41 +847,75 @@
     </div>
 	
 	
-	<!-- 4. МОДАЛКА ИНСТРУКЦИИ -->
+	<!-- 4. МОДАЛКА ИНСТРУКЦИИ (Версия 7/10) -->
 	<div id="helpModal" class="modal">
-		<div class="modal-content" style="max-width: 600px;">
+		<div class="modal-content" style="max-width: 650px;">
 			<div class="modal-header-simple-custom">
-				<div class="modal-header-title">Краткая инструкция</div>
+				<div class="modal-header-title">Руководство пользователя</div>
 			</div>
-			<div class="modal-body" style="font-size: 14px; line-height: 1.6;">
-				<ol style="padding-left: 20px; display: flex; flex-direction: column; gap: 10px;">
-					<li>
-						<strong>Справочники:</strong><br>
-						Заполните бренды, цвета, типы пластика и принтеры.
-					</li>
-					<li>
-						<strong>Филамент:</strong><br>
-						Добавьте катушки. Укажите вес и цену для расчетов.
-					</li>
-					<li>
-						<strong>Изделие:</strong><br>
-						Создайте запись о печати. Укажите время и вес.
-					</li>
-					<li>
-						<strong>Списание (Продажа):</strong><br>
-						Чтобы продать, нажмите "Добавить списание".
-					</li>
-					<li>
-						<strong>Отчеты:</strong><br>
-						Сформируйте отчет за период для анализа прибыли.
-					</li>
-				</ol>
+			<div class="modal-body" style="font-size: 14px; line-height: 1.6; color: #334155;">
+				
+				<!-- Раздел 1 -->
+				<div style="margin-bottom: 16px;">
+					<h4 style="color: #1e40af; margin-bottom: 8px;">1. С чего начать (Справочники)</h4>
+					<p style="margin-bottom: 6px;">Перед добавлением изделий настройте базу:</p>
+					<ul style="padding-left: 20px; margin: 0;">
+						<li><strong>Принтеры:</strong> Добавьте свои модели и укажите их реальное потребление (кВт), чтобы система считала расходы на электричество.</li>
+						<li><strong>Тарифы:</strong> Укажите стоимость кВт/ч. Если тариф изменится, просто добавьте новую запись с новой датой — старые расчеты не сломаются.</li>
+						<li><strong>Комплектующие:</strong> Сюда можно заранее внести болты, магниты, коробки. Либо добавлять их "на лету" при оформлении продажи.</li>
+					</ul>
+				</div>
+
+				<!-- Раздел 2 -->
+				<div style="margin-bottom: 16px;">
+					<h4 style="color: #1e40af; margin-bottom: 8px;">2. Склад пластика (Филамент)</h4>
+					<ul style="padding-left: 20px; margin: 0;">
+						<li>Добавляя катушку, указывайте <strong>полную цену покупки</strong> и <strong>чистый вес</strong> пластика (нетто). Это база для расчета точной себестоимости.</li>
+						<li>Система сама отслеживает остаток метров и граммов при печати.</li>
+						<li><em>Индикация:</em> Если на катушке осталось мало пластика (< 50м), строка подсветится красным.</li>
+					</ul>
+				</div>
+
+				<!-- Раздел 3 -->
+				<div style="margin-bottom: 16px;">
+					<h4 style="color: #1e40af; margin-bottom: 8px;">3. Производство (Изделия)</h4>
+					<p style="margin-bottom: 6px;">При создании изделия важно выбрать правильный тип:</p>
+					<ul style="padding-left: 20px; margin: 0;">
+						<li><strong>Самостоятельное:</strong> Цельная модель. Выберите катушку, укажите вес (г) и время печати.</li>
+						<li><strong>Составное:</strong> "Папка" для объединения частей. Сначала создайте его.</li>
+						<li><strong>Часть составного:</strong> Деталь сборной модели. В поле "Родитель" выберите созданное ранее "Составное" изделие.</li>
+					</ul>
+					<p style="margin-top: 6px; font-size: 13px; color: #64748b;"><em>Себестоимость составного изделия автоматически сложится из стоимости всех его частей.</em></p>
+				</div>
+
+				<!-- Раздел 4 -->
+				<div style="margin-bottom: 16px;">
+					<h4 style="color: #1e40af; margin-bottom: 8px;">4. Продажа и Списание</h4>
+					<p style="margin-bottom: 6px;">Изделия списываются со склада через документ <strong>«Списания»</strong>.</p>
+					<ul style="padding-left: 20px; margin: 0;">
+						<li><strong>Тип "Продажа":</strong> Укажите цену реализации. Если в заказ вложены доп. материалы, добавьте их в блок "Комплектующие" — это уточнит чистую прибыль.</li>
+						<li><strong>Тип "Подготовлено к продаже":</strong> Используйте как черновик. Товар резервируется, но физически не списывается со склада до смены статуса.</li>
+						<li><strong>Тип "Брак" / "Использовано":</strong> Списание в убыток (учитывается в отчетах как расход).</li>
+					</ul>
+				</div>
+
+				<!-- Раздел 5 -->
+				<div>
+					<h4 style="color: #1e40af; margin-bottom: 8px;">5. Финансы и Аналитика</h4>
+					<ul style="padding-left: 20px; margin: 0;">
+						<li><strong>Прибыль (Cash Flow):</strong> Денежный поток (Приход в кассу − Расход на закупку катушек).</li>
+						<li><strong>Чистая прибыль:</strong> Реальный доход. (Выручка − Себестоимость проданного − Убытки от брака).</li>
+						<li><strong>ROS % (Рентабельность):</strong> Показывает эффективность продаж.</li>
+					</ul>
+				</div>
+
 			</div>
 			<div class="modal-footer">
 				<button class="btn-secondary" onclick="document.getElementById('helpModal').classList.remove('active')">Закрыть</button>
 			</div>
 		</div>
 	</div>
+
 
 
 
