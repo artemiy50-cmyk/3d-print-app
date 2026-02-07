@@ -1,4 +1,4 @@
-console.log("Version: 5.3 (2026-02-07 13-00)");
+console.log("Version: 5.3 (2026-02-07 19-21)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -16,9 +16,7 @@ const firebaseConfig = {
 // Конфигурация для Cloudinary
 const cloudinaryConfig = {
   cloudName: "dw4gdz64b",     
-  uploadPreset: "hcvbf9f9", 
-  apiKey: "835297164555199",      
-  apiSecret: "ejk4LNatvU-SUskbesZL2khWq5c" 
+  uploadPreset: "hcvbf9f9"
 };
 
 // const IMGBB_API_KEY = "326af327af6376b3b4d4e580dba10743";
@@ -412,85 +410,20 @@ async function uploadFileToCloud(file) {
 }
 
 
-// --- ФУНКЦИИ УДАЛЕНИЯ ИЗ CLOUDINARY ---
+// --- ФУНКЦИИ РАБОТЫ С CLOUDINARY ---
 
-// 1. Получение public_id и типа ресурса из URL
-function getCloudinaryInfo(url) {
-    if (!url || !url.includes('cloudinary.com')) return null;
-    try {
-        // Пример: https://res.cloudinary.com/demo/image/upload/v1234/folder/sample.jpg
-        const parts = url.split('/');
-        const uploadIndex = parts.indexOf('upload');
-        if (uploadIndex === -1) return null;
-
-        // Определяем тип (image, raw, video) - он стоит ПЕРЕД 'upload'
-        const resourceType = parts[uploadIndex - 1]; 
-
-        // Ищем версию (v123...) и берем все, что после нее
-        let publicIdParts = parts.slice(uploadIndex + 1);
-        if (publicIdParts[0].startsWith('v')) {
-            publicIdParts.shift(); // убираем v123456...
-        }
-        
-        // Собираем путь обратно и убираем расширение файла
-        let publicId = publicIdParts.join('/');
-        const lastDot = publicId.lastIndexOf('.');
-        if (lastDot !== -1) publicId = publicId.substring(0, lastDot);
-
-        return { publicId, resourceType };
-    } catch (e) {
-        console.error("Ошибка парсинга URL:", url, e);
-        return null;
-    }
-}
-
-// 2. Генерация SHA-1 подписи (Native Browser API)
-async function generateSignature(paramsString, secret) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(paramsString + secret);
-    const hashBuffer = await crypto.subtle.digest('SHA-1', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-// 3. Функция удаления
+// Заглушка: Мы не удаляем файлы из облака автоматически ради безопасности.
+// Чтобы удалять файлы, нужны секретные ключи, которые опасно хранить в открытом коде.
+// "Мусорные" файлы можно чистить иначе через сайт Cloudinary.
 async function deleteFileFromCloud(url) {
-    if (!url) return;
-    
-    // Если файла нет в облаке (например, локальный blob или ошибка), пропускаем
-    if (!url.startsWith('http')) return;
-
-    const info = getCloudinaryInfo(url);
-    if (!info) return;
-
-    const timestamp = Math.round(new Date().getTime() / 1000);
-    const paramsString = `public_id=${info.publicId}&timestamp=${timestamp}`;
-    
-    try {
-        const signature = await generateSignature(paramsString, cloudinaryConfig.apiSecret);
-        
-        const formData = new FormData();
-        formData.append("public_id", info.publicId);
-        formData.append("signature", signature);
-        formData.append("api_key", cloudinaryConfig.apiKey);
-        formData.append("timestamp", timestamp);
-
-        const apiUrl = `https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/${info.resourceType}/destroy`;
-
-        const response = await fetch(apiUrl, { method: "POST", body: formData });
-        const result = await response.json();
-        
-        if (result.result === 'ok') {
-            console.log(`Файл удален из облака: ${info.publicId}`);
-        } else {
-            console.warn(`Не удалось удалить файл: ${result.result}`, result);
-        }
-    } catch (e) {
-        console.error("Ошибка удаления из Cloudinary:", e);
-    }
+    console.log("Soft delete: Ссылка удалена из базы, файл остался в облаке (безопасный режим).", url);
+    return Promise.resolve();
 }
 
+// Функции генерации подписи больше не нужны, их можно удалить или оставить пустыми
+async function generateSignature(paramsString, secret) { return ""; }
 
+function getCloudinaryInfo(url) { return null; }
 
 
 async function saveData() {
@@ -2109,27 +2042,6 @@ async function saveProduct(andThenWriteOff = false) {
     saveBtn.textContent = '⏳ Сохраняю...'; saveBtn.disabled = true;
 
     const eid = document.getElementById('productModal').getAttribute('data-edit-id'); 
-    
-    // === ЛОГИКА ФАЙЛОВ ===
-    if (eid) {
-        const oldProduct = db.products.find(x => x.id == parseInt(eid));
-        if (oldProduct) {
-            const isNewImage = (currentProductImage instanceof Blob);
-            const isImageRemoved = (currentProductImage === null);
-            const isUrlChanged = (typeof currentProductImage === 'string' && currentProductImage !== oldProduct.imageUrl);
-            if (oldProduct.imageUrl && (isNewImage || isImageRemoved || isUrlChanged)) {
-                if (!isResourceUsedByOthers(oldProduct.imageUrl, oldProduct.id)) deleteFileFromCloud(oldProduct.imageUrl);
-            }
-            const keptUrls = currentProductFiles.map(f => f.url).filter(u => u);
-            if (oldProduct.fileUrls) {
-                oldProduct.fileUrls.forEach(oldF => {
-                    if (oldF.url && !keptUrls.includes(oldF.url)) {
-                        if (!isResourceUsedByOthers(oldF.url, oldProduct.id)) deleteFileFromCloud(oldF.url);
-                    }
-                });
-            }
-        }
-    }
     
     let imgUrl = currentProductImage;
     if(currentProductImage instanceof Blob) {
