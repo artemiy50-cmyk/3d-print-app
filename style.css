@@ -456,7 +456,7 @@
         }
         .tooltip-container:hover .tooltip-text { visibility: visible; opacity: 1; }
 
-        /* 1. Тултипы ЗАГОЛОВКОВ (Колонки 2,3,4,5) - ЦЕНТРИРОВАНИЕ */
+		/* 1. Тултипы ЗАГОЛОВКОВ (Колонки 2,3,4,5) - ЦЕНТРИРОВАНИЕ */
         /* Теперь они всплывают ровно над своим заголовком */
         .report-table th .tooltip-container .tooltip-text {
             bottom: 100%;
@@ -464,7 +464,9 @@
             right: auto;
             transform: translateX(-50%); /* Центрируем относительно контейнера */
             margin-bottom: 8px;
+            margin-left: 0; /* <--- ВАЖНОЕ ИСПРАВЛЕНИЕ: Убираем старый отступ */
         }
+		
         /* Стрелочка по центру */
         .report-table th .tooltip-container .tooltip-text::after {
             content: ""; position: absolute; top: 100%; left: 50%; margin-left: -5px; border-width: 5px; border-style: solid; border-color: var(--color-primary) transparent transparent transparent;
