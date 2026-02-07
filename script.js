@@ -1,4 +1,4 @@
-console.log("Version: 5.3 (2026-02-07 12-20)");
+console.log("Version: 5.3 (2026-02-07 12-40)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -294,9 +294,10 @@ function setupUserSidebar(user) {
     userDiv.title = user.email; 
     userDiv.innerHTML = `<span class="user-profile-icon">👤</span><span style="overflow:hidden;text-overflow:ellipsis;">${escapeHtml(user.email)}</span>`;
 
-    // 2. ID
+    // 2. ID (Выровнено по иконке)
     const uidDiv = document.createElement('div');
-    uidDiv.style.cssText = 'padding: 2px 16px 4px 42px; font-size: 11px; color: #64748b; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: color 0.2s;';
+    // padding-left: 16px (как у user-profile-info)
+    uidDiv.style.cssText = 'padding: 2px 16px 4px 16px; font-size: 11px; color: #64748b; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: color 0.2s;';
     uidDiv.title = 'Нажмите, чтобы скопировать ID';
     const shortUid = user.uid.substring(0, 12) + '...';
     uidDiv.innerHTML = `ID: <span style="font-family:monospace; color: #94a3b8;">${shortUid}</span> <span style="font-size:10px">📋</span>`;
@@ -308,10 +309,10 @@ function setupUserSidebar(user) {
         }).catch(() => prompt("Ваш ID:", user.uid));
     };
 
-    // 3. === НОВОЕ: Статус подписки ===
+    // 3. Статус подписки (Выровнено по иконке)
     const subDiv = document.createElement('div');
     subDiv.id = 'sidebarSubStatus';
-    subDiv.style.cssText = 'padding: 0 16px 12px 42px; font-size: 10px; color: #64748b; opacity: 0.8;';
+    subDiv.style.cssText = 'padding: 0 16px 12px 16px; font-size: 10px; color: #64748b; opacity: 0.8; cursor: help;';
     subDiv.innerHTML = 'Загрузка...';
 
     // 4. Кнопка Выхода
@@ -323,11 +324,16 @@ function setupUserSidebar(user) {
     btn.style.borderTop = 'none'; 
     btn.onclick = () => { if(confirm('Выйти из аккаунта?')) firebase.auth().signOut().then(() => window.location.reload()); };
 
-    // 5. === НОВОЕ: Кнопка Инструкции ===
+    // 5. Кнопка Инструкции (С синим вопросом)
     const helpBtn = document.createElement('button');
     helpBtn.className = 'menu-item';
-    helpBtn.innerHTML = '❓ Инструкция';
-    helpBtn.onclick = () => document.getElementById('helpModal').classList.add('active');
+    // Синий вопрос через span
+    helpBtn.innerHTML = '<span style="color: #60a5fa; font-weight: bold; font-size: 15px; margin-right: 2px;">?</span> Инструкция';
+    helpBtn.onclick = () => {
+        const modal = document.getElementById('helpModal');
+        if (modal) modal.classList.add('active');
+        else alert('Ошибка: Окно инструкции не найдено в HTML');
+    };
 
     // 6. Поддержка
     const supportDiv = document.createElement('div');
@@ -336,11 +342,9 @@ function setupUserSidebar(user) {
     supportDiv.querySelector('a').onmouseover = function() { this.style.color = '#fff'; };
     supportDiv.querySelector('a').onmouseout = function() { this.style.color = '#94a3b8'; };
 
-    // Вставка
     const copyright = sidebar.lastElementChild;
     sidebar.insertBefore(supportDiv, copyright);
     
-    // Порядок: Email -> ID -> Подписка -> Инструкция -> Выход
     sidebar.insertBefore(userDiv, supportDiv);
     sidebar.insertBefore(uidDiv, supportDiv);
     sidebar.insertBefore(subDiv, supportDiv);
@@ -349,6 +353,7 @@ function setupUserSidebar(user) {
     
     copyright.style.marginTop = '0'; 
 }
+
 
 
 
@@ -874,14 +879,13 @@ function updateAllSelects() {
 function updateDashboard() {
     const nameEvents = (id) => id ? `onmouseenter="showProductImagePreview(this, ${id})" onmousemove="moveProductImagePreview(event)" onmouseleave="hideProductImagePreview(this)"` : '';
 
-    // --- 1. ФИЛАМЕНТЫ ---
     const filamentsInStock = db.filaments.filter(f => f.availability === 'В наличии');
     document.getElementById('dashFilamentCount').textContent = filamentsInStock.length;
     
-    const lowStock = filamentsInStock.filter(f => f.remainingLength < 50);
+    const lowStock = filamentsInStock.filter(f => (f.remainingLength || 0) < 50);
     const warning = document.getElementById('dashFilamentWarnings');
     if (lowStock.length > 0) {
-        warning.innerHTML = lowStock.map(f => `<div class="warning-item"><span>⚠️</span><span>Филамента <b>${escapeHtml(f.customId)}</b> осталось всего <b>${f.remainingLength.toFixed(1)}</b> метров.</span></div>`).join('');
+        warning.innerHTML = lowStock.map(f => `<div class="warning-item"><span>⚠️</span><span>Филамента <b>${escapeHtml(f.customId)}</b> осталось всего <b>${(f.remainingLength||0).toFixed(1)}</b> метров.</span></div>`).join('');
         warning.classList.remove('hidden');
     } else { 
         warning.innerHTML = ''; 
@@ -890,28 +894,19 @@ function updateDashboard() {
 
     const filamentsSorted = [...filamentsInStock].sort((a, b) => new Date(a.date) - new Date(b.date));
     document.querySelector('#dashFilamentTable tbody').innerHTML = filamentsSorted.map(f => {
-        const rowClass = (f.remainingLength < 50) ? 'row-bg-danger' : '';
-        return `<tr class="${rowClass}"><td><span class="color-swatch" style="background:${f.color.hex}"></span>${escapeHtml(f.color.name)}</td><td>${f.date}</td><td>${escapeHtml(f.brand)}</td><td>${escapeHtml(f.type)}</td><td>${f.remainingLength.toFixed(1)}</td><td>${f.actualPrice.toFixed(2)} ₽</td></tr>`;
+        const rowClass = ((f.remainingLength || 0) < 50) ? 'row-bg-danger' : '';
+        return `<tr class="${rowClass}"><td><span class="color-swatch" style="background:${f.color ? f.color.hex : '#eee'}"></span>${f.color ? escapeHtml(f.color.name) : '-'}</td><td>${f.date}</td><td>${escapeHtml(f.brand)}</td><td>${escapeHtml(f.type)}</td><td>${(f.remainingLength||0).toFixed(1)}</td><td>${(f.actualPrice||0).toFixed(2)} ₽</td></tr>`;
     }).join('');
 
 
-    // --- 2. ИЗДЕЛИЯ (ЛОГИКА v3.7 + ВАШИ ПРАВКИ) ---
-    // Берем только "корневые" записи (не части)
+ // Впрочем, вот полный код для удобства:
     const rootProducts = db.products.filter(p => p.type !== 'Часть составного');
-    
-    // Фильтруем те, что физически есть на остатке (полностью или частично)
     const stockProducts = rootProducts.filter(p => p.status === 'В наличии полностью' || p.status === 'В наличии частично');
-
-    // Счетчик "Изделий" = количество моделей/записей в наличии
     document.getElementById('dashProductCountRecord').textContent = stockProducts.length;
-    
-    // Счетчик "В наличии" = сумма всех штук (inStock) этих моделей
     const totalInStock = stockProducts.reduce((sum, p) => sum + (p.inStock || 0), 0);
     document.getElementById('dashProductCountStock').textContent = totalInStock;
 
-    // Таблица последних 10 напечатанных (среди всех самостоятельных и составных)
     const lastProds = [...rootProducts].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
-    
     document.querySelector('#dashProductTable tbody').innerHTML = lastProds.map(p => {
         let badgeClass = 'badge-secondary', statusStyle = 'font-weight: 400;';
         if (p.status === 'В наличии полностью') { badgeClass = 'badge-light-green'; statusStyle = 'font-weight: 700;'; }
@@ -919,13 +914,11 @@ function updateDashboard() {
         else if (p.status === 'Брак') badgeClass = 'badge-danger';
         else if (p.status === 'Нет в наличии') badgeClass = 'badge-gray';
 
-        // ВОССТАНОВЛЕНИЕ ЦВЕТОВ (Логика из v3.7)
         let colorHtml = '—';
         if (p.type === 'Составное') {
             const children = db.products.filter(k => k.parentId === p.id);
             const uniqueColors = new Map();
             children.forEach(child => {
-                // В v4.0 filament может быть объектом или ID, делаем проверку
                 const f = (child.filament && child.filament.color) ? child.filament : db.filaments.find(fil => fil.id == child.filament);
                 if (f && f.color) uniqueColors.set(f.color.id, f.color);
             });
@@ -950,12 +943,10 @@ function updateDashboard() {
         </tr>`;
     }).join('');
 
-
-    // --- 3. ПРОДАЖИ, ИСПОЛЬЗОВАНО, БРАК ---
     const sales = db.writeoffs.filter(w => w.type === 'Продажа');
     document.getElementById('dashSoldCount').textContent = sales.reduce((sum, w) => sum + w.qty, 0);
     const lastSales = [...sales].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
-    document.querySelector('#dashSalesTable tbody').innerHTML = lastSales.map(w => `<tr><td ${nameEvents(w.productId)}>${escapeHtml(w.productName)}</td><td>${w.date}</td><td>${w.qty}</td><td>${w.price.toFixed(2)}</td><td>${w.total.toFixed(2)}</td><td><span class="badge badge-success">Продажа</span></td></tr>`).join('');
+    document.querySelector('#dashSalesTable tbody').innerHTML = lastSales.map(w => `<tr><td ${nameEvents(w.productId)}>${escapeHtml(w.productName)}</td><td>${w.date}</td><td>${w.qty}</td><td>${(w.price||0).toFixed(2)}</td><td>${(w.total||0).toFixed(2)}</td><td><span class="badge badge-success">Продажа</span></td></tr>`).join('');
 
     const used = db.writeoffs.filter(w => w.type === 'Использовано');
     document.getElementById('dashUsedCount').textContent = used.reduce((sum, w) => sum + w.qty, 0);
@@ -1044,17 +1035,52 @@ function clearFilamentForm() {
 
 function validateFilamentForm() {
     let valid = true;
-    ['filamentCustomId','filamentDate','filamentName','filamentActualPrice','filamentAvgPrice','filamentWeight','filamentLength','filamentColor'].forEach(id => {
+    const requiredIds = ['filamentCustomId','filamentDate','filamentName','filamentActualPrice','filamentAvgPrice','filamentWeight','filamentLength','filamentColor'];
+    
+    requiredIds.forEach(id => {
         const el = document.getElementById(id);
-        if (!el.value || (el.type === 'number' && parseFloat(el.value) === 0)) { el.classList.add('error'); valid = false; } else el.classList.remove('error');
+        const val = parseFloat(el.value);
+        
+        // Проверка: Пустое, Не число, или (если это числовое поле) Меньше или равно нулю
+        let isInvalid = !el.value;
+        if (el.type === 'number') {
+            isInvalid = isInvalid || isNaN(val) || val <= 0;
+        }
+
+        if (isInvalid) { 
+            el.classList.add('error'); 
+            valid = false; 
+        } else {
+            el.classList.remove('error');
+        }
     });
-    const cid = document.getElementById('filamentCustomId').value.trim(); const eid = document.getElementById('filamentModal').getAttribute('data-edit-id');
-    if (valid && cid && db.filaments.some(f => f.customId === cid && (!eid || f.id != eid))) { document.getElementById('filamentCustomId').classList.add('error'); document.getElementById('filamentUniqueIdMessage').classList.remove('hidden'); valid = false; }
-    else document.getElementById('filamentUniqueIdMessage').classList.add('hidden');
-    if (!valid && document.getElementById('filamentUniqueIdMessage').classList.contains('hidden')) document.getElementById('filamentValidationMessage').classList.remove('hidden');
-    else document.getElementById('filamentValidationMessage').classList.add('hidden');
+
+    const cid = document.getElementById('filamentCustomId').value.trim(); 
+    const eid = document.getElementById('filamentModal').getAttribute('data-edit-id');
+    
+    // Проверка уникальности ID
+    if (valid && cid && db.filaments.some(f => f.customId === cid && (!eid || f.id != eid))) { 
+        document.getElementById('filamentCustomId').classList.add('error'); 
+        document.getElementById('filamentUniqueIdMessage').classList.remove('hidden'); 
+        valid = false; 
+    } else {
+        document.getElementById('filamentUniqueIdMessage').classList.add('hidden');
+    }
+
+    const msg = document.getElementById('filamentValidationMessage');
+    if (!valid) {
+        // Если ошибка уникальности скрыта, значит ошибка в пустых полях
+        if (document.getElementById('filamentUniqueIdMessage').classList.contains('hidden')) {
+            msg.textContent = 'Не все обязательные поля заполнены корректно (значения должны быть > 0)';
+            msg.classList.remove('hidden');
+        }
+    } else {
+        msg.classList.add('hidden');
+    }
+    
     return valid;
 }
+
 
 async function saveFilament() {
     if (!validateFilamentForm()) return;
@@ -1065,6 +1091,14 @@ async function saveFilament() {
 
     const eid = document.getElementById('filamentModal').getAttribute('data-edit-id');
     
+    // Хелпер для безопасного числа
+    const safeFloat = (id) => parseFloat(document.getElementById(id).value) || 0;
+
+    const weight = safeFloat('filamentWeight');
+    const length = safeFloat('filamentLength');
+    const avgPrice = safeFloat('filamentAvgPrice');
+    const actualPrice = safeFloat('filamentActualPrice');
+
     const data = {
         customId: document.getElementById('filamentCustomId').value, 
         brand: db.brands[document.getElementById('filamentBrand').value], 
@@ -1073,43 +1107,41 @@ async function saveFilament() {
         name: document.getElementById('filamentName').value, 
         link: document.getElementById('filamentLink').value.trim(),
         date: document.getElementById('filamentDate').value, 
-        avgPrice: parseFloat(document.getElementById('filamentAvgPrice').value) || 0, 
-        actualPrice: parseFloat(document.getElementById('filamentActualPrice').value) || 0,
-        weight: parseFloat(document.getElementById('filamentWeight').value) || 1000, 
-        length: parseFloat(document.getElementById('filamentLength').value) || 330, 
+        avgPrice: avgPrice, 
+        actualPrice: actualPrice,
+        weight: weight, 
+        length: length, 
         note: document.getElementById('filamentNote').value, 
         availability: document.getElementById('filamentAvailability').value
     };
     
-    data.priceRatio = data.actualPrice / (data.avgPrice || 1); 
-    data.weightPerMeter = data.weight / data.length; 
-    data.avgCostPerGram = data.avgPrice / data.weight;
-    data.avgCostPerMeter = data.avgPrice / data.length; 
-    data.actualCostPerGram = data.actualPrice / data.weight; 
-    data.actualCostPerMeter = data.actualPrice / data.length;
+    // БЕЗОПАСНЫЕ РАСЧЕТЫ (Защита от деления на 0)
+    data.priceRatio = avgPrice > 0 ? actualPrice / avgPrice : 1; 
+    data.weightPerMeter = length > 0 ? weight / length : 0; 
+    
+    data.avgCostPerGram = weight > 0 ? avgPrice / weight : 0;
+    data.avgCostPerMeter = length > 0 ? avgPrice / length : 0; 
+    
+    data.actualCostPerGram = weight > 0 ? actualPrice / weight : 0; 
+    data.actualCostPerMeter = length > 0 ? actualPrice / length : 0;
     
     try {
-        // Инициализация ID (если новое)
         if (!eid) data.id = Date.now();
 
-        // 1. [FIX] ТРАНЗАКЦИЯ ДЛЯ ФИЛАМЕНТОВ
+        // 1. Транзакция
         await dbRef.child('filaments').transaction((currentList) => {
-            if (currentList === null) return [data]; // Если список пуст
+            if (currentList === null) return [data];
             
             if (eid) {
-                // Редактирование: ищем существующий
                 const index = currentList.findIndex(x => x && x.id == parseInt(eid));
                 if (index > -1) {
-                    // Сохраняем важные поля статистики, которых нет в форме
                     data.id = currentList[index].id;
                     data.remainingLength = currentList[index].remainingLength; 
                     data.usedLength = currentList[index].usedLength; 
                     data.usedWeight = currentList[index].usedWeight;
-                    
                     currentList[index] = data;
                 }
             } else {
-                // Добавление: в конец
                 data.remainingLength = data.length; 
                 data.usedLength = 0; 
                 data.usedWeight = 0;
@@ -1118,7 +1150,7 @@ async function saveFilament() {
             return currentList;
         });
 
-        // 2. ЛОКАЛЬНОЕ ОБНОВЛЕНИЕ UI
+        // 2. Локальное обновление
         if (eid) {
             const localF = db.filaments.find(x => x.id == parseInt(eid));
             if (localF) {
@@ -1129,7 +1161,6 @@ async function saveFilament() {
                 Object.assign(localF, data);
             }
         } else {
-            // Для нового филамента устанавливаем начальные значения
             if(!data.remainingLength) data.remainingLength = data.length;
             if(!data.usedLength) data.usedLength = 0;
             if(!data.usedWeight) data.usedWeight = 0;
@@ -1149,6 +1180,7 @@ async function saveFilament() {
         saveBtn.disabled = false;
     }
 }
+
 
 
 
@@ -2714,14 +2746,14 @@ function updateFilamentsTable() {
         const note = f.note ? `<span class="tooltip-container" style="display:inline-flex; vertical-align:middle;"><span class="tooltip-icon">ℹ</span><span class="tooltip-text tooltip-top-left" style="width:200px; white-space:normal; line-height:1.2;">${escapeHtml(f.note)}</span></span>` : '';
         const link = f.link ? `<a href="${escapeHtml(f.link)}" target="_blank" style="color:#1e40af;text-decoration:underline;">Товар</a>` : '';
         
-        // ВОССТАНОВЛЕНО: Иконка катушки с хинтом (название филамента)
         const iconHtml = `<span class="tooltip-container" style="margin-right:6px; cursor:default;"><span style="font-size:16px;">🧵</span><span class="tooltip-text tooltip-top-right">${escapeHtml(f.name)}</span></span>`;
 
         let rowClass = '';
         if (f.availability === 'Израсходовано') rowClass = 'row-bg-gray';
         
-        let remainingHtml = f.remainingLength.toFixed(1);
-        if (f.availability === 'В наличии' && f.remainingLength < 50) {
+        // [FIX] Добавлена защита || 0 для remainingLength
+        let remainingHtml = (f.remainingLength || 0).toFixed(1);
+        if (f.availability === 'В наличии' && (f.remainingLength || 0) < 50) {
             remainingHtml = `<span class="badge badge-danger">${remainingHtml}</span>`;
             rowClass = 'row-bg-danger';
         }
@@ -2730,15 +2762,16 @@ function updateFilamentsTable() {
             <td>${iconHtml}<strong>${escapeHtml(f.customId)}</strong></td>
             <td>${f.date}</td>
             <td><span class="badge ${badge}">${escapeHtml(f.availability)}</span></td>
-            <td><span class="color-swatch" style="background:${f.color.hex}"></span>${escapeHtml(f.color.name)}</td>
+            <td><span class="color-swatch" style="background:${f.color ? f.color.hex : '#eee'}"></span>${f.color ? escapeHtml(f.color.name) : '-'}</td>
             <td>${escapeHtml(f.brand)}</td>
             <td>${escapeHtml(f.type)}</td>
-            <td>${f.length.toFixed(1)}</td>
+            <!-- [FIX] Защита для остальных полей -->
+            <td>${(f.length || 0).toFixed(1)}</td>
             <td>${remainingHtml} ${note}</td>
             <td>${(f.usedLength||0).toFixed(1)}</td>
             <td>${(f.usedWeight||0).toFixed(1)}</td>
-            <td>${f.actualPrice.toFixed(2)}</td>
-            <td>${f.avgPrice.toFixed(2)}</td>
+            <td>${(f.actualPrice || 0).toFixed(2)}</td>
+            <td>${(f.avgPrice || 0).toFixed(2)}</td>
             <td class="text-center">${link}</td>
             <td class="text-center">
                 <div class="action-buttons">
@@ -2752,6 +2785,8 @@ function updateFilamentsTable() {
     
     filterFilaments();
 }
+
+
 
 
 

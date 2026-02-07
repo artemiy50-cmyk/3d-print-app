@@ -845,6 +845,45 @@
             </div>
         </div>
     </div>
+	
+	
+	<!-- 4. МОДАЛКА ИНСТРУКЦИИ -->
+	<div id="helpModal" class="modal">
+		<div class="modal-content" style="max-width: 600px;">
+			<div class="modal-header-simple-custom">
+				<div class="modal-header-title">Краткая инструкция</div>
+			</div>
+			<div class="modal-body" style="font-size: 14px; line-height: 1.6;">
+				<ol style="padding-left: 20px; display: flex; flex-direction: column; gap: 10px;">
+					<li>
+						<strong>Справочники:</strong><br>
+						Заполните бренды, цвета, типы пластика и принтеры.
+					</li>
+					<li>
+						<strong>Филамент:</strong><br>
+						Добавьте катушки. Укажите вес и цену для расчетов.
+					</li>
+					<li>
+						<strong>Изделие:</strong><br>
+						Создайте запись о печати. Укажите время и вес.
+					</li>
+					<li>
+						<strong>Списание (Продажа):</strong><br>
+						Чтобы продать, нажмите "Добавить списание".
+					</li>
+					<li>
+						<strong>Отчеты:</strong><br>
+						Сформируйте отчет за период для анализа прибыли.
+					</li>
+				</ol>
+			</div>
+			<div class="modal-footer">
+				<button class="btn-secondary" onclick="document.getElementById('helpModal').classList.remove('active')">Закрыть</button>
+			</div>
+		</div>
+	</div>
+
+
 
 	<div id="globalImageTooltip"><img id="globalImageTooltipImg" src=""></div>
 
