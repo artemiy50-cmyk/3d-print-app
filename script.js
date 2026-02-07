@@ -1,4 +1,4 @@
-console.log("Version: 5.2 (2026-02-07 10-14)");
+console.log("Version: 5.3 (2026-02-07 11-58)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -286,38 +286,35 @@ window.addEventListener('DOMContentLoaded', () => {
 function setupUserSidebar(user) {
     const sidebar = document.querySelector('.sidebar');
     
-    // Если элементы уже есть, не создаем дубли
     if (document.getElementById('logoutBtn')) return; 
 
-    // --- 1. Блок с Email ---
+    // 1. Email
     const userDiv = document.createElement('div');
     userDiv.className = 'user-profile-info';
     userDiv.title = user.email; 
     userDiv.innerHTML = `<span class="user-profile-icon">👤</span><span style="overflow:hidden;text-overflow:ellipsis;">${escapeHtml(user.email)}</span>`;
 
-    // --- 2. Блок с ID (Кликабельный) ---
+    // 2. ID
     const uidDiv = document.createElement('div');
-    uidDiv.style.cssText = 'padding: 2px 16px 8px 42px; font-size: 11px; color: #64748b; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: color 0.2s;';
+    uidDiv.style.cssText = 'padding: 2px 16px 4px 42px; font-size: 11px; color: #64748b; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: color 0.2s;';
     uidDiv.title = 'Нажмите, чтобы скопировать ID';
-    
-    // Показываем первые 12 символов
     const shortUid = user.uid.substring(0, 12) + '...';
     uidDiv.innerHTML = `ID: <span style="font-family:monospace; color: #94a3b8;">${shortUid}</span> <span style="font-size:10px">📋</span>`;
-
-    // Логика копирования
     uidDiv.onclick = function() {
         navigator.clipboard.writeText(user.uid).then(() => {
             const originalHTML = uidDiv.innerHTML;
             uidDiv.innerHTML = `<span style="color:#4ade80; font-weight:bold;">✅ Скопировано!</span>`;
-            setTimeout(() => {
-                uidDiv.innerHTML = originalHTML;
-            }, 2000);
-        }).catch(err => {
-            prompt("Ваш ID (скопируйте вручную):", user.uid);
-        });
+            setTimeout(() => uidDiv.innerHTML = originalHTML, 2000);
+        }).catch(() => prompt("Ваш ID:", user.uid));
     };
 
-    // --- 3. Кнопка Выхода ---
+    // 3. === НОВОЕ: Статус подписки ===
+    const subDiv = document.createElement('div');
+    subDiv.id = 'sidebarSubStatus';
+    subDiv.style.cssText = 'padding: 0 16px 12px 42px; font-size: 10px; color: #64748b; opacity: 0.8;';
+    subDiv.innerHTML = 'Загрузка...';
+
+    // 4. Кнопка Выхода
     const btn = document.createElement('button');
     btn.className = 'menu-item';
     btn.id = 'logoutBtn';
@@ -326,42 +323,30 @@ function setupUserSidebar(user) {
     btn.style.borderTop = 'none'; 
     btn.onclick = () => { if(confirm('Выйти из аккаунта?')) firebase.auth().signOut().then(() => window.location.reload()); };
 
-    // --- 4. Ссылка на поддержку (над копирайтом) ---
+    // 5. === НОВОЕ: Кнопка Инструкции ===
+    const helpBtn = document.createElement('button');
+    helpBtn.className = 'menu-item';
+    helpBtn.innerHTML = '❓ Инструкция';
+    helpBtn.onclick = () => document.getElementById('helpModal').classList.add('active');
+
+    // 6. Поддержка
     const supportDiv = document.createElement('div');
     supportDiv.style.cssText = 'margin-top: auto; padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 12px; text-align: center;';
-    
-    // ЗАМЕНИТЕ 'Artemiy50' на ваш реальный ник, если он отличается
-    supportDiv.innerHTML = `
-        <a href="https://t.me/Artem_Kiyashko" target="_blank" style="color: #94a3b8; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; transition: color 0.2s;">
-            <span>💬</span> Связаться / Поддержка
-        </a>
-    `;
-    // Эффект наведения
+    supportDiv.innerHTML = `<a href="https://t.me/Artem_Kiyashko" target="_blank" style="color: #94a3b8; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; transition: color 0.2s;"><span>💬</span> Связаться / Поддержка</a>`;
     supportDiv.querySelector('a').onmouseover = function() { this.style.color = '#fff'; };
     supportDiv.querySelector('a').onmouseout = function() { this.style.color = '#94a3b8'; };
 
-
-    // --- Вставка элементов в панель ---
-    const copyright = sidebar.lastElementChild; // Это элемент с копирайтом (Artem Kiyashko Project)
-    
-    // Вставляем профиль и выход ПОСЛЕ бэкапов, но ДО "подвала"
-    // sidebar.insertBefore вставляет ПЕРЕД указанным элементом.
-    
-    // Сначала вставляем блок поддержки прямо перед копирайтом
+    // Вставка
+    const copyright = sidebar.lastElementChild;
     sidebar.insertBefore(supportDiv, copyright);
     
-    // Теперь вставляем профиль перед блоком поддержки (чтобы он был выше)
-    // Но так как у нас flex-контейнер, используем порядок вставки относительно copyright или supportDiv
-    
-    // Чтобы профиль был сразу под кнопками меню, но не прижат к низу:
-    // Находим место вставки (перед supportDiv, который теперь предпоследний)
-    
+    // Порядок: Email -> ID -> Подписка -> Инструкция -> Выход
     sidebar.insertBefore(userDiv, supportDiv);
     sidebar.insertBefore(uidDiv, supportDiv);
+    sidebar.insertBefore(subDiv, supportDiv);
+    sidebar.insertBefore(helpBtn, supportDiv);
     sidebar.insertBefore(btn, supportDiv);
     
-    // Корректировка отступов: убираем margin-top: auto у копирайта, если он там был (в css он есть)
-    // Переносим margin-top: auto на supportDiv, чтобы прижать его и копирайт к низу
     copyright.style.marginTop = '0'; 
 }
 
@@ -530,28 +515,27 @@ function saveToLocalStorage() { saveData(); }
 
 // ==================== HELPERS ====================
 
-function checkSubscription(userData) {
-    // Если данных подписки нет (старый юзер), считаем, что у него вечная лицензия 
-    // или создаем триал (на ваше усмотрение).
-    // Тут создаем структуру "на лету" если её нет
-    if (!userData || !userData.subscription) {
-        console.log("Old user or no sub data - treating as Active/Unlimited for now");
-        // Чтобы мигрировать старых юзеров на подписку, раскомментируйте код ниже:
-        /*
-        const now = new Date();
-        const end = new Date(); end.setDate(now.getDate() + 30);
-        const sub = { status: 'trial', startDate: now.toISOString(), expiryDate: end.toISOString() };
-        if(dbRef) dbRef.parent.child('subscription').set(sub);
-        return; // Пропустим проверку в этот раз
-        */
-        return; 
-    }
+function checkSubscription(subData) {
+    if (!subData) return;
 
-    const sub = userData.subscription;
     const now = new Date();
-    const expiry = new Date(sub.expiryDate);
+    const expiry = new Date(subData.expiryDate);
     const diffTime = expiry - now;
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+
+    // === Обновляем инфо в сайдбаре ===
+    const sidebarStatus = document.getElementById('sidebarSubStatus');
+    if (sidebarStatus) {
+        const dateStr = expiry.toLocaleDateString('ru-RU');
+        let color = '#4ade80'; // Зеленый
+        let text = `Активно до: ${dateStr}`;
+        
+        if (diffDays <= 5) color = '#fb923c'; // Оранжевый
+        if (diffDays <= 0) { color = '#f87171'; text = 'Истекла'; } // Красный
+        
+        sidebarStatus.innerHTML = `<span style="color:${color}">●</span> ${text}`;
+    }
+    // ==================================
 
     const overlay = document.getElementById('subscriptionBlockOverlay');
     const warning = document.getElementById('subscriptionWarning');
@@ -559,37 +543,33 @@ function checkSubscription(userData) {
     const uidDisplay = document.getElementById('blockUserUid');
     const modalUid = document.getElementById('contactModalUid');
 
-    // Заполняем ID в UI
     if(firebase.auth().currentUser) {
         const uid = firebase.auth().currentUser.uid;
         if(uidDisplay) uidDisplay.textContent = uid;
         if(modalUid) modalUid.textContent = uid;
     }
 
-    // 1. ПРОВЕРКА НА БЛОКИРОВКУ
+    // 1. БЛОКИРОВКА
     if (diffDays <= 0) {
-        overlay.style.display = 'flex'; // Блокируем экран
-        document.body.style.overflow = 'hidden'; // Запрет прокрутки
-        warning.style.display = 'none';
-        return; // Дальше не идем
+        if(overlay) overlay.style.display = 'flex';
+        document.body.style.overflow = 'hidden'; 
+        if(warning) warning.style.display = 'none';
+        return; 
     } else {
-        overlay.style.display = 'none';
+        if(overlay) overlay.style.display = 'none';
         document.body.style.overflow = 'auto';
     }
 
-    // 2. ПРОВЕРКА НА ПРЕДУПРЕЖДЕНИЕ (за 5 дней)
+    // 2. ПРЕДУПРЕЖДЕНИЕ (<= 5 дней)
     if (diffDays <= 5) {
-        const typeText = sub.status === 'trial' ? 'Пробный период' : 'Подписка';
-        warningText.textContent = `Внимание: ${typeText} истекает через ${diffDays} дн.`;
-        warning.style.display = 'flex';
+        const typeText = subData.status === 'trial' ? 'Пробный период' : 'Подписка';
+        if(warningText) warningText.textContent = `Внимание: ${typeText} истекает через ${diffDays} дн.`;
+        if(warning) warning.style.display = 'flex';
     } else {
-        warning.style.display = 'none';
+        if(warning) warning.style.display = 'none';
     }
-    
-    // Обновляем инфо в сайдбаре (если хотите)
-    // const profileInfo = document.querySelector('.user-profile-info');
-    // if(profileInfo) profileInfo.innerHTML += `<br><small style="color:${diffDays<10?'#ea580c':'#4ade80'}">Дней: ${diffDays}</small>`;
 }
+
 
 
 function escapeHtml(text) {
