@@ -1,4 +1,4 @@
-console.log("Version: 5.2 (2026-02-06 13-37)");
+console.log("Version: 5.2 (2026-02-07 07-36)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -2848,17 +2848,25 @@ function addWriteoffItemSection(data = null) {
         <div class="form-group">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
                 <label style="margin-bottom:0;">Наименование изделия:</label>
-                <!-- ИЗМЕНЕНИЕ: white-space: nowrap для предотвращения переноса -->
-                <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; color: #64748b; font-weight: normal; white-space: nowrap;">
-                    <input type="checkbox" class="show-prepared-checkbox" onchange="updateWriteoffSection(${index}); populateWriteoffProductOptions(this.closest('.writeoff-item-section').querySelector('.writeoff-product-select'), this.closest('.writeoff-item-section').querySelector('.writeoff-product-select').value)"> 
-                    Отображать подготовленные
-                </label>
+                <div style="display: flex; gap: 16px;">
+                    <!-- СВИТЧЕР СОРТИРОВКИ -->
+                    <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; color: #64748b; font-weight: normal; white-space: nowrap;" title="По умолчанию сортировка по Наименованию (А-Я)">
+                        <input type="checkbox" class="sort-by-id-checkbox" onchange="populateWriteoffProductOptions(this.closest('.writeoff-item-section').querySelector('.writeoff-product-select'), this.closest('.writeoff-item-section').querySelector('.writeoff-product-select').value)"> 
+                        Сортировать по ID
+                    </label>
+                    
+                    <!-- СВИТЧЕР ПОДГОТОВЛЕННЫХ -->
+                    <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; color: #64748b; font-weight: normal; white-space: nowrap;">
+                        <input type="checkbox" class="show-prepared-checkbox" onchange="updateWriteoffSection(${index}); populateWriteoffProductOptions(this.closest('.writeoff-item-section').querySelector('.writeoff-product-select'), this.closest('.writeoff-item-section').querySelector('.writeoff-product-select').value)"> 
+                        Отображать подготовленные
+                    </label>
+                </div>
             </div>
             <select class="writeoff-product-select" onchange="updateWriteoffSection(${index})">
                 <option value="">-- Выберите изделие --</option>
             </select>
         </div>
-        <!-- ... (остальной HTML без изменений) ... -->
+        
         <div class="form-row-3">
             <div class="form-group">
                 <label>Наличие (шт):</label>
@@ -2929,12 +2937,16 @@ function addWriteoffItemSection(data = null) {
 
 
 function populateWriteoffProductOptions(selectElement, selectedId) {
-    // Ищем чекбокс внутри ТОЙ ЖЕ секции (он теперь локальный для каждого изделия, или можно сделать глобальным, но в ТЗ просили "в строке")
-    // В данном коде я сделал чекбокс ЛОКАЛЬНЫМ для каждого блока изделия, как просилось "в строке наименование".
     const section = selectElement.closest('.writeoff-item-section');
-    const checkbox = section.querySelector('.show-prepared-checkbox');
-    const showPrepared = checkbox ? checkbox.checked : false;
     
+    // 1. Получаем состояние чекбокса "Подготовленные"
+    const checkboxPrepared = section.querySelector('.show-prepared-checkbox');
+    const showPrepared = checkboxPrepared ? checkboxPrepared.checked : false;
+    
+    // 2. Получаем состояние чекбокса "Сортировка по ID"
+    const checkboxSort = section.querySelector('.sort-by-id-checkbox');
+    const sortById = checkboxSort ? checkboxSort.checked : false;
+
     const preparedProductIds = new Set();
     if (!showPrepared) {
         db.writeoffs.forEach(w => {
@@ -2954,7 +2966,18 @@ function populateWriteoffProductOptions(selectElement, selectedId) {
         return (p.type !== 'Часть составного') && 
                (isSelected || (!p.defective && hasStock)) &&
                (showPrepared || isSelected || !preparedProductIds.has(p.id));
-    }).sort((a, b) => (b.systemId || '').localeCompare(a.systemId || ''));
+    });
+    
+    // 3. ПРИМЕНЯЕМ СОРТИРОВКУ В ЗАВИСИМОСТИ ОТ ЧЕКБОКСА
+    availableProducts.sort((a, b) => {
+        if (sortById) {
+            // Если галочка стоит: Сортировка по System ID (Новые сверху)
+            return (b.systemId || '').localeCompare(a.systemId || '');
+        } else {
+            // Если галочка НЕ стоит (по умолчанию): Сортировка по Наименованию (А-Я)
+            return (a.name || '').localeCompare(b.name || '');
+        }
+    });
     
     const options = availableProducts.map(p => {
         const isSelected = selectedId == p.id;
@@ -2965,6 +2988,7 @@ function populateWriteoffProductOptions(selectElement, selectedId) {
     selectElement.innerHTML = `<option value="">-- Выберите изделие --</option>` + options;
     if(selectedId) selectElement.value = selectedId;
 }
+
 
 
 
