@@ -89,7 +89,7 @@
             </div>
         </div>
 
-		<p style="margin-top: 20px; font-size: 12px; color: #94a3b8;">3D Filament Manager v5.2 Multi-User</p>
+		<p style="margin-top: 20px; font-size: 12px; color: #94a3b8;">3D Filament Manager v5.3 Multi-User</p>
 	</div>
 
 
@@ -101,13 +101,67 @@
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div class="header-title" style="line-height: 1; display: flex; align-items: baseline; gap: 8px;">
                     <span>3D Print: Filament & Products Manager</span>
-                    <small style="font-size: 14px; color: var(--color-text-light); font-weight: 400;">v5.2</small>
+                    <small style="font-size: 14px; color: var(--color-text-light); font-weight: 400;">v5.3</small>
                 </div>
                 <div class="header-info" style="line-height: 1;">Система учета филамента и напечатанных изделий</div>
             </div>
         </div>
         <div class="header-info" id="currentDate"></div>
     </div>
+
+    <!-- 1. БАННЕР ПРЕДУПРЕЖДЕНИЯ О ПОДПИСКЕ -->
+	<div id="subscriptionWarning" style="background: #fff7ed; border-bottom: 1px solid #fdba74; color: #9a3412; padding: 10px 20px; font-size: 13px; display: none; justify-content: center; align-items: center; text-align: center;">
+		<span id="subWarningText">Ваш пробный период заканчивается через 3 дня.</span>
+		<button class="btn-secondary btn-small" style="margin-left: 15px; height: 24px; font-size: 11px;" onclick="document.getElementById('contactModal').classList.add('active')">Продлить</button>
+	</div>
+
+	<!-- 2. ЭКРАН БЛОКИРОВКИ (ЕСЛИ ПОДПИСКА ИСТЕКЛА) -->
+	<div id="subscriptionBlockOverlay" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #1e293b; z-index: 99998; display: none; flex-direction: column; align-items: center; justify-content: center; color: white;">
+		<div style="background: white; padding: 40px; border-radius: 12px; width: 400px; color: #333; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.5);">
+			<div style="font-size: 40px; margin-bottom: 10px;">⏳</div>
+			<h2 style="color: #dc2626; margin-top: 0;">Срок действия истек</h2>
+			<p id="blockReasonText" style="margin: 20px 0; line-height: 1.5; color: #475569;">
+				Период использования завершен.<br>
+				Для продолжения работы необходимо продлить подписку.
+			</p>
+			<div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px dashed #cbd5e1;">
+				<div style="font-size: 12px; color: #64748b; margin-bottom: 5px;">Ваш ID для продления:</div>
+				<div id="blockUserUid" style="font-family: monospace; font-weight: bold; font-size: 14px; user-select: all;">-</div>
+			</div>
+			<button class="btn-primary" style="width: 100%; justify-content: center; font-size: 16px; padding: 12px;" onclick="window.open('mailto:Artemiy50@gmail.com?subject=Продление подписки 3D Manager&body=Мой ID: '+firebase.auth().currentUser.uid)">
+				📧 Связаться с администратором
+			</button>
+			<div style="margin-top: 15px; font-size: 12px; color: #94a3b8;">
+				Или напишите в Telegram: <a href="https://t.me/Artem_Kiyashko" target="_blank" style="color: #1e40af;">@Artem_Kiyashko</a>
+			</div>
+			<div style="margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px;">
+				<a href="#" onclick="firebase.auth().signOut().then(()=>window.location.reload())" style="font-size: 12px; color: #64748b;">Выйти из аккаунта</a>
+			</div>
+		</div>
+	</div>
+
+	<!-- 3. МОДАЛКА КОНТАКТОВ (ДЛЯ АКТИВНЫХ ПОЛЬЗОВАТЕЛЕЙ) -->
+	<div id="contactModal" class="modal">
+		<div class="modal-content" style="max-width: 400px;">
+			<div class="modal-header-simple-custom">
+				<div class="modal-header-title">Продление подписки</div>
+			</div>
+			<div class="modal-body" style="text-align: center;">
+				<p>Оплата производится по инструкции.</p>
+				<p>Свяжитесь с администратором и сообщите ваш ID.</p>
+				<div style="background: #f1f5f9; padding: 10px; border-radius: 6px; margin: 15px 0; font-family: monospace; font-weight: bold;" id="contactModalUid">-</div>
+				<div style="display: flex; flex-direction: column; gap: 10px;">
+					<button class="btn-primary" style="justify-content: center;" onclick="window.open('mailto:Artemiy50@gmail.com?subject=Продление подписки&body=ID: '+firebase.auth().currentUser.uid)">Написать на Email</button>
+					<!-- Замените на свой контакт -->
+					<button class="btn-secondary" style="justify-content: center;" onclick="window.open('https://t.me/Artem_Kiyashko', '_blank')">Написать в Telegram</button>
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button class="btn-secondary" onclick="document.getElementById('contactModal').classList.remove('active')">Закрыть</button>
+			</div>
+		</div>
+	</div>
+
 
     <!-- Main Container -->
     <div class="container">

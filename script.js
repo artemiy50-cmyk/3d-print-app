@@ -105,11 +105,30 @@ document.getElementById('regBtn')?.addEventListener('click', () => {
     msg.style.display = 'none';
 
     firebase.auth().createUserWithEmailAndPassword(email, pass)
-        .then((userCredential) => {
-            // Отправка письма подтверждения
-            userCredential.user.sendEmailVerification().then(() => {
-                alert("Аккаунт создан! Проверьте почту для подтверждения.");
-                // Автоматически сработает onAuthStateChanged
+		.then((userCredential) => {
+            const uid = userCredential.user.uid;
+            
+            // === НОВАЯ ЛОГИКА: УСТАНОВКА ПРОБНОГО ПЕРИОДА (30 ДНЕЙ) ===
+            const now = new Date();
+            const trialEnd = new Date();
+            trialEnd.setDate(now.getDate() + 30); // +30 дней
+            
+            const initData = {
+                subscription: {
+                    status: 'trial',
+                    startDate: now.toISOString(),
+                    expiryDate: trialEnd.toISOString()
+                },
+                // Пустые структуры данных
+                data: { filaments: [], products: [], writeoffs: [] }
+            };
+
+            // Сохраняем начальные данные подписки
+            firebase.database().ref('users/' + uid).set(initData).then(() => {
+                // Отправка письма
+                userCredential.user.sendEmailVerification().then(() => {
+                    alert("Аккаунт создан! Вам предоставлен пробный период 30 дней. Проверьте почту для подтверждения аккаунта.");
+                });
             });
         })
         .catch((error) => {
@@ -177,7 +196,6 @@ window.addEventListener('DOMContentLoaded', () => {
         const authContainer = document.getElementById('authContainer');
         const verifyContainer = document.getElementById('verificationWait');
         
-        // Отписываемся от старого слушателя, если он был (при смене пользователя)
         if (dbRef) dbRef.off();
 
         if (user) {
@@ -191,11 +209,29 @@ window.addEventListener('DOMContentLoaded', () => {
 
             if(overlay) overlay.style.display = 'none'; 
             
+            // 1. СТАРЫЙ REF (Оставляем как был, чтобы не ломать сохранение!)
             dbRef = firebase.database().ref('users/' + user.uid + '/data');
             
+            // 2. НОВЫЙ REF ДЛЯ ПОДПИСКИ (Слушаем отдельно)
+            const subRef = firebase.database().ref('users/' + user.uid + '/subscription');
+            subRef.on('value', (snapshot) => {
+                const subData = snapshot.val();
+                
+                // Если это старый пользователь и у него нет ветки subscription - создаем триал
+                if (!subData) {
+                    console.log("Migrating old user to trial...");
+                    const now = new Date();
+                    const end = new Date(); end.setDate(now.getDate() + 30);
+                    subRef.set({ status: 'trial', startDate: now.toISOString(), expiryDate: end.toISOString() });
+                } else {
+                    // Вызываем функцию проверки (её код ниже)
+                    checkSubscription(subData);
+                }
+            });
+
             setupUserSidebar(user);
             
-            // Вынесли логику обновления в отдельную функцию
+            // Функция обновления данных (без изменений, кроме удаления checkSubscription внутри, если вы её туда добавляли)
             window.updateAppFromSnapshot = function(snapshot) {
                 console.log('Updating UI from Firebase snapshot...');
                 const loadedData = snapshot.val();
@@ -204,12 +240,12 @@ window.addEventListener('DOMContentLoaded', () => {
                     db.filaments = loadedData.filaments || [];
                     db.products = loadedData.products || [];
                     db.writeoffs = loadedData.writeoffs || [];
-                    db.brands = loadedData.brands || [];
+                    db.brands = loadedData.brands || ['Prusament', 'MatterHackers', 'Prusament Pro'];
                     db.components = loadedData.components || [];
-                    db.colors = loadedData.colors || [];
-                    db.plasticTypes = loadedData.plasticTypes || [];
-                    db.filamentStatuses = loadedData.filamentStatuses || [];
-                    db.printers = loadedData.printers || [];
+                    db.colors = loadedData.colors || [ { id: 1, name: 'Белый', hex: '#ffffff' }, { id: 2, name: 'Чёрный', hex: '#000000' } ];
+                    db.plasticTypes = loadedData.plasticTypes || ['PLA', 'ABS', 'PETG', 'TPU'];
+                    db.filamentStatuses = loadedData.filamentStatuses || ['В наличии', 'Израсходовано'];
+                    db.printers = loadedData.printers || [ { id: 1, model: 'Creality Ender 3', power: 0.35 } ];
                     db.electricityCosts = loadedData.electricityCosts || [{ id: Date.now(), date: '2020-01-01', cost: 6 }];
                 }
 
@@ -224,20 +260,17 @@ window.addEventListener('DOMContentLoaded', () => {
                 try { updateDashboard(); } catch(e) { console.error('Dashboard update failed', e); }
             };
 
-            // Слушатель теперь просто вызывает эту функцию
+            // Слушаем изменения данных
             dbRef.on('value', (snapshot) => {
-                // Если окно открыто - игнорируем входящие (чтобы не сбить ввод)
                 if (isModalOpen) return;
                 window.updateAppFromSnapshot(snapshot);
             });
-
             
-            // Загрузка настроек (это можно делать один раз)
             loadShowChildren();
             updateAllDates();
             setupEventListeners();
 
-        } else { // Пользователь не вошел
+        } else { 
             currentUser = null;
             if(overlay) overlay.style.display = 'flex';
             authContainer.style.display = 'block';
@@ -246,6 +279,7 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
 
 
 
@@ -495,6 +529,68 @@ function saveToLocalStorage() { saveData(); }
 
 
 // ==================== HELPERS ====================
+
+function checkSubscription(userData) {
+    // Если данных подписки нет (старый юзер), считаем, что у него вечная лицензия 
+    // или создаем триал (на ваше усмотрение).
+    // Тут создаем структуру "на лету" если её нет
+    if (!userData || !userData.subscription) {
+        console.log("Old user or no sub data - treating as Active/Unlimited for now");
+        // Чтобы мигрировать старых юзеров на подписку, раскомментируйте код ниже:
+        /*
+        const now = new Date();
+        const end = new Date(); end.setDate(now.getDate() + 30);
+        const sub = { status: 'trial', startDate: now.toISOString(), expiryDate: end.toISOString() };
+        if(dbRef) dbRef.parent.child('subscription').set(sub);
+        return; // Пропустим проверку в этот раз
+        */
+        return; 
+    }
+
+    const sub = userData.subscription;
+    const now = new Date();
+    const expiry = new Date(sub.expiryDate);
+    const diffTime = expiry - now;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+
+    const overlay = document.getElementById('subscriptionBlockOverlay');
+    const warning = document.getElementById('subscriptionWarning');
+    const warningText = document.getElementById('subWarningText');
+    const uidDisplay = document.getElementById('blockUserUid');
+    const modalUid = document.getElementById('contactModalUid');
+
+    // Заполняем ID в UI
+    if(firebase.auth().currentUser) {
+        const uid = firebase.auth().currentUser.uid;
+        if(uidDisplay) uidDisplay.textContent = uid;
+        if(modalUid) modalUid.textContent = uid;
+    }
+
+    // 1. ПРОВЕРКА НА БЛОКИРОВКУ
+    if (diffDays <= 0) {
+        overlay.style.display = 'flex'; // Блокируем экран
+        document.body.style.overflow = 'hidden'; // Запрет прокрутки
+        warning.style.display = 'none';
+        return; // Дальше не идем
+    } else {
+        overlay.style.display = 'none';
+        document.body.style.overflow = 'auto';
+    }
+
+    // 2. ПРОВЕРКА НА ПРЕДУПРЕЖДЕНИЕ (за 5 дней)
+    if (diffDays <= 5) {
+        const typeText = sub.status === 'trial' ? 'Пробный период' : 'Подписка';
+        warningText.textContent = `Внимание: ${typeText} истекает через ${diffDays} дн.`;
+        warning.style.display = 'flex';
+    } else {
+        warning.style.display = 'none';
+    }
+    
+    // Обновляем инфо в сайдбаре (если хотите)
+    // const profileInfo = document.querySelector('.user-profile-info');
+    // if(profileInfo) profileInfo.innerHTML += `<br><small style="color:${diffDays<10?'#ea580c':'#4ade80'}">Дней: ${diffDays}</small>`;
+}
+
 
 function escapeHtml(text) {
     if (text === null || text === undefined) return '';
