@@ -1,4 +1,4 @@
-console.log("Version: 5.3 (2026-02-07 12-40)");
+console.log("Version: 5.3 (2026-02-07 12-50)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1115,36 +1115,40 @@ async function saveFilament() {
         availability: document.getElementById('filamentAvailability').value
     };
     
-    // БЕЗОПАСНЫЕ РАСЧЕТЫ (Защита от деления на 0)
     data.priceRatio = avgPrice > 0 ? actualPrice / avgPrice : 1; 
     data.weightPerMeter = length > 0 ? weight / length : 0; 
-    
     data.avgCostPerGram = weight > 0 ? avgPrice / weight : 0;
     data.avgCostPerMeter = length > 0 ? avgPrice / length : 0; 
-    
     data.actualCostPerGram = weight > 0 ? actualPrice / weight : 0; 
     data.actualCostPerMeter = length > 0 ? actualPrice / length : 0;
     
     try {
-        if (!eid) data.id = Date.now();
+        // [FIX] Инициализируем обязательные поля ДО транзакции
+        // Это предотвращает ошибку "undefined" при создании первой записи
+        if (!eid) {
+            data.id = Date.now();
+            data.remainingLength = length; 
+            data.usedLength = 0; 
+            data.usedWeight = 0;
+        }
 
         // 1. Транзакция
         await dbRef.child('filaments').transaction((currentList) => {
-            if (currentList === null) return [data];
+            if (currentList === null) return [data]; // Теперь data уже полная
             
             if (eid) {
+                // Редактирование
                 const index = currentList.findIndex(x => x && x.id == parseInt(eid));
                 if (index > -1) {
                     data.id = currentList[index].id;
-                    data.remainingLength = currentList[index].remainingLength; 
-                    data.usedLength = currentList[index].usedLength; 
-                    data.usedWeight = currentList[index].usedWeight;
+                    // Сохраняем статистику, если она есть, иначе берем из нового
+                    data.remainingLength = currentList[index].remainingLength !== undefined ? currentList[index].remainingLength : length; 
+                    data.usedLength = currentList[index].usedLength || 0; 
+                    data.usedWeight = currentList[index].usedWeight || 0;
                     currentList[index] = data;
                 }
             } else {
-                data.remainingLength = data.length; 
-                data.usedLength = 0; 
-                data.usedWeight = 0;
+                // Добавление
                 currentList.push(data);
             }
             return currentList;
@@ -1154,16 +1158,15 @@ async function saveFilament() {
         if (eid) {
             const localF = db.filaments.find(x => x.id == parseInt(eid));
             if (localF) {
-                data.id = localF.id;
-                data.remainingLength = localF.remainingLength;
-                data.usedLength = localF.usedLength;
-                data.usedWeight = localF.usedWeight;
-                Object.assign(localF, data);
+                // Аккуратно переносим поля, сохраняя статистику
+                const savedStats = {
+                    remainingLength: localF.remainingLength,
+                    usedLength: localF.usedLength,
+                    usedWeight: localF.usedWeight
+                };
+                Object.assign(localF, data, savedStats);
             }
         } else {
-            if(!data.remainingLength) data.remainingLength = data.length;
-            if(!data.usedLength) data.usedLength = 0;
-            if(!data.usedWeight) data.usedWeight = 0;
             db.filaments.push(data);
         }
 
