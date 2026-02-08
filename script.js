@@ -1,4 +1,4 @@
-console.log("Version: 5.4 (2026-02-09 00-35)");
+console.log("Version: 5.4 (2026-02-09 00-55)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -4463,6 +4463,30 @@ async function saveService() {
 }
 
 
+function copyService(id) {
+    const item = db.serviceExpenses.find(x => x.id === id);
+    if (!item) return;
+
+    openServiceModal(); // Открываем форму в режиме добавления (очищаем ID)
+    
+    // Заполняем поля данными из копируемого объекта
+    document.getElementById('serviceDate').value = new Date().toISOString().split('T')[0]; // Дата текущая
+    document.getElementById('serviceNameInput').value = item.name;
+    document.getElementById('serviceQty').value = item.qty;
+    document.getElementById('servicePrice').value = item.price;
+    document.getElementById('serviceLink').value = item.link || '';
+    document.getElementById('serviceNote').value = item.note || '';
+    
+    // Пересчитываем сумму
+    calcServiceTotal();
+    
+    // Меняем заголовок
+    document.querySelector('#serviceModal .modal-header-title').textContent = 'Копирование расхода';
+}
+
+
+
+
 async function deleteService(id) {
     if (!confirm('Удалить запись о расходе?')) return;
     const item = db.serviceExpenses.find(x => x.id === id);
@@ -4480,16 +4504,30 @@ async function deleteService(id) {
     }
 }
 
+
 function updateServiceTable() {
     const tbody = document.querySelector('#serviceTable tbody');
     if (!tbody) return;
     
-    // Проверка заголовков (если вдруг не обновились ранее)
+    // 1. Динамическое обновление заголовков таблицы
     const theadRow = document.querySelector('#serviceTable thead tr');
-    if (theadRow && theadRow.children.length < 7) {
-        const thNote = document.createElement('th');
-        thNote.textContent = 'Примечание';
-        theadRow.insertBefore(thNote, theadRow.lastElementChild);
+    if (theadRow) {
+        // Убедимся, что есть колонка "Примечание"
+        if (!Array.from(theadRow.children).some(th => th.textContent === 'Примечание')) {
+             const thNote = document.createElement('th');
+             thNote.textContent = 'Примечание';
+             theadRow.insertBefore(thNote, theadRow.lastElementChild); // Вставляем перед "Действия"
+        }
+        
+        // Убедимся, что есть колонка для Ссылки (она идет после Примечания и перед Действиями)
+        // Сейчас структура: [Дата, Имя, Кол, Цена, Итого, Примечание, Действия] = 7 колонок.
+        // Нам нужно 8.
+        if (theadRow.children.length < 8) {
+             const thLink = document.createElement('th');
+             thLink.textContent = ''; // Без названия
+             thLink.style.width = '60px'; // Небольшая ширина
+             theadRow.insertBefore(thLink, theadRow.lastElementChild);
+        }
     }
 
     const search = document.getElementById('serviceSearch').value.toLowerCase();
@@ -4498,24 +4536,23 @@ function updateServiceTable() {
     filtered.sort((a,b) => new Date(b.date) - new Date(a.date));
 
     tbody.innerHTML = filtered.map(x => {
-        // Формируем HTML имени с ссылкой, если она есть
-        let nameHtml = escapeHtml(x.name);
-        if (x.link) {
-            nameHtml += ` <a href="${escapeHtml(x.link)}" target="_blank" title="Открыть заказ" style="text-decoration:none;">🔗</a>`;
-        }
+        // Формируем ссылку "Заказ", если она есть
+        const linkHtml = x.link ? `<a href="${escapeHtml(x.link)}" target="_blank" style="color:#1e40af;text-decoration:underline;">Заказ</a>` : '';
 
         return `
         <tr>
             <td>${x.date}</td>
-            <td>${nameHtml}</td>
+            <td>${escapeHtml(x.name)}</td>
             <td>${x.qty}</td>
             <td>${x.price.toFixed(2)}</td>
             <td>${x.total.toFixed(2)}</td>
             <td style="font-size:12px; color:#64748b; max-width: 200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(x.note || '')}">${escapeHtml(x.note || '-')}</td>
+            <td class="text-center">${linkHtml}</td>
             <td class="text-center">
                 <div class="action-buttons">
-                    <button class="btn-secondary btn-small" onclick="openServiceModal(${x.id})">✎</button>
-                    <button class="btn-danger btn-small" onclick="deleteService(${x.id})">✕</button>
+                    <button class="btn-secondary btn-small" title="Редактировать" onclick="openServiceModal(${x.id})">✎</button>
+                    <button class="btn-secondary btn-small" title="Копировать" onclick="copyService(${x.id})">❐</button>
+                    <button class="btn-danger btn-small" title="Удалить" onclick="deleteService(${x.id})">✕</button>
                 </div>
             </td>
         </tr>
@@ -4523,6 +4560,7 @@ function updateServiceTable() {
     
     toggleClearButton(document.getElementById('serviceSearch'));
 }
+
 
 
 
