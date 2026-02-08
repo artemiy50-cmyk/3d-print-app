@@ -1,4 +1,4 @@
-console.log("Version: 5.4 (2026-02-08 23-57)");
+console.log("Version: 5.4 (2026-02-09 00-35)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -3731,7 +3731,7 @@ function updateFinancialReport() {
     
     html += createRow(
         'Прибыль (Скорректированная)', 
-        '<b>Формула:</b><br>Cash Flow + Себестоимость (Использовано для себя + Брак)<br><br><i>Сервисные расходы уже учтены в Cash Flow и здесь повторно не вычитаются.</i>', 
+        '<b>Формула:</b><br>Cash Flow + Себестоимость (Использовано для себя + Брак)', 
         sumExpenses, sumCostUsedDefect, null, sumRevenue, null, profit2
     );
     
@@ -4308,25 +4308,32 @@ function openServiceModal(id = null) {
         if (item) {
             modal.setAttribute('data-edit-id', id);
             document.querySelector('#serviceModal .modal-header-title').textContent = 'Редактировать расход';
+            
             document.getElementById('serviceDate').value = item.date;
             document.getElementById('serviceNameInput').value = item.name;
             document.getElementById('serviceQty').value = item.qty;
             document.getElementById('servicePrice').value = item.price;
-            document.getElementById('serviceNote').value = item.note || ''; // Загружаем примечание
+            document.getElementById('serviceLink').value = item.link || ''; // Загружаем ссылку
+            document.getElementById('serviceNote').value = item.note || '';
+            
             calcServiceTotal();
         }
     } else {
         // Добавление
         modal.removeAttribute('data-edit-id');
         document.querySelector('#serviceModal .modal-header-title').textContent = 'Добавить сервисный расход';
+        
         document.getElementById('serviceDate').value = new Date().toISOString().split('T')[0];
         document.getElementById('serviceNameInput').value = '';
         document.getElementById('serviceQty').value = '1';
         document.getElementById('servicePrice').value = '';
-        document.getElementById('serviceNote').value = ''; // Очищаем примечание
+        document.getElementById('serviceLink').value = ''; // Очищаем ссылку
+        document.getElementById('serviceNote').value = '';
+        
         document.getElementById('serviceTotalCalc').textContent = '0.00 ₽';
     }
 }
+
 
 
 function closeServiceModal() {
@@ -4363,26 +4370,25 @@ async function saveService() {
     const nameEl = document.getElementById('serviceNameInput');
     const qtyEl = document.getElementById('serviceQty');
     const priceEl = document.getElementById('servicePrice');
+    const linkEl = document.getElementById('serviceLink'); // Ссылка
     const noteEl = document.getElementById('serviceNote');
 
     const date = dateEl.value;
     const name = nameEl.value.trim();
     const qty = parseFloat(qtyEl.value);
     const price = parseFloat(priceEl.value);
+    const link = linkEl.value.trim(); // Значение ссылки
     const note = noteEl.value.trim();
     const eid = document.getElementById('serviceModal').getAttribute('data-edit-id');
 
-    // Валидация с подсветкой
+    // Валидация
     let isValid = true;
     const requiredFields = [dateEl, nameEl, qtyEl, priceEl];
     
     requiredFields.forEach(el => {
-        // Сброс стиля
         el.style.border = ''; 
-        
-        // Проверка
         if (!el.value || (el.type === 'number' && parseFloat(el.value) <= 0)) {
-            el.style.border = '1px solid red'; // Красная обводка
+            el.style.border = '1px solid red';
             isValid = false;
         }
     });
@@ -4404,12 +4410,12 @@ async function saveService() {
         qty: qty,
         price: price,
         total: qty * price,
-        note: note // Сохраняем примечание
+        link: link, // Сохраняем в объект
+        note: note
     };
 
     try {
         const updates = {};
-        
         let index;
         if (eid) {
             const oldItem = db.serviceExpenses.find(x => x.id === item.id);
@@ -4420,7 +4426,7 @@ async function saveService() {
         
         updates[`/serviceExpenses/${index}`] = item;
 
-        // Обновляем справочник
+        // Обновляем справочник имен
         const existingNameIndex = db.serviceNames.findIndex(s => s.name.toLowerCase() === name.toLowerCase());
         if (existingNameIndex === -1) {
             const newIdx = db.serviceNames.length;
@@ -4478,13 +4484,11 @@ function updateServiceTable() {
     const tbody = document.querySelector('#serviceTable tbody');
     if (!tbody) return;
     
-    // Обновляем заголовок таблицы (добавляем колонку Примечание, если её нет)
+    // Проверка заголовков (если вдруг не обновились ранее)
     const theadRow = document.querySelector('#serviceTable thead tr');
-    // Проверяем по количеству колонок (было 6, должно стать 7)
     if (theadRow && theadRow.children.length < 7) {
         const thNote = document.createElement('th');
         thNote.textContent = 'Примечание';
-        // Вставляем перед последней колонкой (Действия)
         theadRow.insertBefore(thNote, theadRow.lastElementChild);
     }
 
@@ -4493,10 +4497,17 @@ function updateServiceTable() {
     const filtered = db.serviceExpenses.filter(x => x.name.toLowerCase().includes(search));
     filtered.sort((a,b) => new Date(b.date) - new Date(a.date));
 
-    tbody.innerHTML = filtered.map(x => `
+    tbody.innerHTML = filtered.map(x => {
+        // Формируем HTML имени с ссылкой, если она есть
+        let nameHtml = escapeHtml(x.name);
+        if (x.link) {
+            nameHtml += ` <a href="${escapeHtml(x.link)}" target="_blank" title="Открыть заказ" style="text-decoration:none;">🔗</a>`;
+        }
+
+        return `
         <tr>
             <td>${x.date}</td>
-            <td>${escapeHtml(x.name)}</td>
+            <td>${nameHtml}</td>
             <td>${x.qty}</td>
             <td>${x.price.toFixed(2)}</td>
             <td>${x.total.toFixed(2)}</td>
@@ -4508,10 +4519,11 @@ function updateServiceTable() {
                 </div>
             </td>
         </tr>
-    `).join('');
+    `}).join('');
     
     toggleClearButton(document.getElementById('serviceSearch'));
 }
+
 
 
 // --- Справочник Сервисных работ ---
