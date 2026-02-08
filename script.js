@@ -1,4 +1,4 @@
-console.log("Version: 5.3 (2026-02-07 19-21)");
+console.log("Version: 5.4 (2026-02-08 23-15)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -24,7 +24,9 @@ const cloudinaryConfig = {
 // ==================== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ====================
 const db = {
     filaments: [], products: [], writeoffs: [], brands: ['Prusament', 'MatterHackers', 'Prusament Pro'],
+	serviceExpenses: [],
     components: [],
+	serviceNames: [],
 	colors: [ { id: 1, name: 'Белый', hex: '#ffffff' }, { id: 2, name: 'Чёрный', hex: '#000000' }, { id: 3, name: 'Красный', hex: '#ff0000' }, { id: 4, name: 'Синий', hex: '#0000ff' }, { id: 5, name: 'Зелёный', hex: '#00ff00' } ],
     plasticTypes: ['PLA', 'ABS', 'PETG', 'TPU', 'Nylon', 'ASA', 'PC', 'PVA'],
     filamentStatuses: ['В наличии', 'Израсходовано'],
@@ -238,14 +240,21 @@ window.addEventListener('DOMContentLoaded', () => {
                     db.filaments = loadedData.filaments || [];
                     db.products = loadedData.products || [];
                     db.writeoffs = loadedData.writeoffs || [];
+					db.serviceExpenses = loadedData.serviceExpenses || [];
                     db.brands = loadedData.brands || ['Prusament', 'MatterHackers', 'Prusament Pro'];
                     db.components = loadedData.components || [];
+					db.serviceNames = loadedData.serviceNames || [];
                     db.colors = loadedData.colors || [ { id: 1, name: 'Белый', hex: '#ffffff' }, { id: 2, name: 'Чёрный', hex: '#000000' } ];
                     db.plasticTypes = loadedData.plasticTypes || ['PLA', 'ABS', 'PETG', 'TPU'];
                     db.filamentStatuses = loadedData.filamentStatuses || ['В наличии', 'Израсходовано'];
                     db.printers = loadedData.printers || [ { id: 1, model: 'Creality Ender 3', power: 0.35 } ];
                     db.electricityCosts = loadedData.electricityCosts || [{ id: Date.now(), date: '2020-01-01', cost: 6 }];
-                }
+                } else {
+					db.filaments = []; 
+					db.products = []; 
+					db.writeoffs = []; 
+					db.serviceExpenses = []; // <--- ДОБАВИТЬ
+				}
 
                 recalculateAllProductCosts();
                 recalculateAllProductStock();
@@ -255,6 +264,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 try { updateProductsTable(); } catch(e) { console.error('Products update failed', e); }
                 try { updateWriteoffTable(); } catch(e) { console.error('Writeoff update failed', e); }
                 try { updateReports(); } catch(e) { console.error('Reports update failed', e); }
+				try { updateServiceTable(); } catch(e) { console.error('Service update failed', e); } 
                 try { updateDashboard(); } catch(e) { console.error('Dashboard update failed', e); }
             };
 
@@ -575,14 +585,19 @@ function recalculateAllProductCosts() {
     });
 }
 
+
 function updateAllDates() {
     const today = new Date().toISOString().split('T')[0];
-    document.getElementById('filamentDate').value = today;
-    document.getElementById('productDate').value = today;
-    if(document.getElementById('writeoffDate')) document.getElementById('writeoffDate').value = today;
+    // [FIX] Добавлен 'serviceDate' для автоматического заполнения
+    ['filamentDate','productDate','writeoffDate','serviceDate'].forEach(id => {
+        const el = document.getElementById(id); 
+        if(el) el.value = today;
+    });
     document.getElementById('currentDate').textContent = new Date().toLocaleDateString('ru-RU');
     document.getElementById('copyrightYear').textContent = new Date().getFullYear();
 }
+
+
 
 function showPage(id) {
     document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -974,8 +989,8 @@ function validateFilamentForm() {
         const el = document.getElementById(id);
         const val = parseFloat(el.value);
         
-        // Проверка: Пустое, Не число, или (если это числовое поле) Меньше или равно нулю
-        let isInvalid = !el.value;
+        // Проверка: Пустое, или (если число) меньше или равно нулю
+        let isInvalid = !el.value.trim();
         if (el.type === 'number') {
             isInvalid = isInvalid || isNaN(val) || val <= 0;
         }
@@ -991,7 +1006,6 @@ function validateFilamentForm() {
     const cid = document.getElementById('filamentCustomId').value.trim(); 
     const eid = document.getElementById('filamentModal').getAttribute('data-edit-id');
     
-    // Проверка уникальности ID
     if (valid && cid && db.filaments.some(f => f.customId === cid && (!eid || f.id != eid))) { 
         document.getElementById('filamentCustomId').classList.add('error'); 
         document.getElementById('filamentUniqueIdMessage').classList.remove('hidden'); 
@@ -1002,9 +1016,9 @@ function validateFilamentForm() {
 
     const msg = document.getElementById('filamentValidationMessage');
     if (!valid) {
-        // Если ошибка уникальности скрыта, значит ошибка в пустых полях
         if (document.getElementById('filamentUniqueIdMessage').classList.contains('hidden')) {
-            msg.textContent = 'Не все обязательные поля заполнены корректно (значения должны быть > 0)';
+            // Уточняем текст ошибки
+            msg.textContent = 'Заполните все поля корректными значениями (числа > 0)';
             msg.classList.remove('hidden');
         }
     } else {
@@ -1024,14 +1038,6 @@ async function saveFilament() {
 
     const eid = document.getElementById('filamentModal').getAttribute('data-edit-id');
     
-    // Хелпер для безопасного числа
-    const safeFloat = (id) => parseFloat(document.getElementById(id).value) || 0;
-
-    const weight = safeFloat('filamentWeight');
-    const length = safeFloat('filamentLength');
-    const avgPrice = safeFloat('filamentAvgPrice');
-    const actualPrice = safeFloat('filamentActualPrice');
-
     const data = {
         customId: document.getElementById('filamentCustomId').value, 
         brand: db.brands[document.getElementById('filamentBrand').value], 
@@ -1040,58 +1046,61 @@ async function saveFilament() {
         name: document.getElementById('filamentName').value, 
         link: document.getElementById('filamentLink').value.trim(),
         date: document.getElementById('filamentDate').value, 
-        avgPrice: avgPrice, 
-        actualPrice: actualPrice,
-        weight: weight, 
-        length: length, 
+        avgPrice: parseFloat(document.getElementById('filamentAvgPrice').value) || 0, 
+        actualPrice: parseFloat(document.getElementById('filamentActualPrice').value) || 0,
+        weight: parseFloat(document.getElementById('filamentWeight').value) || 1000, 
+        length: parseFloat(document.getElementById('filamentLength').value) || 330, 
         note: document.getElementById('filamentNote').value, 
         availability: document.getElementById('filamentAvailability').value
     };
     
-    data.priceRatio = avgPrice > 0 ? actualPrice / avgPrice : 1; 
-    data.weightPerMeter = length > 0 ? weight / length : 0; 
-    data.avgCostPerGram = weight > 0 ? avgPrice / weight : 0;
-    data.avgCostPerMeter = length > 0 ? avgPrice / length : 0; 
-    data.actualCostPerGram = weight > 0 ? actualPrice / weight : 0; 
-    data.actualCostPerMeter = length > 0 ? actualPrice / length : 0;
+    // Безопасные расчеты
+    data.priceRatio = data.avgPrice > 0 ? data.actualPrice / data.avgPrice : 1; 
+    data.weightPerMeter = data.length > 0 ? data.weight / data.length : 0; 
+    data.avgCostPerGram = data.weight > 0 ? data.avgPrice / data.weight : 0;
+    data.avgCostPerMeter = data.length > 0 ? data.avgPrice / data.length : 0; 
+    data.actualCostPerGram = data.weight > 0 ? data.actualPrice / data.weight : 0; 
+    data.actualCostPerMeter = data.length > 0 ? data.actualPrice / data.length : 0;
     
     try {
-        // [FIX] Инициализируем обязательные поля ДО транзакции
-        // Это предотвращает ошибку "undefined" при создании первой записи
+        // [ВАЖНОЕ ИСПРАВЛЕНИЕ]
+        // Инициализируем начальные значения ДО транзакции.
+        // Это гарантирует, что даже если список пуст, объект data будет полным.
         if (!eid) {
             data.id = Date.now();
-            data.remainingLength = length; 
+            data.remainingLength = data.length; 
             data.usedLength = 0; 
             data.usedWeight = 0;
         }
 
         // 1. Транзакция
         await dbRef.child('filaments').transaction((currentList) => {
-            if (currentList === null) return [data]; // Теперь data уже полная
+            // Если список пуст, возвращаем массив с нашим ПОЛНЫМ объектом data
+            if (currentList === null) return [data]; 
             
             if (eid) {
                 // Редактирование
                 const index = currentList.findIndex(x => x && x.id == parseInt(eid));
                 if (index > -1) {
                     data.id = currentList[index].id;
-                    // Сохраняем статистику, если она есть, иначе берем из нового
-                    data.remainingLength = currentList[index].remainingLength !== undefined ? currentList[index].remainingLength : length; 
+                    // Аккуратно сохраняем существующую статистику расхода
+                    data.remainingLength = currentList[index].remainingLength !== undefined ? currentList[index].remainingLength : data.length; 
                     data.usedLength = currentList[index].usedLength || 0; 
                     data.usedWeight = currentList[index].usedWeight || 0;
                     currentList[index] = data;
                 }
             } else {
-                // Добавление
+                // Добавление в существующий список
                 currentList.push(data);
             }
             return currentList;
         });
 
-        // 2. Локальное обновление
+        // 2. Локальное обновление UI (для мгновенной реакции)
         if (eid) {
             const localF = db.filaments.find(x => x.id == parseInt(eid));
             if (localF) {
-                // Аккуратно переносим поля, сохраняя статистику
+                // Восстанавливаем статистику из локальной копии, чтобы не сбить отображение
                 const savedStats = {
                     remainingLength: localF.remainingLength,
                     usedLength: localF.usedLength,
@@ -1116,7 +1125,6 @@ async function saveFilament() {
         saveBtn.disabled = false;
     }
 }
-
 
 
 
@@ -3621,46 +3629,53 @@ function copyWriteoffItem(rowId) {
 
 function updateFinancialReport() {
     const dStart = new Date(document.getElementById('reportStartDate').value);
-    const dEnd = new Date(document.getElementById('reportEndDate').value);
-    dEnd.setHours(23, 59, 59, 999); 
+    const dEnd = new Date(document.getElementById('reportEndDate').value); 
+    dEnd.setHours(23,59,59,999);
 
-    const filamentsBought = db.filaments.filter(f => { const d = new Date(f.date); return d >= dStart && d <= dEnd; });
-    const sumExpenses = filamentsBought.reduce((sum, f) => sum + (f.actualPrice || 0), 0);
-    
-    // ФИЛЬТР: Исключаем "Подготовлено к продаже"
+    const filamentsBought = db.filaments.filter(f => { const d=new Date(f.date); return d>=dStart && d<=dEnd; });
+    const sumExpenses = filamentsBought.reduce((s,f) => s + (f.actualPrice||0), 0);
+
     const writeoffsInRange = db.writeoffs.filter(w => { 
-        const d = new Date(w.date); 
-        return d >= dStart && d <= dEnd && w.type !== 'Подготовлено к продаже'; 
+        const d=new Date(w.date); 
+        return d>=dStart && d<=dEnd && w.type!=='Подготовлено к продаже'; 
     });
     
-    const sumRevenue = writeoffsInRange.filter(w => w.type === 'Продажа').reduce((sum, w) => sum + (w.total || 0), 0);
+    const sumRevenue = writeoffsInRange.filter(w => w.type==='Продажа').reduce((s,w) => s+(w.total||0), 0);
 
     let sumCOGS = 0; 
-    let sumCostUsedDefect = 0; 
+    let sumCostUsedDefect = 0;
 
     writeoffsInRange.forEach(w => {
-        const product = db.products.find(p => p.id === w.productId);
-        const costOne = product ? (product.costPer1Actual || 0) : 0;
-        const enrichmentCost = (w.enrichmentCosts || []).reduce((sum, item) => sum + (item.cost || 0), 0);
+        const product = db.products.find(x => x.id === w.productId);
+        const costOne = product ? (product.costPer1Actual||0) : 0;
+        const enrichmentCost = (w.enrichmentCosts||[]).reduce((s, item) => s + (item.cost||0), 0);
+        
         const totalCostOne = costOne + enrichmentCost;
         const totalCost = totalCostOne * w.qty;
 
-        if (w.type === 'Продажа') {
+        if(w.type==='Продажа') {
             sumCOGS += totalCost;
         } else if (w.type === 'Использовано' || w.type === 'Брак') {
             sumCostUsedDefect += totalCost;
         }
     });
 
-    const defectiveProducts = db.products.filter(p => { const d = new Date(p.date); return p.defective === true && d >= dStart && d <= dEnd; });
-    defectiveProducts.forEach(p => sumCostUsedDefect += (p.costActualPrice || 0));
- 
-    const createRowHtml = (title, desc, expenses, costUsed, revenue, cogs, profit) => {
-        const ros = revenue > 0 ? (profit / revenue) * 100 : 0;
-        const markup = cogs > 0 ? (profit / cogs) * 100 : 0;
-        const fmtMoney = (v) => v !== null ? v.toLocaleString('ru-RU', {style: 'currency', currency: 'RUB'}) : '';
-        const fmt = (v) => v ? v.toLocaleString('ru-RU', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '';
-        const pColor = profit > 0 ? 'val-positive' : (profit < 0 ? 'val-negative' : 'val-neutral');
+    const defectiveProducts = db.products.filter(p => { const d=new Date(p.date); return p.defective && d>=dStart && d<=dEnd; });
+    defectiveProducts.forEach(p => sumCostUsedDefect += (p.costActualPrice||0));
+
+    // === NEW: SERVICE EXPENSES ===
+    const serviceInRange = db.serviceExpenses.filter(s => { 
+        const d=new Date(s.date); 
+        return d>=dStart && d<=dEnd; 
+    });
+    const sumService = serviceInRange.reduce((s,x) => s + (x.total||0), 0);
+
+    const createRow = (title, desc, expenses, costUsed, service, revenue, cogs, profit) => {
+        const ros = revenue > 0 ? (profit/revenue)*100 : 0;
+        const markup = cogs > 0 ? (profit/cogs)*100 : 0;
+        const fmtMoney = v => v!=null ? v.toLocaleString('ru-RU',{style:'currency',currency:'RUB'}) : '';
+        const fmtNum = v => v!=null ? v.toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2}) : '';
+        const pColor = profit>0?'val-positive':(profit<0?'val-negative':'val-neutral');
 
         return `
         <tr>
@@ -3670,42 +3685,54 @@ function updateFinancialReport() {
                     <span class="tooltip-text">${desc}</span>
                 </div>
             </td>
-            <td class="report-val val-neutral">${expenses !== null ? fmtMoney(expenses) : ''}</td>
-            <td class="report-val val-neutral">${costUsed !== null ? fmtMoney(costUsed) : ''}</td>
-            <td class="report-val val-neutral">${revenue !== null ? fmtMoney(revenue) : ''}</td>
-            <td class="report-val val-neutral">${cogs !== null ? fmtMoney(cogs) : ''}</td>
-            <td class="report-val ${pColor} col-profit">${fmtMoney(profit)}</td>
-            <td class="report-val col-ros">${revenue !== null && cogs !== null ? fmt(ros) : ''}%</td>
-            <td class="report-val col-markup">${cogs !== null ? fmt(markup) : ''}%</td>
+            <td class="report-val val-neutral">${expenses!=null ? fmtMoney(expenses) : ''}</td>
+            <td class="report-val val-neutral">${costUsed!=null ? fmtMoney(costUsed) : ''}</td>
+            <!-- Новая колонка Сервис -->
+            <td class="report-val" style="color:var(--color-purple); font-weight:500;">${service!=null ? fmtMoney(service) : ''}</td>
+            
+            <td class="report-val val-neutral">${revenue!=null ? fmtMoney(revenue) : ''}</td>
+            <td class="report-val val-neutral">${cogs!=null ? fmtMoney(cogs) : ''}</td>
+            
+            <td class="report-val col-profit ${pColor}">${fmtMoney(profit)}</td>
+            <td class="report-val col-ros">${revenue!=null && cogs!=null ? fmtNum(ros)+'%' : ''}</td>
+            <td class="report-val col-markup">${cogs!=null ? fmtNum(markup)+'%' : ''}</td>
         </tr>`;
     };
 
-    // Обновление тултипа
-    const financialTable = document.getElementById('financialTable');
-    if (financialTable) {
-        const cogsTooltip = financialTable.querySelector('th:nth-child(5) .tooltip-text');
-        if (cogsTooltip) {
-            cogsTooltip.innerHTML = 'Суммарная реальная себестоимость проданных изделий, включая стоимость комплектующих';
-        }
+    // Обновляем заголовок таблицы (добавляем колонку Сервис, если её нет)
+    const theadRow = document.querySelector('#financialTable thead tr');
+    if(theadRow && theadRow.children.length < 9) { // Было 8, стало 9
+        const th = document.createElement('th');
+        th.innerHTML = '<span class="tooltip-container" style="border-bottom:1px dashed #94a3b8;">Сервисн.расх.<span class="tooltip-text">Расходы на обслуживание, ремонт и прочие услуги</span></span>';
+        // Вставляем после "Себест. исп/брак" (это 3-й элемент, индекс 2)
+        // Структура: Title(0), Expenses(1), CostUsed(2), [INSERT HERE], Revenue(3)...
+        theadRow.insertBefore(th, theadRow.children[3]); 
     }
 
-    const tbody = document.querySelector('#financialTable tbody');
-    let html = '';
+    // РАСЧЕТЫ ПРИБЫЛИ
+    // 1. Cash Flow: Приход - Расход на материал (Сервис здесь НЕ учитываем, т.к. это операционка, хотя деньги уходят. Обычно Cash Flow в складском учете - это движение по складу. Но если считать деньги в кассе - сервис надо вычесть. В промпте сказано "учитывай для занижения Скорректированной и Чистой". Оставим Cash Flow как "товарный поток".)
     const profit1 = -sumExpenses + sumRevenue;
-    html += createRowHtml('Прибыль (Cash Flow)', '<b>Формула:</b><br>Выручка с продаж<br>− Затраты на покупку филамента (в этот период)<br><br>Сколько денег пришло минус сколько ушло на закупку.', sumExpenses, null, sumRevenue, null, profit1);
-    const profit2 = -sumExpenses + sumRevenue + sumCostUsedDefect;
-    html += createRowHtml('Прибыль (Скорректированная)', '<b>Формула:</b><br>Cash Flow + Себестоимость (Использовано для себя + Брак)<br><br>Показывает реальный результат, если бы вы не тратили пластик на себя.', sumExpenses, sumCostUsedDefect, sumRevenue, null, profit2);
+    
+    // 2. Скорректированная: Cash Flow + Возврат себестоимости брака - Сервис
+    const profit2 = profit1 + sumCostUsedDefect - sumService;
+    
+    // 3. Валовая (Торговая): Выручка - Себест. продаж (Сервис здесь НЕ участвует, это OpEx)
     const profit3 = sumRevenue - sumCOGS;
-    html += createRowHtml('Валовая прибыль (Торговая)', '<b>Формула:</b><br>Выручка с продаж<br>− Себестоимость проданных товаров<br><br>Эффективность именно продаж (без учета закупок на склад).', null, null, sumRevenue, sumCOGS, profit3);
-    const profit4 = sumRevenue - sumCOGS - sumCostUsedDefect;
-    html += createRowHtml('Чистая прибыль (Операционная)', '<b>Формула:</b><br>Валовая прибыль<br>− Убытки (Использовано + Брак)<br><br>Итоговый финансовый результат деятельности.', null, sumCostUsedDefect, sumRevenue, sumCOGS, profit4);
+    
+    // 4. Чистая (Операционная): Валовая - Убытки брака - Сервис
+    const profit4 = profit3 - sumCostUsedDefect - sumService;
 
-    tbody.innerHTML = html;
+    let html = '';
+    html += createRow('Прибыль (Cash Flow)', '<b>Формула:</b><br>Выручка с продаж<br>− Затраты на покупку филамента', sumExpenses, null, null, sumRevenue, null, profit1);
+    html += createRow('Прибыль (Скорректированная)', '<b>Формула:</b><br>Cash Flow + Себестоимость (Использовано для себя + Брак) − Сервисные расходы', sumExpenses, sumCostUsedDefect, sumService, sumRevenue, null, profit2);
+    html += createRow('Валовая прибыль (Торговая)', '<b>Формула:</b><br>Выручка с продаж<br>− Себестоимость проданных товаров', null, null, null, sumRevenue, sumCOGS, profit3);
+    html += createRow('Чистая прибыль (Операционная)', '<b>Формула:</b><br>Валовая прибыль<br>− Убытки (Использовано + Брак)<br>− Сервисные расходы', null, sumCostUsedDefect, sumService, sumRevenue, sumCOGS, profit4);
+
+    document.querySelector('#financialTable tbody').innerHTML = html;
 }
 
 
 
-// ЗАМЕНИТЕ ЭТУ ФУНКЦИЮ
 function updateReports() {
     const startInput = document.getElementById('reportStartDate');
     const endInput = document.getElementById('reportEndDate');
@@ -4241,6 +4268,260 @@ async function recalculateFilamentUsage() {
 }
 
 
+// ==================== SERVICE EXPENSES LOGIC ====================
+
+function openServiceModal(id = null) {
+    isModalOpen = true;
+    const modal = document.getElementById('serviceModal');
+    modal.classList.add('active');
+    document.getElementById('serviceValidationMessage').classList.add('hidden');
+    
+    // Заполняем даталист из справочника
+    updateServiceDatalist();
+
+    if (id) {
+        // Edit mode
+        const item = db.serviceExpenses.find(x => x.id === id);
+        if (item) {
+            modal.setAttribute('data-edit-id', id);
+            document.querySelector('#serviceModal .modal-header-title').textContent = 'Редактировать расход';
+            document.getElementById('serviceDate').value = item.date;
+            document.getElementById('serviceNameInput').value = item.name;
+            document.getElementById('serviceQty').value = item.qty;
+            document.getElementById('servicePrice').value = item.price;
+            calcServiceTotal();
+        }
+    } else {
+        // Add mode
+        modal.removeAttribute('data-edit-id');
+        document.querySelector('#serviceModal .modal-header-title').textContent = 'Добавить сервисный расход';
+        document.getElementById('serviceDate').value = new Date().toISOString().split('T')[0];
+        document.getElementById('serviceNameInput').value = '';
+        document.getElementById('serviceQty').value = '1';
+        document.getElementById('servicePrice').value = '';
+        document.getElementById('serviceTotalCalc').textContent = '0.00 ₽';
+    }
+}
+
+function closeServiceModal() {
+    isModalOpen = false;
+    if(dbRef) dbRef.once('value').then(window.updateAppFromSnapshot);
+    document.getElementById('serviceModal').classList.remove('active');
+}
+
+function calcServiceTotal() {
+    const qty = parseFloat(document.getElementById('serviceQty').value) || 0;
+    const price = parseFloat(document.getElementById('servicePrice').value) || 0;
+    document.getElementById('serviceTotalCalc').textContent = (qty * price).toFixed(2) + ' ₽';
+}
+
+function updateServiceDatalist() {
+    const list = document.getElementById('serviceNamesDatalist');
+    if (list) {
+        list.innerHTML = db.serviceNames.map(s => `<option value="${escapeHtml(s.name)}">${s.price} ₽</option>`).join('');
+    }
+}
+
+// При выборе из списка подставляем цену
+window.onServiceNameChange = function(input) {
+    const val = input.value;
+    const found = db.serviceNames.find(s => s.name === val);
+    if (found) {
+        document.getElementById('servicePrice').value = found.price;
+        calcServiceTotal();
+    }
+};
+
+async function saveService() {
+    const date = document.getElementById('serviceDate').value;
+    const name = document.getElementById('serviceNameInput').value.trim();
+    const qty = parseFloat(document.getElementById('serviceQty').value);
+    const price = parseFloat(document.getElementById('servicePrice').value);
+    const eid = document.getElementById('serviceModal').getAttribute('data-edit-id');
+
+    if (!date || !name || isNaN(qty) || qty <= 0 || isNaN(price) || price < 0) {
+        document.getElementById('serviceValidationMessage').classList.remove('hidden');
+        return;
+    }
+
+    const saveBtn = document.getElementById('saveServiceBtn');
+    saveBtn.disabled = true; saveBtn.textContent = 'Сохранение...';
+
+    const item = {
+        id: eid ? parseInt(eid) : Date.now(),
+        date: date,
+        name: name,
+        qty: qty,
+        price: price,
+        total: qty * price
+    };
+
+    try {
+        const updates = {};
+        
+        // 1. Сохраняем расход (Атомарно)
+        let index;
+        if (eid) {
+            const oldItem = db.serviceExpenses.find(x => x.id === item.id);
+            index = db.serviceExpenses.indexOf(oldItem);
+        } else {
+            index = db.serviceExpenses.length;
+        }
+        
+        // Используем путь /serviceExpenses/INDEX
+        // Важно: если массив пуст, index=0 корректен для Firebase
+        updates[`/serviceExpenses/${index}`] = item;
+
+        // 2. Обновляем справочник (если нужно)
+        const existingNameIndex = db.serviceNames.findIndex(s => s.name.toLowerCase() === name.toLowerCase());
+        if (existingNameIndex === -1) {
+            // Новое имя - добавляем
+            const newIdx = db.serviceNames.length;
+            const newRef = { name: name, price: price };
+            updates[`/serviceNames/${newIdx}`] = newRef;
+            db.serviceNames.push(newRef); // Локально
+        } else {
+            // Имя есть - обновляем цену, если отличается
+            if (Math.abs(db.serviceNames[existingNameIndex].price - price) > 0.01) {
+                updates[`/serviceNames/${existingNameIndex}/price`] = price;
+                db.serviceNames[existingNameIndex].price = price; // Локально
+            }
+        }
+
+        await dbRef.update(updates);
+
+        // Локальное обновление списка расходов (для мгновенной отрисовки)
+        if (eid) {
+            const local = db.serviceExpenses.find(x => x.id === item.id);
+            if(local) Object.assign(local, item);
+        } else {
+            db.serviceExpenses.push(item);
+        }
+
+        updateServiceTable();
+        updateServiceNamesList();
+        updateReports();
+        closeServiceModal();
+
+    } catch (e) {
+        console.error(e);
+        alert('Ошибка сохранения: ' + e.message);
+    } finally {
+        saveBtn.disabled = false; saveBtn.textContent = 'Сохранить';
+    }
+}
+
+async function deleteService(id) {
+    if (!confirm('Удалить запись о расходе?')) return;
+    const item = db.serviceExpenses.find(x => x.id === id);
+    if (!item) return;
+    const index = db.serviceExpenses.indexOf(item);
+    
+    try {
+        await dbRef.child('serviceExpenses').child(index).remove();
+        // Локально удаляем (через splice)
+        db.serviceExpenses.splice(index, 1);
+        updateServiceTable();
+        updateReports();
+    } catch (e) {
+        alert('Ошибка удаления: ' + e.message);
+    }
+}
+
+function updateServiceTable() {
+    const tbody = document.querySelector('#serviceTable tbody');
+    if (!tbody) return;
+    const search = document.getElementById('serviceSearch').value.toLowerCase();
+    
+    // Фильтр и сортировка
+    const filtered = db.serviceExpenses.filter(x => x.name.toLowerCase().includes(search));
+    filtered.sort((a,b) => new Date(b.date) - new Date(a.date));
+
+    tbody.innerHTML = filtered.map(x => `
+        <tr>
+            <td>${x.date}</td>
+            <td>${escapeHtml(x.name)}</td>
+            <td>${x.qty}</td>
+            <td>${x.price.toFixed(2)}</td>
+            <td>${x.total.toFixed(2)}</td>
+            <td class="text-center">
+                <div class="action-buttons">
+                    <button class="btn-secondary btn-small" onclick="openServiceModal(${x.id})">✎</button>
+                    <button class="btn-danger btn-small" onclick="deleteService(${x.id})">✕</button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+    
+    // Показать/скрыть крестик поиска
+    toggleClearButton(document.getElementById('serviceSearch'));
+}
+
+
+// --- Справочник Сервисных работ ---
+function updateServiceNamesList() {
+    const list = document.getElementById('serviceNamesList');
+    if (!list) return;
+    const sorted = [...db.serviceNames].sort((a, b) => a.name.localeCompare(b.name));
+    list.innerHTML = sorted.map((s, i) => `
+        <div style="display:flex;justify-content:space-between;padding:8px 4px;border-bottom:1px solid #eee;align-items:center;">
+            <span>${escapeHtml(s.name)} — <strong>${s.price.toFixed(2)} ₽</strong></span>
+            <div class="action-buttons">
+                <button class="btn-secondary btn-small" onclick="editServiceName(${i})">✎</button>
+                <button class="btn-danger btn-small" onclick="removeServiceName(${i})">✕</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function addServiceName() {
+    const name = document.getElementById('newServiceName').value.trim();
+    const price = parseFloat(document.getElementById('newServicePrice').value);
+    if (name && !isNaN(price)) {
+        const idx = db.serviceNames.length;
+        const item = {name, price};
+        await dbRef.child('serviceNames').child(idx).set(item);
+        db.serviceNames.push(item);
+        document.getElementById('newServiceName').value='';
+        document.getElementById('newServicePrice').value='';
+        updateServiceNamesList();
+    }
+}
+
+async function removeServiceName(i) { // i - индекс в отсортированном массиве UI
+    const sorted = [...db.serviceNames].sort((a, b) => a.name.localeCompare(b.name));
+    const item = sorted[i];
+    const realIdx = db.serviceNames.indexOf(item);
+    
+    db.serviceNames.splice(realIdx, 1);
+    await dbRef.child('serviceNames').set(db.serviceNames); // Перезаписываем массив
+    updateServiceNamesList();
+}
+
+async function editServiceName(i) {
+    const sorted = [...db.serviceNames].sort((a, b) => a.name.localeCompare(b.name));
+    const item = sorted[i];
+    const realIdx = db.serviceNames.indexOf(item);
+    
+    const newName = prompt("Название:", item.name);
+    if(newName) {
+        const newPrice = prompt("Цена:", item.price);
+        if(newPrice && !isNaN(parseFloat(newPrice))) {
+            const updates = {};
+            updates[`/serviceNames/${realIdx}/name`] = newName.trim();
+            updates[`/serviceNames/${realIdx}/price`] = parseFloat(newPrice);
+            await dbRef.update(updates);
+            // Local
+            db.serviceNames[realIdx].name = newName.trim();
+            db.serviceNames[realIdx].price = parseFloat(newPrice);
+            updateServiceNamesList();
+        }
+    }
+}
+
+
+
+
 
 // ==================== EVENT LISTENERS ====================
 
@@ -4355,6 +4636,18 @@ function setupEventListeners() {
     document.getElementById('btnDeleteImage')?.addEventListener('click', function(event) { event.stopPropagation(); removeProductImage(); });
     document.getElementById('btnAddFile')?.addEventListener('click', () => document.getElementById('productFileInput').click());
     document.getElementById('productFileInput')?.addEventListener('change', function() { handleFileUpload(this); });
+	
+	// Service (New)
+    document.getElementById('addServiceBtn')?.addEventListener('click', () => openServiceModal());
+    document.getElementById('saveServiceBtn')?.addEventListener('click', saveService);
+    document.getElementById('closeServiceModalBtn')?.addEventListener('click', closeServiceModal);
+    document.getElementById('serviceSearch')?.addEventListener('input', updateServiceTable);
+    document.getElementById('serviceSearch')?.nextElementSibling.addEventListener('click', () => clearSearch('serviceSearch', 'updateServiceTable'));
+    document.getElementById('addServiceNameBtn')?.addEventListener('click', addServiceName);
+    
+    // Обновляем обновление дат, чтобы захватить и serviceDate
+    updateAllDates(); 
+
 	
 }
 

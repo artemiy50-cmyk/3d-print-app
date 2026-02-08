@@ -89,7 +89,7 @@
             </div>
         </div>
 
-		<p style="margin-top: 20px; font-size: 12px; color: #94a3b8;">3D Filament Manager v5.3 Multi-User</p>
+		<p style="margin-top: 20px; font-size: 12px; color: #94a3b8;">3D Filament Manager v5.4 Multi-User</p>
 	</div>
 
 
@@ -101,7 +101,7 @@
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div class="header-title" style="line-height: 1; display: flex; align-items: baseline; gap: 8px;">
                     <span>3D Print: Filament & Products Manager</span>
-                    <small style="font-size: 14px; color: var(--color-text-light); font-weight: 400;">v5.3</small>
+                    <small style="font-size: 14px; color: var(--color-text-light); font-weight: 400;">v5.4</small>
                 </div>
                 <div class="header-info" style="line-height: 1;">Система учета филамента и напечатанных изделий</div>
             </div>
@@ -171,6 +171,7 @@
             <button class="menu-item" data-page="products">📦 Изделия</button>
             <button class="menu-item" data-page="writeoff">📒 Списания</button>
 			<button class="menu-item" data-page="filament">🧵 Филамент</button>
+			<button class="menu-item" data-page="service">🛠️ Сервис</button>
             <button class="menu-item" data-page="reports">📈 Отчёты</button>
             <button class="menu-item" data-page="references">⚙️ Справочники</button>
 
@@ -513,6 +514,39 @@
                 </div>
             </div>
 
+
+            <div id="service" class="page">
+                <div class="page-title">Сервисные расходы</div>
+                <div class="controls">
+                    <div class="controls-left">
+                        <button id="addServiceBtn" class="btn-primary">➕ Добавить расход</button>
+                        <div class="search-container">
+                            <input type="text" class="search-input" id="serviceSearch" placeholder="Поиск по названию...">
+                            <span class="search-clear">&times;</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="table-container">
+                        <table id="serviceTable">
+                            <thead>
+                                <tr>
+                                    <th style="width: 120px;">Дата</th>
+                                    <th>Наименование</th>
+                                    <th>Кол-во</th>
+                                    <th>Цена за ед. (₽)</th>
+                                    <th>Стоимость (₽)</th>
+                                    <th class="text-center">Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+
+
             <div id="reports" class="page">
                 <div class="page-title">Финансовый отчет</div>
                 
@@ -618,15 +652,25 @@
                         <button id="addElectricityCostBtn" class="btn-primary" style="width: 100%; margin-bottom: var(--spacing);">Добавить тариф</button>
                         <div id="electricityCostList" style="max-height: 300px; overflow-y: auto;"></div>
                     </div>
-					 <div class="card">
+					<div class="card">
 						<div class="card-header">Комплектующие</div>
-						<div style="display: flex; gap: var(--spacing); margin-bottom: var(--spacing);">
-							<input type="text" id="newComponentName" placeholder="Название..." style="flex:2;">
-							<input type="number" id="newComponentPrice" placeholder="Цена" step="0.01" style="flex:1;">
-						</div>
-						<button id="addComponentBtn" class="btn-primary" style="width: 100%; margin-bottom: var(--spacing);">Добавить</button>
+							<div style="display: flex; gap: var(--spacing); margin-bottom: var(--spacing);">
+								<input type="text" id="newComponentName" placeholder="Название..." style="flex:2;">
+								<input type="number" id="newComponentPrice" placeholder="Цена" step="0.01" style="flex:1;">
+							</div>
+							<button id="addComponentBtn" class="btn-primary" style="width: 100%; margin-bottom: var(--spacing);">Добавить</button>
 						<div id="componentsList" style="max-height: 300px; overflow-y: auto;"></div>
 					</div>
+					 <div class="card">
+                        <div class="card-header">Сервисные работы</div>
+							<div style="display: flex; gap: var(--spacing); margin-bottom: var(--spacing);">
+								<input type="text" id="newServiceName" placeholder="Название..." style="flex:2;">
+								<input type="number" id="newServicePrice" placeholder="Цена" step="0.01" style="flex:1;">
+							</div>
+                        <button id="addServiceNameBtn" class="btn-primary" style="width: 100%; margin-bottom: var(--spacing);">Добавить</button>
+                        <div id="serviceNamesList" style="max-height: 300px; overflow-y: auto;"></div>
+                    </div>
+
                 </div>
             </div>
 
@@ -916,6 +960,49 @@
 		</div>
 	</div>
 
+	<!-- Модальное окно "Добавить сервисный расход" -->
+    <div id="serviceModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header-simple-custom">
+                <div class="modal-header-title">Добавить сервисный расход</div>
+                <div id="serviceValidationMessage" class="validation-message hidden" style="position: absolute; bottom: 8px; left: 24px; margin: 0; padding: 0;">Заполните все поля</div>
+            </div>
+            
+            <div class="modal-body">
+                <div class="form-section">
+                    <div class="form-group">
+                        <label>Дата:*</label>
+                        <input type="date" id="serviceDate">
+                    </div>
+                    <div class="form-group">
+                        <label>Наименование расхода:*</label>
+                        <!-- Datalist для подсказок -->
+                        <input type="text" id="serviceNameInput" list="serviceNamesDatalist" placeholder="Например: Замена сопла, Смазка валов..." onchange="onServiceNameChange(this)">
+                        <datalist id="serviceNamesDatalist"></datalist>
+                    </div>
+                    <div class="form-row-3">
+                        <div class="form-group">
+                            <label>Кол-во:</label>
+                            <input type="number" id="serviceQty" value="1" min="1" oninput="calcServiceTotal()">
+                        </div>
+                        <div class="form-group">
+                            <label>Цена за ед. (₽):</label>
+                            <input type="number" id="servicePrice" step="0.01" oninput="calcServiceTotal()">
+                        </div>
+                        <div class="form-group">
+                            <label>Итого (₽):</label>
+                            <div class="calc-field" id="serviceTotalCalc" style="font-weight: bold;">0.00 ₽</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button id="closeServiceModalBtn" class="btn-secondary">Отмена</button>
+                <button id="saveServiceBtn" class="btn-primary">Сохранить</button>
+            </div>
+        </div>
+    </div>
 
 
 
