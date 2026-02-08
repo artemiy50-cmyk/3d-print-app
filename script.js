@@ -1,4 +1,4 @@
-console.log("Version: 5.4 (2026-02-08 23-15)");
+console.log("Version: 5.4 (2026-02-08 23-50)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -3660,10 +3660,15 @@ function updateFinancialReport() {
         }
     });
 
-    const defectiveProducts = db.products.filter(p => { const d=new Date(p.date); return p.defective && d>=dStart && d<=dEnd; });
+    // ДОП ЗАДАНИЕ: Исключаем части составных изделий из прямого подсчета брака в списке изделий,
+    // так как предполагается, что учет ведется по родительскому изделию или через списания.
+    const defectiveProducts = db.products.filter(p => { 
+        const d=new Date(p.date); 
+        return p.defective && p.type !== 'Часть составного' && d>=dStart && d<=dEnd; 
+    });
     defectiveProducts.forEach(p => sumCostUsedDefect += (p.costActualPrice||0));
 
-    // === NEW: SERVICE EXPENSES ===
+    // Сервисные расходы
     const serviceInRange = db.serviceExpenses.filter(s => { 
         const d=new Date(s.date); 
         return d>=dStart && d<=dEnd; 
@@ -3677,6 +3682,9 @@ function updateFinancialReport() {
         const fmtNum = v => v!=null ? v.toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2}) : '';
         const pColor = profit>0?'val-positive':(profit<0?'val-negative':'val-neutral');
 
+        // У сервиса убираем цветное форматирование цифр, делаем обычным текстом
+        const serviceStyle = service!=null ? 'color: var(--color-text);' : '';
+
         return `
         <tr>
             <td style="text-align:left; padding: 12px 16px;">
@@ -3687,8 +3695,8 @@ function updateFinancialReport() {
             </td>
             <td class="report-val val-neutral">${expenses!=null ? fmtMoney(expenses) : ''}</td>
             <td class="report-val val-neutral">${costUsed!=null ? fmtMoney(costUsed) : ''}</td>
-            <!-- Новая колонка Сервис -->
-            <td class="report-val" style="color:var(--color-purple); font-weight:500;">${service!=null ? fmtMoney(service) : ''}</td>
+            
+            <td class="report-val" style="${serviceStyle}">${service!=null ? fmtMoney(service) : ''}</td>
             
             <td class="report-val val-neutral">${revenue!=null ? fmtMoney(revenue) : ''}</td>
             <td class="report-val val-neutral">${cogs!=null ? fmtMoney(cogs) : ''}</td>
@@ -3699,37 +3707,49 @@ function updateFinancialReport() {
         </tr>`;
     };
 
-    // Обновляем заголовок таблицы (добавляем колонку Сервис, если её нет)
-    const theadRow = document.querySelector('#financialTable thead tr');
-    if(theadRow && theadRow.children.length < 9) { // Было 8, стало 9
-        const th = document.createElement('th');
-        th.innerHTML = '<span class="tooltip-container" style="border-bottom:1px dashed #94a3b8;">Сервисн.расх.<span class="tooltip-text">Расходы на обслуживание, ремонт и прочие услуги</span></span>';
-        // Вставляем после "Себест. исп/брак" (это 3-й элемент, индекс 2)
-        // Структура: Title(0), Expenses(1), CostUsed(2), [INSERT HERE], Revenue(3)...
-        theadRow.insertBefore(th, theadRow.children[3]); 
-    }
-
-    // РАСЧЕТЫ ПРИБЫЛИ
-    // 1. Cash Flow: Приход - Расход на материал (Сервис здесь НЕ учитываем, т.к. это операционка, хотя деньги уходят. Обычно Cash Flow в складском учете - это движение по складу. Но если считать деньги в кассе - сервис надо вычесть. В промпте сказано "учитывай для занижения Скорректированной и Чистой". Оставим Cash Flow как "товарный поток".)
-    const profit1 = -sumExpenses + sumRevenue;
+    // 1. Profit (Cash Flow): Теперь включает вычет сервисных расходов
+    // Формула: Выручка - Филамент - Сервис
+    const profit1 = sumRevenue - sumExpenses - sumService;
     
-    // 2. Скорректированная: Cash Flow + Возврат себестоимости брака - Сервис
-    const profit2 = profit1 + sumCostUsedDefect - sumService;
+    // 2. Profit (Adjusted): Cash Flow + Себест.Брака. 
+    // ВАЖНО: Мы НЕ вычитаем сервис второй раз, так как он уже вычтен в profit1.
+    // И мы не показываем значение в колонке service для этой строки (pass null).
+    const profit2 = profit1 + sumCostUsedDefect;
     
-    // 3. Валовая (Торговая): Выручка - Себест. продаж (Сервис здесь НЕ участвует, это OpEx)
+    // 3. Gross Profit (Trading): Без изменений
     const profit3 = sumRevenue - sumCOGS;
     
-    // 4. Чистая (Операционная): Валовая - Убытки брака - Сервис
+    // 4. Net Profit (Operating): Вычитаем всё
     const profit4 = profit3 - sumCostUsedDefect - sumService;
 
     let html = '';
-    html += createRow('Прибыль (Cash Flow)', '<b>Формула:</b><br>Выручка с продаж<br>− Затраты на покупку филамента', sumExpenses, null, null, sumRevenue, null, profit1);
-    html += createRow('Прибыль (Скорректированная)', '<b>Формула:</b><br>Cash Flow + Себестоимость (Использовано для себя + Брак) − Сервисные расходы', sumExpenses, sumCostUsedDefect, sumService, sumRevenue, null, profit2);
-    html += createRow('Валовая прибыль (Торговая)', '<b>Формула:</b><br>Выручка с продаж<br>− Себестоимость проданных товаров', null, null, null, sumRevenue, sumCOGS, profit3);
-    html += createRow('Чистая прибыль (Операционная)', '<b>Формула:</b><br>Валовая прибыль<br>− Убытки (Использовано + Брак)<br>− Сервисные расходы', null, sumCostUsedDefect, sumService, sumRevenue, sumCOGS, profit4);
+    html += createRow(
+        'Прибыль (Cash Flow)', 
+        '<b>Формула:</b><br>Выручка с продаж<br>− Затраты на покупку филамента<br>− Сервисные расходы', 
+        sumExpenses, null, sumService, sumRevenue, null, profit1
+    );
+    
+    html += createRow(
+        'Прибыль (Скорректированная)', 
+        '<b>Формула:</b><br>Cash Flow + Себестоимость (Использовано для себя + Брак)<br><br><i>Сервисные расходы уже учтены в Cash Flow и здесь повторно не вычитаются.</i>', 
+        sumExpenses, sumCostUsedDefect, null, sumRevenue, null, profit2
+    );
+    
+    html += createRow(
+        'Валовая прибыль (Торговая)', 
+        '<b>Формула:</b><br>Выручка с продаж<br>− Себестоимость проданных товаров', 
+        null, null, null, sumRevenue, sumCOGS, profit3
+    );
+    
+    html += createRow(
+        'Чистая прибыль (Операционная)', 
+        '<b>Формула:</b><br>Валовая прибыль<br>− Убытки (Использовано + Брак)<br>− Сервисные расходы', 
+        null, sumCostUsedDefect, sumService, sumRevenue, sumCOGS, profit4
+    );
 
     document.querySelector('#financialTable tbody').innerHTML = html;
 }
+
 
 
 
@@ -4276,11 +4296,14 @@ function openServiceModal(id = null) {
     modal.classList.add('active');
     document.getElementById('serviceValidationMessage').classList.add('hidden');
     
-    // Заполняем даталист из справочника
+    // Сброс красной обводки
+    const inputs = modal.querySelectorAll('input, textarea');
+    inputs.forEach(el => el.style.border = '');
+
     updateServiceDatalist();
 
     if (id) {
-        // Edit mode
+        // Редактирование
         const item = db.serviceExpenses.find(x => x.id === id);
         if (item) {
             modal.setAttribute('data-edit-id', id);
@@ -4289,19 +4312,22 @@ function openServiceModal(id = null) {
             document.getElementById('serviceNameInput').value = item.name;
             document.getElementById('serviceQty').value = item.qty;
             document.getElementById('servicePrice').value = item.price;
+            document.getElementById('serviceNote').value = item.note || ''; // Загружаем примечание
             calcServiceTotal();
         }
     } else {
-        // Add mode
+        // Добавление
         modal.removeAttribute('data-edit-id');
         document.querySelector('#serviceModal .modal-header-title').textContent = 'Добавить сервисный расход';
         document.getElementById('serviceDate').value = new Date().toISOString().split('T')[0];
         document.getElementById('serviceNameInput').value = '';
         document.getElementById('serviceQty').value = '1';
         document.getElementById('servicePrice').value = '';
+        document.getElementById('serviceNote').value = ''; // Очищаем примечание
         document.getElementById('serviceTotalCalc').textContent = '0.00 ₽';
     }
 }
+
 
 function closeServiceModal() {
     isModalOpen = false;
@@ -4333,15 +4359,39 @@ window.onServiceNameChange = function(input) {
 };
 
 async function saveService() {
-    const date = document.getElementById('serviceDate').value;
-    const name = document.getElementById('serviceNameInput').value.trim();
-    const qty = parseFloat(document.getElementById('serviceQty').value);
-    const price = parseFloat(document.getElementById('servicePrice').value);
+    const dateEl = document.getElementById('serviceDate');
+    const nameEl = document.getElementById('serviceNameInput');
+    const qtyEl = document.getElementById('serviceQty');
+    const priceEl = document.getElementById('servicePrice');
+    const noteEl = document.getElementById('serviceNote');
+
+    const date = dateEl.value;
+    const name = nameEl.value.trim();
+    const qty = parseFloat(qtyEl.value);
+    const price = parseFloat(priceEl.value);
+    const note = noteEl.value.trim();
     const eid = document.getElementById('serviceModal').getAttribute('data-edit-id');
 
-    if (!date || !name || isNaN(qty) || qty <= 0 || isNaN(price) || price < 0) {
+    // Валидация с подсветкой
+    let isValid = true;
+    const requiredFields = [dateEl, nameEl, qtyEl, priceEl];
+    
+    requiredFields.forEach(el => {
+        // Сброс стиля
+        el.style.border = ''; 
+        
+        // Проверка
+        if (!el.value || (el.type === 'number' && parseFloat(el.value) <= 0)) {
+            el.style.border = '1px solid red'; // Красная обводка
+            isValid = false;
+        }
+    });
+
+    if (!isValid) {
         document.getElementById('serviceValidationMessage').classList.remove('hidden');
         return;
+    } else {
+        document.getElementById('serviceValidationMessage').classList.add('hidden');
     }
 
     const saveBtn = document.getElementById('saveServiceBtn');
@@ -4353,13 +4403,13 @@ async function saveService() {
         name: name,
         qty: qty,
         price: price,
-        total: qty * price
+        total: qty * price,
+        note: note // Сохраняем примечание
     };
 
     try {
         const updates = {};
         
-        // 1. Сохраняем расход (Атомарно)
         let index;
         if (eid) {
             const oldItem = db.serviceExpenses.find(x => x.id === item.id);
@@ -4368,29 +4418,24 @@ async function saveService() {
             index = db.serviceExpenses.length;
         }
         
-        // Используем путь /serviceExpenses/INDEX
-        // Важно: если массив пуст, index=0 корректен для Firebase
         updates[`/serviceExpenses/${index}`] = item;
 
-        // 2. Обновляем справочник (если нужно)
+        // Обновляем справочник
         const existingNameIndex = db.serviceNames.findIndex(s => s.name.toLowerCase() === name.toLowerCase());
         if (existingNameIndex === -1) {
-            // Новое имя - добавляем
             const newIdx = db.serviceNames.length;
             const newRef = { name: name, price: price };
             updates[`/serviceNames/${newIdx}`] = newRef;
-            db.serviceNames.push(newRef); // Локально
+            db.serviceNames.push(newRef);
         } else {
-            // Имя есть - обновляем цену, если отличается
             if (Math.abs(db.serviceNames[existingNameIndex].price - price) > 0.01) {
                 updates[`/serviceNames/${existingNameIndex}/price`] = price;
-                db.serviceNames[existingNameIndex].price = price; // Локально
+                db.serviceNames[existingNameIndex].price = price;
             }
         }
 
         await dbRef.update(updates);
 
-        // Локальное обновление списка расходов (для мгновенной отрисовки)
         if (eid) {
             const local = db.serviceExpenses.find(x => x.id === item.id);
             if(local) Object.assign(local, item);
@@ -4410,6 +4455,7 @@ async function saveService() {
         saveBtn.disabled = false; saveBtn.textContent = 'Сохранить';
     }
 }
+
 
 async function deleteService(id) {
     if (!confirm('Удалить запись о расходе?')) return;
@@ -4431,9 +4477,19 @@ async function deleteService(id) {
 function updateServiceTable() {
     const tbody = document.querySelector('#serviceTable tbody');
     if (!tbody) return;
+    
+    // Обновляем заголовок таблицы (добавляем колонку Примечание, если её нет)
+    const theadRow = document.querySelector('#serviceTable thead tr');
+    // Проверяем по количеству колонок (было 6, должно стать 7)
+    if (theadRow && theadRow.children.length < 7) {
+        const thNote = document.createElement('th');
+        thNote.textContent = 'Примечание';
+        // Вставляем перед последней колонкой (Действия)
+        theadRow.insertBefore(thNote, theadRow.lastElementChild);
+    }
+
     const search = document.getElementById('serviceSearch').value.toLowerCase();
     
-    // Фильтр и сортировка
     const filtered = db.serviceExpenses.filter(x => x.name.toLowerCase().includes(search));
     filtered.sort((a,b) => new Date(b.date) - new Date(a.date));
 
@@ -4444,6 +4500,7 @@ function updateServiceTable() {
             <td>${x.qty}</td>
             <td>${x.price.toFixed(2)}</td>
             <td>${x.total.toFixed(2)}</td>
+            <td style="font-size:12px; color:#64748b; max-width: 200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(x.note || '')}">${escapeHtml(x.note || '-')}</td>
             <td class="text-center">
                 <div class="action-buttons">
                     <button class="btn-secondary btn-small" onclick="openServiceModal(${x.id})">✎</button>
@@ -4453,7 +4510,6 @@ function updateServiceTable() {
         </tr>
     `).join('');
     
-    // Показать/скрыть крестик поиска
     toggleClearButton(document.getElementById('serviceSearch'));
 }
 

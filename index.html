@@ -662,7 +662,7 @@
 						<div id="componentsList" style="max-height: 300px; overflow-y: auto;"></div>
 					</div>
 					 <div class="card">
-                        <div class="card-header">Сервисные работы</div>
+                        <div class="card-header">Сервисные расходы</div>
 							<div style="display: flex; gap: var(--spacing); margin-bottom: var(--spacing);">
 								<input type="text" id="newServiceName" placeholder="Название..." style="flex:2;">
 								<input type="number" id="newServicePrice" placeholder="Цена" step="0.01" style="flex:1;">
@@ -970,23 +970,21 @@
             
             <div class="modal-body">
                 <div class="form-section">
-                    <div class="form-group">
-                        <label>Дата:*</label>
-                        <input type="date" id="serviceDate">
-                    </div>
+                    <!-- Наименование на всю ширину -->
                     <div class="form-group">
                         <label>Наименование расхода:*</label>
-                        <!-- Datalist для подсказок -->
                         <input type="text" id="serviceNameInput" list="serviceNamesDatalist" placeholder="Например: Замена сопла, Смазка валов..." onchange="onServiceNameChange(this)">
                         <datalist id="serviceNamesDatalist"></datalist>
                     </div>
+
+                    <!-- Ряд: Кол-во, Цена, Итого -->
                     <div class="form-row-3">
                         <div class="form-group">
-                            <label>Кол-во:</label>
+                            <label>Кол-во:*</label>
                             <input type="number" id="serviceQty" value="1" min="1" oninput="calcServiceTotal()">
                         </div>
                         <div class="form-group">
-                            <label>Цена за ед. (₽):</label>
+                            <label>Цена за ед. (₽):*</label>
                             <input type="number" id="servicePrice" step="0.01" oninput="calcServiceTotal()">
                         </div>
                         <div class="form-group">
@@ -994,12 +992,26 @@
                             <div class="calc-field" id="serviceTotalCalc" style="font-weight: bold;">0.00 ₽</div>
                         </div>
                     </div>
+
+                    <!-- Примечание (новое поле) -->
+                    <div class="form-group">
+                        <label>Примечание:</label>
+                        <textarea id="serviceNote" placeholder="Детали расхода..."></textarea>
+                    </div>
+
+                    <!-- Дата: 1/3 ширины, прижата вправо -->
+                    <div style="display: flex; justify-content: flex-end;">
+                        <div class="form-group" style="width: 32%;">
+                            <label>Дата:*</label>
+                            <input type="date" id="serviceDate">
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <div class="modal-footer">
                 <button id="closeServiceModalBtn" class="btn-secondary">Отмена</button>
-                <button id="saveServiceBtn" class="btn-primary">Сохранить</button>
+                <button id="saveServiceBtn" class="btn-primary">Сохранить и закрыть</button>
             </div>
         </div>
     </div>
