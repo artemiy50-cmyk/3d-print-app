@@ -970,6 +970,13 @@
             
             <div class="modal-body">
                 <div class="form-section">
+				    <!-- Дата: 1/3 ширины, прижата вправо -->
+                    <div style="display: flex; justify-content: flex-end;">
+                        <div class="form-group" style="width: 32%;">
+                            <label>Дата:*</label>
+                            <input type="date" id="serviceDate">
+                        </div>
+                    </div>
                     <!-- Наименование на всю ширину -->
                     <div class="form-group">
                         <label>Наименование расхода:*</label>
@@ -999,13 +1006,7 @@
                         <textarea id="serviceNote" placeholder="Детали расхода..."></textarea>
                     </div>
 
-                    <!-- Дата: 1/3 ширины, прижата вправо -->
-                    <div style="display: flex; justify-content: flex-end;">
-                        <div class="form-group" style="width: 32%;">
-                            <label>Дата:*</label>
-                            <input type="date" id="serviceDate">
-                        </div>
-                    </div>
+
                 </div>
             </div>
 
