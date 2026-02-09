@@ -1,4 +1,4 @@
-console.log("Version: 5.4 (2026-02-09 08-10)");
+console.log("Version: 5.4 (2026-02-09 09-18)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -202,13 +202,15 @@ window.resendVerification = function() {
 }
 
 
-// === ГЛАВНЫЙ СЛУШАТЕЛЬ АВТОРИЗАЦИИ ===
+
+// === ГЛАВНЫЙ СЛУШАТЕЛЬ АВТОРИЗАЦИИ (ИСПРАВЛЕННЫЙ) ===
 window.addEventListener('DOMContentLoaded', () => {
     firebase.auth().onAuthStateChanged(async (user) => {
         const overlay = document.getElementById('loginOverlay');
         const authContainer = document.getElementById('authContainer');
         const verifyContainer = document.getElementById('verificationWait');
         
+        // Отключаем старый слушатель, если он был
         if (dbRef) dbRef.off();
 
         if (user) {
@@ -222,50 +224,48 @@ window.addEventListener('DOMContentLoaded', () => {
 
             if(overlay) overlay.style.display = 'none'; 
             
-            // 1. СТАРЫЙ REF (Оставляем как был, чтобы не ломать сохранение!)
+            // 1. REF ДЛЯ ЗАПИСИ (Оставляем старый путь .../data для совместимости функций сохранения)
             dbRef = firebase.database().ref('users/' + user.uid + '/data');
             
-            // 2. НОВЫЙ REF ДЛЯ ПОДПИСКИ (Слушаем отдельно)
+            // 2. REF ДЛЯ ЧТЕНИЯ (Новый путь: корень пользователя, чтобы видеть и data, и stats)
+            const userRootRef = firebase.database().ref('users/' + user.uid);
+            
+            // 3. Подписка
             const subRef = firebase.database().ref('users/' + user.uid + '/subscription');
             subRef.on('value', (snapshot) => {
                 const subData = snapshot.val();
-                
-                // Если это старый пользователь и у него нет ветки subscription - создаем триал
                 if (!subData) {
                     console.log("Migrating old user to trial...");
                     const now = new Date();
                     const end = new Date(); end.setDate(now.getDate() + 30);
                     subRef.set({ status: 'trial', startDate: now.toISOString(), expiryDate: end.toISOString() });
                 } else {
-                    // Вызываем функцию проверки (её код ниже)
                     checkSubscription(subData);
                 }
             });
 
             setupUserSidebar(user);
             
-            // Функция обновления данных (без изменений, кроме удаления checkSubscription внутри, если вы её туда добавляли)
-			window.updateAppFromSnapshot = function(snapshot) {
+            // Функция обработки данных
+            window.updateAppFromSnapshot = function(snapshot) {
                 console.log('Updating UI from Firebase snapshot...');
-                const fullData = snapshot.val(); // Получаем ВЕСЬ объект пользователя, не только data
+                const fullData = snapshot.val(); // Теперь здесь весь объект пользователя
                 
-                // 1. Загрузка данных приложения
+                // Извлекаем данные приложения из поля data
                 const loadedData = fullData ? fullData.data : null;
                 
-                // 2. Загрузка/Инициализация статистики (находится рядом с data)
+                // Извлекаем статистику из поля stats
                 if (fullData && fullData.stats) {
                     userStats = fullData.stats;
                 } else {
-                    // Если статистики нет, считаем её на лету (один раз при первом запуске v5.5)
                     recalculateInitialStats(loadedData);
                 }
                 
-                // Проверка персонального лимита (админ может выставить personalLimit в базе)
+                // Проверяем настройки лимитов
                 if (fullData && fullData.settings && fullData.settings.personalStorageLimit) {
                     USER_LIMITS.maxStorage = fullData.settings.personalStorageLimit;
                 }
 
-                
                 if (loadedData) {
                     db.filaments = loadedData.filaments || [];
                     db.products = loadedData.products || [];
@@ -280,10 +280,11 @@ window.addEventListener('DOMContentLoaded', () => {
                     db.printers = loadedData.printers || [ { id: 1, model: 'Creality Ender 3', power: 0.35 } ];
                     db.electricityCosts = loadedData.electricityCosts || [{ id: Date.now(), date: '2020-01-01', cost: 6 }];
                 } else {
+                    // Если данных нет (новый юзер) или ошибка чтения
 					db.filaments = []; 
 					db.products = []; 
 					db.writeoffs = []; 
-					db.serviceExpenses = []; // <--- ДОБАВИТЬ
+					db.serviceExpenses = []; 
 				}
 
                 recalculateAllProductCosts();
@@ -298,8 +299,8 @@ window.addEventListener('DOMContentLoaded', () => {
                 try { updateDashboard(); } catch(e) { console.error('Dashboard update failed', e); }
             };
 
-            // Слушаем изменения данных
-            dbRef.on('value', (snapshot) => {
+            // ВАЖНО: Слушаем изменения на уровне userRootRef, а не dbRef
+            userRootRef.on('value', (snapshot) => {
                 if (isModalOpen) return;
                 window.updateAppFromSnapshot(snapshot);
             });
@@ -317,6 +318,9 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+
+
 
 function recalculateInitialStats(data) {
     console.log("Первичный подсчет статистики использования...");
