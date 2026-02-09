@@ -1,4 +1,4 @@
-console.log("Version: 5.4 (2026-02-09 09-18)");
+console.log("Version: 5.4 (2026-02-09 14-12)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -210,7 +210,6 @@ window.addEventListener('DOMContentLoaded', () => {
         const authContainer = document.getElementById('authContainer');
         const verifyContainer = document.getElementById('verificationWait');
         
-        // Отключаем старый слушатель, если он был
         if (dbRef) dbRef.off();
 
         if (user) {
@@ -224,18 +223,16 @@ window.addEventListener('DOMContentLoaded', () => {
 
             if(overlay) overlay.style.display = 'none'; 
             
-            // 1. REF ДЛЯ ЗАПИСИ (Оставляем старый путь .../data для совместимости функций сохранения)
+            // 1. REF ДЛЯ ЗАПИСИ (Оставляем старый путь .../data)
             dbRef = firebase.database().ref('users/' + user.uid + '/data');
             
-            // 2. REF ДЛЯ ЧТЕНИЯ (Новый путь: корень пользователя, чтобы видеть и data, и stats)
+            // 2. REF ДЛЯ ЧТЕНИЯ (Корень пользователя)
             const userRootRef = firebase.database().ref('users/' + user.uid);
             
-            // 3. Подписка
             const subRef = firebase.database().ref('users/' + user.uid + '/subscription');
             subRef.on('value', (snapshot) => {
                 const subData = snapshot.val();
                 if (!subData) {
-                    console.log("Migrating old user to trial...");
                     const now = new Date();
                     const end = new Date(); end.setDate(now.getDate() + 30);
                     subRef.set({ status: 'trial', startDate: now.toISOString(), expiryDate: end.toISOString() });
@@ -246,24 +243,43 @@ window.addEventListener('DOMContentLoaded', () => {
 
             setupUserSidebar(user);
             
-            // Функция обработки данных
+            // === ИСПРАВЛЕННАЯ ФУНКЦИЯ ОБНОВЛЕНИЯ ===
             window.updateAppFromSnapshot = function(snapshot) {
                 console.log('Updating UI from Firebase snapshot...');
-                const fullData = snapshot.val(); // Теперь здесь весь объект пользователя
+                const val = snapshot.val(); 
                 
-                // Извлекаем данные приложения из поля data
-                const loadedData = fullData ? fullData.data : null;
+                let loadedData = null;
                 
-                // Извлекаем статистику из поля stats
-                if (fullData && fullData.stats) {
-                    userStats = fullData.stats;
+                // ЛОГИКА: Определяем, что нам пришло - корень или папка data
+                
+                if (val && typeof val === 'object') {
+                    // Вариант А: Пришел корневой объект (есть ключи 'data', 'stats' или 'subscription')
+                    if ('data' in val || 'stats' in val || 'subscription' in val) {
+                        loadedData = val.data || null;
+                        
+                        if (val.stats) userStats = val.stats;
+                        if (val.settings && val.settings.personalStorageLimit) {
+                            USER_LIMITS.maxStorage = val.settings.personalStorageLimit;
+                        }
+                    }
+                    // Вариант Б: Пришла папка data (есть ключи 'products', 'filaments' и т.д.)
+                    else if (val.products || val.filaments || val.writeoffs || val.serviceExpenses || val.brands) {
+                        loadedData = val;
+                        // Статистику здесь обновить не можем, оставляем старую
+                    }
+                    // Вариант В: Пустой объект или неизвестная структура
+                    else {
+                        // Если объект пустой, считаем что данных нет (новый юзер)
+                        if (Object.keys(val).length === 0) loadedData = null;
+                        else loadedData = val.data ? val.data : val; 
+                    }
                 } else {
-                    recalculateInitialStats(loadedData);
+                    loadedData = null;
                 }
-                
-                // Проверяем настройки лимитов
-                if (fullData && fullData.settings && fullData.settings.personalStorageLimit) {
-                    USER_LIMITS.maxStorage = fullData.settings.personalStorageLimit;
+
+                // Если статистики нет (первый запуск), считаем её
+                if (userStats.storageUsed === 0 && userStats.filesCount === 0 && loadedData) {
+                     recalculateInitialStats(loadedData);
                 }
 
                 if (loadedData) {
@@ -280,7 +296,6 @@ window.addEventListener('DOMContentLoaded', () => {
                     db.printers = loadedData.printers || [ { id: 1, model: 'Creality Ender 3', power: 0.35 } ];
                     db.electricityCosts = loadedData.electricityCosts || [{ id: Date.now(), date: '2020-01-01', cost: 6 }];
                 } else {
-                    // Если данных нет (новый юзер) или ошибка чтения
 					db.filaments = []; 
 					db.products = []; 
 					db.writeoffs = []; 
@@ -299,7 +314,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 try { updateDashboard(); } catch(e) { console.error('Dashboard update failed', e); }
             };
 
-            // ВАЖНО: Слушаем изменения на уровне userRootRef, а не dbRef
+            // Слушаем корень
             userRootRef.on('value', (snapshot) => {
                 if (isModalOpen) return;
                 window.updateAppFromSnapshot(snapshot);
@@ -1040,10 +1055,11 @@ function updateFilamentColorPreview() {
 // --- FILAMENT ---
 function openFilamentModal() { isModalOpen = true; document.getElementById('filamentModal').classList.add('active'); clearFilamentForm(); setTimeout(() => document.getElementById('filamentCustomId').focus(), 100); }
 
+
 function closeFilamentModal() { 
-    isModalOpen = false; // Разблокируем прием данных
-    // Принудительно запрашиваем актуальные данные, вдруг что-то пропустили
-    if(dbRef) dbRef.once('value').then(window.updateAppFromSnapshot);
+    isModalOpen = false;
+    // Используем dbRef.parent, чтобы получить корневой объект (с stats и data)
+    if(dbRef && dbRef.parent) dbRef.parent.once('value').then(window.updateAppFromSnapshot);
 
     document.getElementById('filamentModal').classList.remove('active'); 
     document.getElementById('filamentModal').removeAttribute('data-edit-id'); 
@@ -1585,8 +1601,8 @@ function openProductModal() {
 }
 
 function closeProductModal() { 
-    isModalOpen = false; // Разблокируем
-    if(dbRef) dbRef.once('value').then(window.updateAppFromSnapshot);
+    isModalOpen = false;
+    if(dbRef && dbRef.parent) dbRef.parent.once('value').then(window.updateAppFromSnapshot);
 
 	const modal = document.getElementById('productModal');
     modal.classList.remove('active'); 
@@ -3002,8 +3018,8 @@ window.refreshProductSelectsInWriteoff = function() {
 
 
 function closeWriteoffModal() { 
-	isModalOpen = false; // Разблокируем
-    if(dbRef) dbRef.once('value').then(window.updateAppFromSnapshot);
+	isModalOpen = false;
+    if(dbRef && dbRef.parent) dbRef.parent.once('value').then(window.updateAppFromSnapshot);
 
 	document.getElementById('writeoffModal').classList.remove('active'); 
 }
@@ -4458,10 +4474,9 @@ function openServiceModal(id = null) {
 }
 
 
-
 function closeServiceModal() {
     isModalOpen = false;
-    if(dbRef) dbRef.once('value').then(window.updateAppFromSnapshot);
+    if(dbRef && dbRef.parent) dbRef.parent.once('value').then(window.updateAppFromSnapshot);
     document.getElementById('serviceModal').classList.remove('active');
 }
 
