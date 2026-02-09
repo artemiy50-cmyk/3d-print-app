@@ -1,4 +1,4 @@
-console.log("Version: 5.4 (2026-02-09 00-55)");
+console.log("Version: 5.4 (2026-02-09 08-10)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -22,6 +22,19 @@ const cloudinaryConfig = {
 // const IMGBB_API_KEY = "326af327af6376b3b4d4e580dba10743";
 
 // ==================== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ====================
+// Лимиты по умолчанию (в байтах)
+const USER_LIMITS = {
+    maxStorage: 1024 * 1024 * 1024, // 1 ГБ
+    maxCloudFiles: 1000 // Максимум файлов (защита от спама мелкими файлами)
+};
+
+// Текущая статистика пользователя
+let userStats = {
+    storageUsed: 0,
+    filesCount: 0
+};
+
+
 const db = {
     filaments: [], products: [], writeoffs: [], brands: ['Prusament', 'MatterHackers', 'Prusament Pro'],
 	serviceExpenses: [],
@@ -232,9 +245,26 @@ window.addEventListener('DOMContentLoaded', () => {
             setupUserSidebar(user);
             
             // Функция обновления данных (без изменений, кроме удаления checkSubscription внутри, если вы её туда добавляли)
-            window.updateAppFromSnapshot = function(snapshot) {
+			window.updateAppFromSnapshot = function(snapshot) {
                 console.log('Updating UI from Firebase snapshot...');
-                const loadedData = snapshot.val();
+                const fullData = snapshot.val(); // Получаем ВЕСЬ объект пользователя, не только data
+                
+                // 1. Загрузка данных приложения
+                const loadedData = fullData ? fullData.data : null;
+                
+                // 2. Загрузка/Инициализация статистики (находится рядом с data)
+                if (fullData && fullData.stats) {
+                    userStats = fullData.stats;
+                } else {
+                    // Если статистики нет, считаем её на лету (один раз при первом запуске v5.5)
+                    recalculateInitialStats(loadedData);
+                }
+                
+                // Проверка персонального лимита (админ может выставить personalLimit в базе)
+                if (fullData && fullData.settings && fullData.settings.personalStorageLimit) {
+                    USER_LIMITS.maxStorage = fullData.settings.personalStorageLimit;
+                }
+
                 
                 if (loadedData) {
                     db.filaments = loadedData.filaments || [];
@@ -288,6 +318,36 @@ window.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+function recalculateInitialStats(data) {
+    console.log("Первичный подсчет статистики использования...");
+    let size = 0;
+    let count = 0;
+    
+    // Cloudinary не отдает размер файла через URL, поэтому мы будем считать 
+    // средний размер 300КБ за фото, если точных данных нет в базе.
+    // В будущем мы будем сохранять точный size при загрузке.
+    
+    if (data && data.products) {
+        data.products.forEach(p => {
+            if (p.imageUrl && p.imageUrl.includes('cloudinary')) {
+                count++;
+                size += (p.imageSize || 300 * 1024); // Если есть размер - берем, иначе 300кб
+            }
+            if (p.fileUrls) {
+                p.fileUrls.forEach(f => {
+                    if (f.url && f.url.includes('cloudinary')) {
+                        count++;
+                        size += (f.fileSize || 500 * 1024); // Файлы считаем по 500кб
+                    }
+                });
+            }
+        });
+    }
+    
+    userStats = { storageUsed: size, filesCount: count };
+    // Сохраняем в Firebase
+    firebase.database().ref('users/' + firebase.auth().currentUser.uid + '/stats').set(userStats);
+}
 
 
 function setupUserSidebar(user) {
@@ -389,8 +449,20 @@ function setupUserSidebar(user) {
 async function uploadFileToCloud(file) {
     if (!file) return null;
 
-    // Cloudinary может загружать любые типы файлов, так что проверка на 'image/' больше не нужна.
-    // Это позволит загружать, например, STL-модели.
+    // --- ПРОВЕРКА ЛИМИТОВ ---
+    if (userStats.storageUsed + file.size > USER_LIMITS.maxStorage) {
+        alert(`Ошибка: Превышен лимит хранилища (${(USER_LIMITS.maxStorage/1024/1024).toFixed(0)} МБ).\nУдалите старые изделия или фото, чтобы освободить место.\nИли свяжитесь с администратором.`);
+        return null;
+    }
+    
+    // --- ПРОВЕРКА РАЗМЕРА ФАЙЛА (Client side check) ---
+    if (file.size > 5 * 1024 * 1024) { // 5 МБ
+        alert("Файл слишком большой! Максимум 5 МБ.");
+        return null;
+    }
+
+	// Cloudinary может загружать любые типы файлов, так что проверка на 'image/' больше не нужна.
+    // Это позволит загружать, например, STL-модели
     const url = `https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/upload`;
     
     try {
@@ -398,26 +470,32 @@ async function uploadFileToCloud(file) {
         formData.append("file", file);
         formData.append("upload_preset", cloudinaryConfig.uploadPreset);
 
-        const response = await fetch(url, {
-            method: "POST",
-            body: formData
-        });
-
+        const response = await fetch(url, { method: "POST", body: formData });
         const data = await response.json();
 
         if (data.secure_url) {
-            console.log('Файл успешно загружен в Cloudinary:', data.secure_url);
-            return data.secure_url; // Возвращаем безопасную ссылку
+            console.log('Uploaded:', data.bytes, 'bytes');
+            
+            // --- ОБНОВЛЕНИЕ СТАТИСТИКИ (ЛОКАЛЬНО + БД) ---
+            // Важно: мы не обновляем UI сразу, так как это просто загрузка файла.
+            // Статистику сохраним "на будущее", но окончательная запись в БД будет при сохранении Изделия.
+            // Но чтобы предотвратить параллельные загрузки, обновляем локальный счетчик сразу.
+            
+            // Возвращаем объект, а не просто URL, чтобы передать размер
+            return { 
+                url: data.secure_url, 
+                size: data.bytes, 
+                public_id: data.public_id 
+            }; 
         } else {
-            // Cloudinary возвращает ошибку в поле 'error'
-            throw new Error(data.error?.message || 'Неизвестная ошибка Cloudinary');
+            throw new Error(data.error?.message || 'Unknown error');
         }
     } catch (error) {
-        alert(`Ошибка загрузки файла в Cloudinary: ${error.message}`);
-        console.error('Ошибка загрузки в Cloudinary:', error);
+        alert(`Ошибка загрузки: ${error.message}`);
         return null;
     }
 }
+
 
 
 // --- ФУНКЦИИ РАБОТЫ С CLOUDINARY ---
@@ -2052,9 +2130,31 @@ async function saveProduct(andThenWriteOff = false) {
     const eid = document.getElementById('productModal').getAttribute('data-edit-id'); 
     
     let imgUrl = currentProductImage;
+    let imgSize = 0; // Новая переменная
+
     if(currentProductImage instanceof Blob) {
-        const uploadedUrl = await uploadFileToCloud(currentProductImage);
-        imgUrl = uploadedUrl ? uploadedUrl : null;
+        // Мы вызываем upload, который теперь возвращает объект
+        const uploadResult = await uploadFileToCloud(currentProductImage);
+        if (uploadResult) {
+            imgUrl = uploadResult.url;
+            imgSize = uploadResult.size;
+            
+            // Атомарно обновляем статистику
+            const uid = firebase.auth().currentUser.uid;
+            const statsRef = firebase.database().ref('users/' + uid + '/stats');
+            
+            // Транзакция для счетчика
+            statsRef.transaction(stats => {
+                if (!stats) stats = { storageUsed: 0, filesCount: 0 };
+                stats.storageUsed += imgSize;
+                stats.filesCount += 1;
+                return stats;
+            });
+        } else {
+            // Загрузка не удалась или лимит превышен
+            saveBtn.disabled = false; saveBtn.textContent = 'Сохранить';
+            return; // Прерываем сохранение
+        }
     }
     
     let fileUrls = [];
@@ -2088,7 +2188,8 @@ async function saveProduct(andThenWriteOff = false) {
         type: type, 
         note: document.getElementById('productNote').value, 
         defective: isDefective,
-        imageUrl: imgUrl,      
+        imageUrl: imgUrl,    
+		imageSize: imgSize,		
         fileUrls: fileUrls,
     };
     
@@ -2253,6 +2354,24 @@ async function deleteProduct(id) {
         return; 
     }
     if (!confirm(`Удалить изделие "${p.name}" и вернуть филамент?`)) return;
+
+	// 1. Удаление файлов из облака (Soft Delete, как у вас реализовано)
+    if (p.imageUrl && !isResourceUsedByOthers(p.imageUrl, id)) {
+        deleteFileFromCloud(p.imageUrl);
+        
+        // 2. Возврат квоты
+        const sizeToFree = p.imageSize || 0; // Берем сохраненный размер
+        if (sizeToFree > 0) {
+             const uid = firebase.auth().currentUser.uid;
+             firebase.database().ref('users/' + uid + '/stats').transaction(stats => {
+                if (stats) {
+                    stats.storageUsed = Math.max(0, stats.storageUsed - sizeToFree);
+                    stats.filesCount = Math.max(0, stats.filesCount - 1);
+                }
+                return stats;
+             });
+        }
+    }
 
     if (p.imageUrl && !isResourceUsedByOthers(p.imageUrl, id)) deleteFileFromCloud(p.imageUrl);
     if (p.fileUrls) p.fileUrls.forEach(f => { if(f.url && !isResourceUsedByOthers(f.url, id)) deleteFileFromCloud(f.url); });
