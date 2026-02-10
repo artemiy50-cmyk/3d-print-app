@@ -1,4 +1,4 @@
-console.log("Version: 5.4 (2026-02-09 14-12)");
+console.log("Version: 5.4 (2026-02-10 07-35)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -927,10 +927,17 @@ function updateDashboard() {
     const filamentsInStock = db.filaments.filter(f => f.availability === 'В наличии');
     document.getElementById('dashFilamentCount').textContent = filamentsInStock.length;
     
-    const lowStock = filamentsInStock.filter(f => (f.remainingLength || 0) < 50);
+    const lowStock = filamentsInStock.filter(f => {
+        const rem = Math.max(0, (f.length || 0) - (f.usedLength || 0));
+        return rem < 50;
+    });
+
     const warning = document.getElementById('dashFilamentWarnings');
     if (lowStock.length > 0) {
-        warning.innerHTML = lowStock.map(f => `<div class="warning-item"><span>⚠️</span><span>Филамента <b>${escapeHtml(f.customId)}</b> осталось всего <b>${(f.remainingLength||0).toFixed(1)}</b> метров.</span></div>`).join('');
+        warning.innerHTML = lowStock.map(f => {
+            const rem = Math.max(0, (f.length || 0) - (f.usedLength || 0));
+            return `<div class="warning-item"><span>⚠️</span><span>Филамента <b>${escapeHtml(f.customId)}</b> осталось всего <b>${rem.toFixed(1)}</b> метров.</span></div>`;
+        }).join('');
         warning.classList.remove('hidden');
     } else { 
         warning.innerHTML = ''; 
@@ -939,13 +946,13 @@ function updateDashboard() {
 
     const filamentsSorted = [...filamentsInStock].sort((a, b) => new Date(a.date) - new Date(b.date));
     document.querySelector('#dashFilamentTable tbody').innerHTML = filamentsSorted.map(f => {
-        const rowClass = ((f.remainingLength || 0) < 50) ? 'row-bg-danger' : '';
-        return `<tr class="${rowClass}"><td><span class="color-swatch" style="background:${f.color ? f.color.hex : '#eee'}"></span>${f.color ? escapeHtml(f.color.name) : '-'}</td><td>${f.date}</td><td>${escapeHtml(f.brand)}</td><td>${escapeHtml(f.type)}</td><td>${(f.remainingLength||0).toFixed(1)}</td><td>${(f.actualPrice||0).toFixed(2)} ₽</td></tr>`;
+        const rem = Math.max(0, (f.length || 0) - (f.usedLength || 0));
+        const rowClass = (rem < 50) ? 'row-bg-danger' : '';
+        return `<tr class="${rowClass}"><td><span class="color-swatch" style="background:${f.color ? f.color.hex : '#eee'}"></span>${f.color ? escapeHtml(f.color.name) : '-'}</td><td>${f.date}</td><td>${escapeHtml(f.brand)}</td><td>${escapeHtml(f.type)}</td><td>${rem.toFixed(1)}</td><td>${(f.actualPrice||0).toFixed(2)} ₽</td></tr>`;
     }).join('');
 
 
- // Впрочем, вот полный код для удобства:
-    const rootProducts = db.products.filter(p => p.type !== 'Часть составного');
+    const rootProducts = db.products.filter(p => p.type !== 'Часть составного' && !p.isDraft);
     const stockProducts = rootProducts.filter(p => p.status === 'В наличии полностью' || p.status === 'В наличии частично');
     document.getElementById('dashProductCountRecord').textContent = stockProducts.length;
     const totalInStock = stockProducts.reduce((sum, p) => sum + (p.inStock || 0), 0);
@@ -1381,7 +1388,8 @@ function downloadFile(index) {
 function captureProductSnapshot() {
     const type = document.getElementById('productType').value;
     const snapshot = {
-        name: document.getElementById('productName').value,
+        isDraft: document.getElementById('productIsDraft').checked, 
+		name: document.getElementById('productName').value,
         date: document.getElementById('productDate').value,
         link: document.getElementById('productLink').value,
         quantity: document.getElementById('productQuantity').value,
@@ -1626,9 +1634,16 @@ function clearProductForm() {
     setVal('productPrintTimeMinutes', ''); 
     setVal('productNote', ''); 
     setCheck('productDefective', false);
+	setCheck('productIsDraft', false); 
     
     if(document.getElementById('productAllPartsCreated')) 
         document.getElementById('productAllPartsCreated').checked = false;
+	
+	const defCb = document.getElementById('productDefective');
+    const draftCb = document.getElementById('productIsDraft');
+    
+    if(defCb) { defCb.disabled = false; defCb.removeAttribute('data-locked-by-system'); }
+    if(draftCb) { draftCb.disabled = false; draftCb.removeAttribute('data-locked-by-system'); }
 
     // Очистка таблицы
     const childrenTbody = document.querySelector('#childrenTable tbody');
@@ -1691,10 +1706,19 @@ function updateProductTypeUI() {
     };
     const inputs = ['productFilament','productPrinter','productPrintTimeHours','productPrintTimeMinutes','productWeight','productLength'];
     
+    // Управление видимостью чекбокса Черновик
+    const draftLabel = document.getElementById('productDraftLabel');
+    if (draftLabel) {
+        draftLabel.style.display = (type === 'Часть составного') ? 'none' : 'block';
+    }
+
+    const isDraft = document.getElementById('productIsDraft').checked;
+    
+    // Кнопка списания
     const btnWriteOff = document.getElementById('btnWriteOffProduct');
     const isExistingProduct = !!document.getElementById('productModal').getAttribute('data-edit-id');
     if (btnWriteOff) {
-        btnWriteOff.style.display = (isExistingProduct && type !== 'Часть составного') ? 'flex' : 'none';
+        btnWriteOff.style.display = (isExistingProduct && type !== 'Часть составного' && !isDraft) ? 'flex' : 'none';
     }
 
     groups.parent.classList.add('hidden');
@@ -1727,6 +1751,7 @@ function updateProductTypeUI() {
     updateProductCosts();
     updateProductAvailability();
 }
+
 
 function updateCompositeProductValues() {
     const eid = document.getElementById('productModal').getAttribute('data-edit-id'); 
@@ -1952,17 +1977,42 @@ function editProduct(id) {
     if (validationMessage) validationMessage.classList.add('hidden');
     document.querySelectorAll('#productModal input, #productModal select').forEach(el => el.classList.remove('error'));
 
-    const fieldsToFill = [ { id: 'productName', value: p.name }, { id: 'productLink', value: p.link || '' }, { id: 'productDate', value: p.date }, { id: 'productQuantity', value: p.quantity }, { id: 'productWeight', value: p.weight || '' }, { id: 'productLength', value: p.length || '' }, { id: 'productPrintTimeHours', value: Math.floor((p.printTime || 0) / 60) }, { id: 'productPrintTimeMinutes', value: (p.printTime || 0) % 60 }, { id: 'productNote', value: p.note || '' }, { id: 'productType', value: p.type || 'Самостоятельное' } ];
+    const fieldsToFill = [ 
+		{ id: 'productName', value: p.name }, 
+		{ id: 'productLink', value: p.link || '' }, 
+		{ id: 'productDate', value: p.date }, 
+		{ id: 'productQuantity', value: p.quantity }, 
+		{ id: 'productWeight', value: p.weight || '' }, 
+		{ id: 'productLength', value: p.length || '' }, 
+		{ id: 'productPrintTimeHours', value: Math.floor((p.printTime || 0) / 60) }, 
+		{ id: 'productPrintTimeMinutes', value: (p.printTime || 0) % 60 }, 
+		{ id: 'productNote', value: p.note || '' }, 
+		{ id: 'productType', value: p.type || 'Самостоятельное' } 
+	];
     fieldsToFill.forEach(field => {
         const el = document.getElementById(field.id);
         if (el) el.value = field.value;
     });
+
+	const defCb = document.getElementById('productDefective');
+	const draftCb = document.getElementById('productIsDraft');
+    
+    // Сброс атрибутов блокировки
+    defCb.removeAttribute('data-locked-by-system');
+    draftCb.removeAttribute('data-locked-by-system');
+    
+    // Заполнение чекбоксов
+    if (defCb) defCb.checked = p.defective;
+    if (draftCb) draftCb.checked = p.isDraft || false;
 
 	currentProductImage = p.imageUrl || null; 
     currentProductFiles = p.fileUrls ? [...p.fileUrls] : []; 
     renderProductImage();
     renderProductFiles();
     
+	const isDraftCb = document.getElementById('productIsDraft');
+    if (isDraftCb) isDraftCb.checked = p.isDraft || false;
+	
     updateProductTypeUI();
     
     const statusField = document.getElementById('productAvailabilityField');
@@ -1996,25 +2046,28 @@ function editProduct(id) {
     }
 
     updateProductCosts();
-
+	
+	
+    // Разблокировка всех полей по умолчанию
     const allInputs = document.querySelectorAll('#productModal input, #productModal select, #productModal textarea');
     allInputs.forEach(el => el.disabled = false);
 
+    // Логика блокировок для составных полей (филамент и т.д.)
     if (p.type === 'Составное') {
         const compositeLockedFields = ['productFilament','productPrinter','productPrintTimeHours','productPrintTimeMinutes','productWeight','productLength'];
-        compositeLockedFields.forEach(id => {
-            const el = document.getElementById(id);
-            if(el) el.disabled = true;
-        });
+        compositeLockedFields.forEach(id => document.getElementById(id).disabled = true);
     }
 
+    // === ПРОВЕРКА УСЛОВИЙ БЛОКИРОВКИ ===
     let hasWriteoffs = db.writeoffs && db.writeoffs.some(w => w.productId === productId);
+    // Проверка списаний у родителя (для частей)
     if (!hasWriteoffs && p.type === 'Часть составного' && p.parentId) {
         if (db.writeoffs.some(w => w.productId === p.parentId)) hasWriteoffs = true;
     }
 
     let isChildOfDefectiveParent = false;
     let isChildOfCompletedParent = false; 
+    let hasDefectiveChild = false; // Новое условие
 
     if (p.type === 'Часть составного' && p.parentId) {
         const parent = db.products.find(x => x.id === p.parentId);
@@ -2023,34 +2076,69 @@ function editProduct(id) {
             if(parent.allPartsCreated) isChildOfCompletedParent = true;
         }
     }
+    
+    if (p.type === 'Составное') {
+        // Проверяем, есть ли бракованные дети
+        const children = db.products.filter(child => child.parentId === p.id);
+        if (children.some(child => child.defective)) {
+            hasDefectiveChild = true;
+        }
+    }
 
-    let fieldsToEnable = [];
+    const validationMessage = document.getElementById('productValidationMessage');
     let lockReason = '';
     const mediaFields = ['productImageInput', 'productFileInput'];
-
+	
+	
+    // 1. Блокировка Черновика, если есть списания
     if (hasWriteoffs) {
-        fieldsToEnable = ['productNote', ...mediaFields]; 
-        lockReason = 'Редактирование ограничено: есть списания. Можно изменить примечание, фото и файлы.';
-    } else if (p.defective) {
-        fieldsToEnable = ['productNote', 'productDefective', ...mediaFields];
-        lockReason = 'Редактирование ограничено: изделие в браке.';
+        draftCb.disabled = true;
+        draftCb.setAttribute('data-locked-by-system', 'true');
+        // Если при этом изделие не черновик, то и брак можно ставить/снимать (если нет других причин)
+        // Но редактирование полей ограничено
+        
+        // Ограничение полей как раньше
+        allInputs.forEach(el => {
+            if (!['productNote', 'productDefective', ...mediaFields].includes(el.id)) el.disabled = true;
+        });
+        lockReason = 'Редактирование ограничено: есть списания.';
+    }
+
+    // 2. Блокировка Черновика, если есть бракованные дети
+    if (hasDefectiveChild) {
+        draftCb.disabled = true; // Нельзя сделать черновиком, если внутри есть брак
+        draftCb.setAttribute('data-locked-by-system', 'true');
+        if (!lockReason) lockReason = 'Статус "Черновик" недоступен: одна из частей изделия в браке.';
+    }
+
+    // Стандартные блокировки
+    if (p.defective) {
+        // Поля залочены
+        allInputs.forEach(el => {
+            if (!['productNote', 'productDefective', ...mediaFields].includes(el.id)) el.disabled = true;
+        });
+        lockReason = lockReason || 'Редактирование ограничено: изделие в браке.';
     } else if (isChildOfDefectiveParent) {
-        fieldsToEnable = ['productNote', ...mediaFields];
-        lockReason = 'Редактирование ограничено: родительское изделие в браке.';
+        allInputs.forEach(el => { if (!['productNote', ...mediaFields].includes(el.id)) el.disabled = true; });
+        lockReason = lockReason || 'Редактирование ограничено: родительское изделие в браке.';
     } else if (isChildOfCompletedParent) {
-        fieldsToEnable = ['productNote', 'productDefective', ...mediaFields];
-        lockReason = 'Редактирование ограничено: родительское изделие завершено.';
+        allInputs.forEach(el => { if (!['productNote', 'productDefective', ...mediaFields].includes(el.id)) el.disabled = true; });
+        lockReason = lockReason || 'Редактирование ограничено: родительское изделие завершено.';
     }
 
     if (lockReason) {
-        allInputs.forEach(el => {
-            if (!fieldsToEnable.includes(el.id)) el.disabled = true;
-        });
         if (validationMessage) {
             validationMessage.textContent = lockReason;
             validationMessage.classList.remove('hidden');
         }
+    } else {
+        if (validationMessage) validationMessage.classList.add('hidden');
     }
+    
+    // Вызываем updateProductAvailability, чтобы применить взаимную блокировку чекбоксов (Брак vs Черновик)
+    // Она отработает поверх системных блокировок
+    updateProductAvailability();
+
 
     // --- ИСПРАВЛЕНИЕ 2: Секция списаний ---
     const modalBody = document.querySelector('#productModal .modal-body');
@@ -2191,6 +2279,7 @@ async function saveProduct(andThenWriteOff = false) {
     const type = document.getElementById('productType').value;
     const qty = parseInt(document.getElementById('productQuantity').value) || 0;
     const isDefective = document.getElementById('productDefective').checked;
+    const isDraft = document.getElementById('productIsDraft').checked; // Получаем значение
     
     // [FIX] Добавляем || null для безопасности транзакции
     const printerObj = db.printers.find(x => x.id == document.getElementById('productPrinter').value);
@@ -2204,15 +2293,18 @@ async function saveProduct(andThenWriteOff = false) {
         weight: parseFloat(document.getElementById('productWeight').value) || 0, 
         length: parseFloat(document.getElementById('productLength').value) || 0, 
         printTime: (parseInt(document.getElementById('productPrintTimeHours').value)||0)*60 + (parseInt(document.getElementById('productPrintTimeMinutes').value)||0), 
-        printer: printerObj || null, // <--- ИСПРАВЛЕНИЕ ОШИБКИ
+        printer: printerObj || null, 
         type: type, 
         note: document.getElementById('productNote').value, 
         defective: isDefective,
+		isDraft: isDraft, 
         imageUrl: imgUrl,    
 		imageSize: imgSize,		
         fileUrls: fileUrls,
     };
     
+    // Остаток для черновика всегда 0 (или равен кол-ву, но не участвует в списании). 
+    // Для логики склада лучше оставить логику как есть, но статус "Черновик" перекроет отображение.
     const writeoffs = db.writeoffs || [];
     const existingWriteoffs = (eid) ? writeoffs.filter(w => w.productId == eid).reduce((sum,w)=>sum+w.qty,0) : 0;
     p.inStock = isDefective ? 0 : Math.max(0, qty - existingWriteoffs);
@@ -2248,34 +2340,52 @@ async function saveProduct(andThenWriteOff = false) {
 
     try {
         const updates = {};
-
+       
         // 1. Обновления филамента (стандартный update)
         if (eid) {
             const oldProd = db.products.find(x => x.id == parseInt(eid));
             if (oldProd && oldProd.filament && oldProd.type !== 'Составное') {
-                const oldFil = db.filaments.find(f => f.id === oldProd.filament.id);
-                if (oldFil) {
-                    const oldFilIndex = db.filaments.indexOf(oldFil);
-                    const newUsedL = Math.max(0, oldFil.usedLength - (oldProd.length || 0));
-                    const newUsedW = Math.max(0, oldFil.usedWeight - (oldProd.weight || 0));
-                    updates[`/filaments/${oldFilIndex}/usedLength`] = newUsedL;
-                    updates[`/filaments/${oldFilIndex}/usedWeight`] = newUsedW;
-                    oldFil.usedLength = newUsedL;
-                    oldFil.usedWeight = newUsedW;
+                // Если старое изделие НЕ было черновиком, значит оно потребило филамент. Надо вернуть.
+                if (!oldProd.isDraft) {
+                    const oldFil = db.filaments.find(f => f.id === oldProd.filament.id);
+                    if (oldFil) {
+                        const oldFilIndex = db.filaments.indexOf(oldFil);
+                        const newUsedL = Math.max(0, oldFil.usedLength - (oldProd.length || 0));
+                        const newUsedW = Math.max(0, oldFil.usedWeight - (oldProd.weight || 0));
+                        // === ИСПРАВЛЕНИЕ: Обновляем remainingLength в базе ===
+                        const newRem = Math.max(0, oldFil.length - newUsedL);
+                        
+                        updates[`/filaments/${oldFilIndex}/usedLength`] = newUsedL;
+                        updates[`/filaments/${oldFilIndex}/usedWeight`] = newUsedW;
+                        updates[`/filaments/${oldFilIndex}/remainingLength`] = newRem;
+                        
+                        oldFil.usedLength = newUsedL;
+                        oldFil.usedWeight = newUsedW;
+                        oldFil.remainingLength = newRem;
+                    }
                 }
             }
         }
 
         if (filament && type !== 'Составное') {
-            const currentFil = db.filaments.find(f => f.id === filament.id);
-            if (currentFil) {
-                const filIndex = db.filaments.indexOf(currentFil);
-                const finalUsedL = (currentFil.usedLength || 0) + p.length;
-                const finalUsedW = (currentFil.usedWeight || 0) + p.weight;
-                updates[`/filaments/${filIndex}/usedLength`] = finalUsedL;
-                updates[`/filaments/${filIndex}/usedWeight`] = finalUsedW;
-                currentFil.usedLength = finalUsedL;
-                currentFil.usedWeight = finalUsedW;
+            // Если новое состояние НЕ черновик - списываем филамент.
+            if (!p.isDraft) {
+                const currentFil = db.filaments.find(f => f.id === filament.id);
+                if (currentFil) {
+                    const filIndex = db.filaments.indexOf(currentFil);
+                    const finalUsedL = (currentFil.usedLength || 0) + p.length;
+                    const finalUsedW = (currentFil.usedWeight || 0) + p.weight;
+                    // === ИСПРАВЛЕНИЕ: Обновляем remainingLength в базе ===
+                    const finalRem = Math.max(0, currentFil.length - finalUsedL);
+
+                    updates[`/filaments/${filIndex}/usedLength`] = finalUsedL;
+                    updates[`/filaments/${filIndex}/usedWeight`] = finalUsedW;
+                    updates[`/filaments/${filIndex}/remainingLength`] = finalRem;
+                    
+                    currentFil.usedLength = finalUsedL;
+                    currentFil.usedWeight = finalUsedW;
+                    currentFil.remainingLength = finalRem;
+                }
             }
         }
 
@@ -2330,15 +2440,15 @@ async function saveProduct(andThenWriteOff = false) {
 
 
 
-
-// Вспомогательная функция, которая должна быть где-то в коде
 function determineProductStatus(p) { 
+    if (p.isDraft) return 'Черновик'; // Приоритетный статус
     if (p.defective) return 'Брак'; 
     if (p.type === 'Часть составного') return 'Часть изделия'; 
     if (p.inStock <= 0) return 'Нет в наличии'; 
     if (p.inStock < p.quantity) return 'В наличии частично'; 
     return 'В наличии полностью'; 
 }
+
 
 // Вспомогательная функция для расчета
 function calculateSingleProductCost(p) {
@@ -2490,6 +2600,10 @@ function buildProductRow(p, isChild) {
     let statusClass = 'badge-secondary';
     let rowBgClass = ''; 
     
+	if (p.isDraft) { 
+        statusClass = 'badge-gray'; 
+        rowBgClass = 'row-bg-gray'; // Серый фон строки
+    }
     if (p.status === 'В наличии полностью') { statusClass = 'badge-light-green'; rowBgClass = 'row-bg-light-green'; } 
     else if (p.status === 'В наличии частично') { statusClass = 'badge-success'; rowBgClass = 'row-bg-success'; } 
     else if (p.status === 'Брак') { statusClass = 'badge-danger'; rowBgClass = 'row-bg-danger'; } 
@@ -2622,9 +2736,11 @@ function updateProductsTable() {
     let rootProducts = db.products.filter(p => {
         if (p.type === 'Часть составного') return false; 
         if (term && !p.name.toLowerCase().includes(term)) return false;
+        
         if (availFilter) {
             if (availFilter === 'Брак') { if (!p.defective) return false; }
-            else if (availFilter === 'InStock') { if ((p.inStock || 0) <= 0) return false; }
+            else if (availFilter === 'Draft') { if (!p.isDraft) return false; } // Фильтр черновиков
+            else if (availFilter === 'InStock') { if ((p.inStock || 0) <= 0 || p.isDraft) return false; } // Черновики не "В наличии"
             else if (p.status !== availFilter) return false;
         }
         return true;
@@ -2724,28 +2840,69 @@ function updateProductStockDisplay() {
 }
 
 function updateProductAvailability() {
-    const def = document.getElementById('productDefective').checked;
+    const defCb = document.getElementById('productDefective');
+    const draftCb = document.getElementById('productIsDraft');
     const statusField = document.getElementById('productAvailabilityField');
     const type = document.getElementById('productType').value;
     
+    // Блокировка чекбоксов друг другом (UI Mutual Exclusion)
+    if (draftCb.checked) {
+        defCb.checked = false;
+        defCb.disabled = true; // Черновик не может быть браком
+    } else {
+        // Разблокируем только если нет внешних причин блокировки (см. ниже в editProduct)
+        // Пока временно разблокируем, в editProduct перепроверим
+        if (!defCb.hasAttribute('data-locked-by-system')) {
+             defCb.disabled = false;
+        }
+    }
+
+    if (defCb.checked) {
+        draftCb.checked = false;
+        draftCb.disabled = true; // Брак не может быть черновиком
+    } else {
+        // Аналогично, если нет системной блокировки
+        if (!draftCb.hasAttribute('data-locked-by-system')) {
+            draftCb.disabled = false;
+        }
+    }
+
     // Авто-активация признака сборки для составного при браке
-    if (type === 'Составное' && def) {
+    if (type === 'Составное' && defCb.checked) {
         const allPartsCb = document.getElementById('productAllPartsCreated');
         if(allPartsCb) allPartsCb.checked = true;
     }
 
-    let statusText = def ? 'Брак' : 'В наличии полностью'; 
+    let statusText = 'В наличии полностью'; 
     let statusClass = 'status-field-stocked';
-    if (type === 'Часть составного') { 
-        statusText = def ? 'Брак' : 'Часть изделия'; 
-        statusClass = def ? 'status-field-defective' : 'status-field-part'; 
-    } else if (statusText === 'Брак') { 
+
+    if (draftCb.checked) {
+        statusText = 'Черновик';
+        statusClass = 'status-field-none';
+    } else if (defCb.checked) {
+        statusText = 'Брак';
         statusClass = 'status-field-defective'; 
+    } else if (type === 'Часть составного') { 
+        statusText = 'Часть изделия'; 
+        statusClass = 'status-field-part'; 
+    } else {
+        const qty = parseInt(document.getElementById('productQuantity').value) || 0;
+        statusText = 'В наличии полностью'; 
     }
+
     statusField.textContent = statusText; 
     statusField.className = 'calc-field ' + statusClass;
+    
+    const btnWriteOff = document.getElementById('btnWriteOffProduct');
+    const isExisting = !!document.getElementById('productModal').getAttribute('data-edit-id');
+    if (btnWriteOff) {
+        btnWriteOff.style.display = (draftCb.checked) ? 'none' : (type !== 'Часть составного' && isExisting ? 'flex' : 'none');
+    }
+
     updateProductStockDisplay();
 }
+
+
 
 // Сортировка выпадающего списка филаментов по алфавиту
 function updateProductFilamentSelect() {
@@ -2790,6 +2947,10 @@ function updateFilamentsTable() {
     const sortBy = document.getElementById('filamentSortBy').value;
 
     const sortedFilaments = [...db.filaments].sort((a, b) => {
+        // Для сортировки тоже считаем реальный остаток
+        const remA = Math.max(0, (a.length||0) - (a.usedLength||0));
+        const remB = Math.max(0, (b.length||0) - (b.usedLength||0));
+        
         switch (sortBy) {
             case 'date-desc': return new Date(b.date) - new Date(a.date);
             case 'date-asc': return new Date(a.date) - new Date(b.date);
@@ -2797,7 +2958,7 @@ function updateFilamentsTable() {
             case 'brand': return (a.brand || '').localeCompare(b.brand || '');
             case 'color': return (a.color?.name || '').localeCompare(b.color?.name || '');
             case 'id': return (a.customId || '').localeCompare(b.customId || '');
-            case 'length': return (b.remainingLength || 0) - (a.remainingLength || 0);
+            case 'length': return remB - remA; // Сортировка по реальному остатку
             case 'price': return (b.actualPrice || 0) - (a.actualPrice || 0);
             default: return 0;
         }
@@ -2813,9 +2974,11 @@ function updateFilamentsTable() {
         let rowClass = '';
         if (f.availability === 'Израсходовано') rowClass = 'row-bg-gray';
         
-        // [FIX] Добавлена защита || 0 для remainingLength
-        let remainingHtml = (f.remainingLength || 0).toFixed(1);
-        if (f.availability === 'В наличии' && (f.remainingLength || 0) < 50) {
+        // === ИСПРАВЛЕНИЕ: Считаем остаток на лету ===
+        const realRemaining = Math.max(0, (f.length || 0) - (f.usedLength || 0));
+        let remainingHtml = realRemaining.toFixed(1);
+        
+        if (f.availability === 'В наличии' && realRemaining < 50) {
             remainingHtml = `<span class="badge badge-danger">${remainingHtml}</span>`;
             rowClass = 'row-bg-danger';
         }
@@ -2827,7 +2990,6 @@ function updateFilamentsTable() {
             <td><span class="color-swatch" style="background:${f.color ? f.color.hex : '#eee'}"></span>${f.color ? escapeHtml(f.color.name) : '-'}</td>
             <td>${escapeHtml(f.brand)}</td>
             <td>${escapeHtml(f.type)}</td>
-            <!-- [FIX] Защита для остальных полей -->
             <td>${(f.length || 0).toFixed(1)}</td>
             <td>${remainingHtml} ${note}</td>
             <td>${(f.usedLength||0).toFixed(1)}</td>
@@ -2847,6 +3009,7 @@ function updateFilamentsTable() {
     
     filterFilaments();
 }
+
 
 
 
@@ -3189,6 +3352,7 @@ function populateWriteoffProductOptions(selectElement, selectedId) {
         const hasStock = currentStock > 0;
         const isSelected = selectedId == p.id;
         
+		if (p.isDraft) return false;
         return (p.type !== 'Часть составного') && 
                (isSelected || (!p.defective && hasStock)) &&
                (showPrepared || isSelected || !preparedProductIds.has(p.id));
@@ -3803,7 +3967,7 @@ function updateFinancialReport() {
     // так как предполагается, что учет ведется по родительскому изделию или через списания.
     const defectiveProducts = db.products.filter(p => { 
         const d=new Date(p.date); 
-        return p.defective && p.type !== 'Часть составного' && d>=dStart && d<=dEnd; 
+        return p.defective && !p.isDraft && p.type !== 'Часть составного' && d>=dStart && d<=dEnd; 
     });
     defectiveProducts.forEach(p => sumCostUsedDefect += (p.costActualPrice||0));
 
@@ -4384,7 +4548,18 @@ async function recalculateFilamentUsage() {
 
     // 2. Проходим по всем изделиям и суммируем расход локально
     db.products.forEach(p => {
-        if (p.type === 'Составное') return; // Пропускаем папки (их части учитываются отдельно)
+        // Пропускаем папки
+        if (p.type === 'Составное') return; 
+        
+        // 1. Если само изделие - черновик, пропускаем
+        if (p.isDraft) return;
+
+        // 2. Если это Часть составного, проверяем его Родителя
+        if (p.type === 'Часть составного' && p.parentId) {
+            const parent = db.products.find(par => par.id === p.parentId);
+            // Если родитель черновик, то и часть не учитываем
+            if (parent && parent.isDraft) return;
+        }
 
         if (p.filament && p.filament.id) {
             const filamentInDb = db.filaments.find(f => f.id === p.filament.id);

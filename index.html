@@ -89,7 +89,7 @@
             </div>
         </div>
 
-		<p style="margin-top: 20px; font-size: 12px; color: #94a3b8;">3D Filament Manager v5.4 Multi-User</p>
+		<p style="margin-top: 20px; font-size: 12px; color: #94a3b8;">3D Filament Manager v5.5 Multi-User</p>
 	</div>
 
 
@@ -101,7 +101,7 @@
             <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div class="header-title" style="line-height: 1; display: flex; align-items: baseline; gap: 8px;">
                     <span>3D Print: Filament & Products Manager</span>
-                    <small style="font-size: 14px; color: var(--color-text-light); font-weight: 400;">v5.4</small>
+                    <small style="font-size: 14px; color: var(--color-text-light); font-weight: 400;">v5.5</small>
                 </div>
                 <div class="header-info" style="line-height: 1;">Система учета филамента и напечатанных изделий</div>
             </div>
@@ -408,6 +408,7 @@
                                 <option>В наличии частично</option>
                                 <option>Нет в наличии</option>
                                 <option>Брак</option>
+								<option value="Draft">Черновик</option>
                             </select>
                         </div>
                         <div style="display: flex; align-items: center; gap: 8px;">
@@ -775,7 +776,18 @@
 
 					<div class="modal-basic-info-grid">
                         <div class="form-group"><label>Дата изготовления:</label><input type="date" id="productDate"></div>
-                        <div class="form-group"><label>Статус наличия:</label><div class="calc-field" id="productAvailabilityField">В наличии полностью</div></div>
+                        
+                        <!-- НОВОЕ ПОЛЕ: ЧЕРНОВИК -->
+                        <div class="form-group">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2px;">
+                                <label style="margin:0;">Статус наличия:</label>
+                                <label class="checkbox-label" id="productDraftLabel" style="font-size: 12px; font-weight: normal; color: #64748b; margin: 0;">
+                                    <input type="checkbox" id="productIsDraft" onchange="updateProductAvailability(); updateProductTypeUI();"> Черновик
+                                </label>
+                            </div>
+                            <div class="calc-field" id="productAvailabilityField">В наличии полностью</div>
+                        </div>
+
                         <div class="form-group"><label>Тип изделия:</label><select id="productType"><option value="Самостоятельное">Самостоятельное</option><option value="Составное">Составное</option><option value="Часть составного">Часть составного</option></select></div>
                         <div class="form-group">
                             <div style="display: flex; gap: 10px; width: 100%;">
@@ -787,6 +799,7 @@
                         <div id="productParentGroup" class="form-group hidden" style="grid-column: span 2;"><label>Составное изделие, для которого изготовлена данная часть изделия:</label><select id="productParent"></select></div>
                         <div class="form-group" id="productLinkFieldContainer" style="grid-column: span 2;"><label for="productLink">Ссылка на модель:</label><input type="text" id="productLink" placeholder="https://"></div>
                     </div>
+
                 </div>
 				
                 <div id="fileUploadSection" class="form-group" style="margin-top: 16px; margin-bottom: 24px;">
