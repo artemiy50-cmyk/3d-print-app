@@ -1,4 +1,4 @@
-console.log("Version: 5.4 (2026-02-10 07-35)");
+console.log("Version: 5.5 (2026-02-10 07-35)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1973,6 +1973,7 @@ function editProduct(id) {
         updateProductAvailability();
     }
 
+    // 1. Первая (и теперь единственная) декларация
     const validationMessage = document.getElementById('productValidationMessage');
     if (validationMessage) validationMessage.classList.add('hidden');
     document.querySelectorAll('#productModal input, #productModal select').forEach(el => el.classList.remove('error'));
@@ -2047,7 +2048,6 @@ function editProduct(id) {
 
     updateProductCosts();
 	
-	
     // Разблокировка всех полей по умолчанию
     const allInputs = document.querySelectorAll('#productModal input, #productModal select, #productModal textarea');
     allInputs.forEach(el => el.disabled = false);
@@ -2067,7 +2067,7 @@ function editProduct(id) {
 
     let isChildOfDefectiveParent = false;
     let isChildOfCompletedParent = false; 
-    let hasDefectiveChild = false; // Новое условие
+    let hasDefectiveChild = false; 
 
     if (p.type === 'Часть составного' && p.parentId) {
         const parent = db.products.find(x => x.id === p.parentId);
@@ -2078,26 +2078,21 @@ function editProduct(id) {
     }
     
     if (p.type === 'Составное') {
-        // Проверяем, есть ли бракованные дети
         const children = db.products.filter(child => child.parentId === p.id);
         if (children.some(child => child.defective)) {
             hasDefectiveChild = true;
         }
     }
 
-    const validationMessage = document.getElementById('productValidationMessage');
+    // УДАЛЕНО ПОВТОРНОЕ ОБЪЯВЛЕНИЕ validationMessage
     let lockReason = '';
     const mediaFields = ['productImageInput', 'productFileInput'];
-	
 	
     // 1. Блокировка Черновика, если есть списания
     if (hasWriteoffs) {
         draftCb.disabled = true;
         draftCb.setAttribute('data-locked-by-system', 'true');
-        // Если при этом изделие не черновик, то и брак можно ставить/снимать (если нет других причин)
-        // Но редактирование полей ограничено
         
-        // Ограничение полей как раньше
         allInputs.forEach(el => {
             if (!['productNote', 'productDefective', ...mediaFields].includes(el.id)) el.disabled = true;
         });
@@ -2106,14 +2101,13 @@ function editProduct(id) {
 
     // 2. Блокировка Черновика, если есть бракованные дети
     if (hasDefectiveChild) {
-        draftCb.disabled = true; // Нельзя сделать черновиком, если внутри есть брак
+        draftCb.disabled = true; 
         draftCb.setAttribute('data-locked-by-system', 'true');
         if (!lockReason) lockReason = 'Статус "Черновик" недоступен: одна из частей изделия в браке.';
     }
 
     // Стандартные блокировки
     if (p.defective) {
-        // Поля залочены
         allInputs.forEach(el => {
             if (!['productNote', 'productDefective', ...mediaFields].includes(el.id)) el.disabled = true;
         });
@@ -2135,17 +2129,13 @@ function editProduct(id) {
         if (validationMessage) validationMessage.classList.add('hidden');
     }
     
-    // Вызываем updateProductAvailability, чтобы применить взаимную блокировку чекбоксов (Брак vs Черновик)
-    // Она отработает поверх системных блокировок
     updateProductAvailability();
 
-
-    // --- ИСПРАВЛЕНИЕ 2: Секция списаний ---
+    // --- Секция списаний ---
     const modalBody = document.querySelector('#productModal .modal-body');
     const oldSection = document.getElementById('productWriteoffsSection');
     if (oldSection) oldSection.remove();
 
-    // Перемещаем всю логику внутрь проверки, чтобы не было обращения к несуществующим переменным
     if (p.type !== 'Часть составного') {
         const writeoffSection = document.createElement('div');
         writeoffSection.id = 'productWriteoffsSection';
@@ -2181,9 +2171,9 @@ function editProduct(id) {
         modalBody.appendChild(writeoffSection);
     }
     
-    // ИСПРАВЛЕНИЕ 3: Делаем снимок в самом конце, чтобы избежать ложного предупреждения
     productSnapshotForDirtyCheck = captureProductSnapshot();
 }
+
 
 
 
