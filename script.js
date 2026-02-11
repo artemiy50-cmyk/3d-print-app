@@ -1,4 +1,4 @@
-console.log("Version: 5.5 (2026-02-10 07-50)");
+console.log("Version: 5.5 (2026-02-11 08-25)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -250,26 +250,18 @@ window.addEventListener('DOMContentLoaded', () => {
                 
                 let loadedData = null;
                 
-                // ЛОГИКА: Определяем, что нам пришло - корень или папка data
-                
                 if (val && typeof val === 'object') {
-                    // Вариант А: Пришел корневой объект (есть ключи 'data', 'stats' или 'subscription')
                     if ('data' in val || 'stats' in val || 'subscription' in val) {
                         loadedData = val.data || null;
-                        
                         if (val.stats) userStats = val.stats;
                         if (val.settings && val.settings.personalStorageLimit) {
                             USER_LIMITS.maxStorage = val.settings.personalStorageLimit;
                         }
                     }
-                    // Вариант Б: Пришла папка data (есть ключи 'products', 'filaments' и т.д.)
-                    else if (val.products || val.filaments || val.writeoffs || val.serviceExpenses || val.brands) {
+                    else if (val.products || val.filaments || val.writeoffs) {
                         loadedData = val;
-                        // Статистику здесь обновить не можем, оставляем старую
                     }
-                    // Вариант В: Пустой объект или неизвестная структура
                     else {
-                        // Если объект пустой, считаем что данных нет (новый юзер)
                         if (Object.keys(val).length === 0) loadedData = null;
                         else loadedData = val.data ? val.data : val; 
                     }
@@ -277,24 +269,25 @@ window.addEventListener('DOMContentLoaded', () => {
                     loadedData = null;
                 }
 
-                // Если статистики нет (первый запуск), считаем её
                 if (userStats.storageUsed === 0 && userStats.filesCount === 0 && loadedData) {
                      recalculateInitialStats(loadedData);
                 }
 
                 if (loadedData) {
-                    db.filaments = loadedData.filaments || [];
-                    db.products = loadedData.products || [];
-                    db.writeoffs = loadedData.writeoffs || [];
-					db.serviceExpenses = loadedData.serviceExpenses || [];
+                    // === FIX: Фильтрация (.filter(x=>x)) удаляет null/undefined элементы из массива ===
+                    db.filaments = (loadedData.filaments || []).filter(x => x);
+                    db.products = (loadedData.products || []).filter(x => x);
+                    db.writeoffs = (loadedData.writeoffs || []).filter(x => x);
+                    db.serviceExpenses = (loadedData.serviceExpenses || []).filter(x => x);
+                    
                     db.brands = loadedData.brands || ['Prusament', 'MatterHackers', 'Prusament Pro'];
-                    db.components = loadedData.components || [];
-					db.serviceNames = loadedData.serviceNames || [];
-                    db.colors = loadedData.colors || [ { id: 1, name: 'Белый', hex: '#ffffff' }, { id: 2, name: 'Чёрный', hex: '#000000' } ];
-                    db.plasticTypes = loadedData.plasticTypes || ['PLA', 'ABS', 'PETG', 'TPU'];
-                    db.filamentStatuses = loadedData.filamentStatuses || ['В наличии', 'Израсходовано'];
-                    db.printers = loadedData.printers || [ { id: 1, model: 'Creality Ender 3', power: 0.35 } ];
-                    db.electricityCosts = loadedData.electricityCosts || [{ id: Date.now(), date: '2020-01-01', cost: 6 }];
+                    db.components = (loadedData.components || []).filter(x => x);
+                    db.serviceNames = (loadedData.serviceNames || []).filter(x => x);
+                    db.colors = (loadedData.colors || []).filter(x => x);
+                    db.plasticTypes = (loadedData.plasticTypes || []).filter(x => x);
+                    db.filamentStatuses = (loadedData.filamentStatuses || []).filter(x => x);
+                    db.printers = (loadedData.printers || []).filter(x => x);
+                    db.electricityCosts = (loadedData.electricityCosts || []).filter(x => x);
                 } else {
 					db.filaments = []; 
 					db.products = []; 
@@ -313,6 +306,7 @@ window.addEventListener('DOMContentLoaded', () => {
 				try { updateServiceTable(); } catch(e) { console.error('Service update failed', e); } 
                 try { updateDashboard(); } catch(e) { console.error('Dashboard update failed', e); }
             };
+
 
             // Слушаем корень
             userRootRef.on('value', (snapshot) => {
@@ -2039,6 +2033,7 @@ function editProduct(id) {
     if (p.type !== 'Составное' && p.filament) {
         updateProductFilamentSelect();
         document.getElementById('productFilament').value = p.filament.id;
+		updateProductColorDisplay(); 
     }
 
     if (p.type === 'Составное') {
@@ -2469,18 +2464,26 @@ function calculateSingleProductCost(p) {
 async function deleteProduct(id) {
     const p = db.products.find(x => x.id === id);
     if (!p) return;
+    
+    // Проверка списаний
     if (db.writeoffs && db.writeoffs.some(w => w.productId === id)) { 
         alert('Нельзя удалить изделие, по которому уже есть списания!'); 
         return; 
     }
-    if (!confirm(`Удалить изделие "${p.name}" и вернуть филамент?`)) return;
+    // Проверка списаний для родителя (если удаляем часть)
+    if (!db.writeoffs.some(w => w.productId === id) && p.type === 'Часть составного' && p.parentId) {
+        if (db.writeoffs.some(w => w.productId === p.parentId)) {
+             alert('Нельзя удалить часть, так как родительское изделие имеет списания!'); 
+             return;
+        }
+    }
 
-	// 1. Удаление файлов из облака (Soft Delete, как у вас реализовано)
+    if (!confirm(`Удалить изделие "${p.name}"?`)) return;
+
+    // 1. Удаление файлов из облака
     if (p.imageUrl && !isResourceUsedByOthers(p.imageUrl, id)) {
         deleteFileFromCloud(p.imageUrl);
-        
-        // 2. Возврат квоты
-        const sizeToFree = p.imageSize || 0; // Берем сохраненный размер
+        const sizeToFree = p.imageSize || 0;
         if (sizeToFree > 0) {
              const uid = firebase.auth().currentUser.uid;
              firebase.database().ref('users/' + uid + '/stats').transaction(stats => {
@@ -2492,62 +2495,47 @@ async function deleteProduct(id) {
              });
         }
     }
+    if (p.fileUrls) p.fileUrls.forEach(f => { 
+        if(f.url && !isResourceUsedByOthers(f.url, id)) deleteFileFromCloud(f.url); 
+    });
 
-    if (p.imageUrl && !isResourceUsedByOthers(p.imageUrl, id)) deleteFileFromCloud(p.imageUrl);
-    if (p.fileUrls) p.fileUrls.forEach(f => { if(f.url && !isResourceUsedByOthers(f.url, id)) deleteFileFromCloud(f.url); });
-
-    const allUpdates = {}; 
-
-    if (p.type !== 'Составное' && p.filament) { 
-        const filId = (typeof p.filament === 'object') ? p.filament.id : p.filament;
-        const dbFilament = db.filaments.find(f => f.id == filId);
-        if (dbFilament) {
-            const index = db.filaments.indexOf(dbFilament);
-            dbFilament.usedLength -= (p.length || 0); 
-            dbFilament.usedWeight -= (p.weight || 0);
-            
-            allUpdates[`/filaments/${index}/usedLength`] = dbFilament.usedLength;
-            allUpdates[`/filaments/${index}/usedWeight`] = dbFilament.usedWeight;
+    // 2. Возврат филамента (Локальное обновление)
+    // Функция helper для возврата
+    const refundFilament = (prod) => {
+        if (prod.filament && !prod.isDraft) {
+            const filId = (typeof prod.filament === 'object') ? prod.filament.id : prod.filament;
+            const dbFilament = db.filaments.find(f => f.id == filId);
+            if (dbFilament) {
+                dbFilament.usedLength = Math.max(0, dbFilament.usedLength - (prod.length || 0));
+                dbFilament.usedWeight = Math.max(0, dbFilament.usedWeight - (prod.weight || 0));
+                dbFilament.remainingLength = Math.max(0, dbFilament.length - dbFilament.usedLength);
+            }
         }
-    }
+    };
+
+    if (p.type !== 'Составное') {
+        refundFilament(p);
+    } 
     
+    // Если удаляем Составное, нужно вернуть филамент за все его части
     if (p.type === 'Составное') { 
         const kids = db.products.filter(k => k.parentId === id); 
-        kids.forEach(k => { 
-            if (k.filament) { 
-                const kFilId = (typeof k.filament === 'object') ? k.filament.id : k.filament;
-                const kFilament = db.filaments.find(f => f.id == kFilId);
-                if (kFilament) {
-                    const index = db.filaments.indexOf(kFilament);
-                    kFilament.usedLength -= (k.length || 0); 
-                    kFilament.usedWeight -= (k.weight || 0);
-                    
-                    allUpdates[`/filaments/${index}/usedLength`] = kFilament.usedLength;
-                    allUpdates[`/filaments/${index}/usedWeight`] = kFilament.usedWeight;
-                }
-            }
-        });
-        const childIndices = kids.map(k => db.products.findIndex(prod => prod.id === k.id)).filter(i => i > -1);
-        childIndices.forEach(index => {
-            allUpdates[`/products/${index}`] = null;
-        });
-        
-        // [FIX] Локальное удаление детей
-        db.products = db.products.filter(x => x.parentId !== id); 
+        kids.forEach(k => refundFilament(k));
     }
 
-    try {
-        await dbRef.update(allUpdates);
+    // 3. Удаление из массива (Локально)
+    // Удаляем само изделие И его детей (если это составное)
+    const newProducts = db.products.filter(prod => prod.id !== id && prod.parentId !== id);
+    db.products = newProducts;
 
-        const productIndex = db.products.findIndex(prod => prod.id === id);
-        if (productIndex > -1) {
-            await dbRef.child('products').child(productIndex).remove();
-            
-            // [FIX] Локальное удаление продукта
-            db.products.splice(productIndex, 1);
-        }
+    try {
+        // 4. Сохранение полных списков (Перезапись, чтобы не было дырок)
+        const updates = {};
+        updates['/products'] = db.products;
+        updates['/filaments'] = db.filaments;
         
-        // Обновляем таблицы мгновенно
+        await dbRef.update(updates);
+        
         updateProductsTable(); 
         updateDashboard(); 
         updateReports(); 
@@ -2556,7 +2544,7 @@ async function deleteProduct(id) {
         console.log('Изделие успешно удалено');
     } catch (e) {
         console.error("Ошибка удаления:", e);
-        alert("Не удалось удалить изделие.");
+        alert("Не удалось удалить изделие: " + e.message);
     }
 }
 
