@@ -1,4 +1,4 @@
-console.log("Version: 5.5 (2026-02-11 08-25)");
+console.log("Version: 5.5 (2026-02-11 09-05)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -2394,7 +2394,7 @@ async function saveProduct(andThenWriteOff = false) {
         // [FIX] ОБНОВЛЕНИЕ ЛОКАЛЬНЫХ ДАННЫХ ИЗ РЕЗУЛЬТАТА ТРАНЗАКЦИИ
         // Вместо ручного push, мы берем то, что реально сохранилось на сервере
         if (result.committed && result.snapshot.val()) {
-            db.products = result.snapshot.val();
+            db.products = result.snapshot.val().filter(x => x);
         }
 
         updateAllSelects(); 
@@ -3927,7 +3927,8 @@ function updateFinancialReport() {
     let sumCostUsedDefect = 0;
 
     writeoffsInRange.forEach(w => {
-        const product = db.products.find(x => x.id === w.productId);
+        const product = db.products.find(x => x && x.id === w.productId);
+		
         const costOne = product ? (product.costPer1Actual||0) : 0;
         const enrichmentCost = (w.enrichmentCosts||[]).reduce((s, item) => s + (item.cost||0), 0);
         
