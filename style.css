@@ -1326,7 +1326,7 @@ body.sidebar-closed .menu-item {
 body.sidebar-closed .sidebar-section-title .menu-text { display: none; }
 body.sidebar-closed .sidebar-section-title { padding-left: 0; text-align: center; }
 /* Можно показывать точки вместо заголовка "Бэкапы" */
-body.sidebar-closed .sidebar-section-title::after { content: "•••"; display: block; }
+/* body.sidebar-closed .sidebar-section-title::after { content: "•••"; display: block; } */
 
 /* Профиль пользователя внизу (если есть) */
 body.sidebar-closed .user-profile-info span:last-child { display: none; } /* Скрыть email */
