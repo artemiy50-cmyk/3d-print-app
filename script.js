@@ -1,4 +1,4 @@
-console.log("Version: 5.5 (2026-02-12 14-15)");
+console.log("Version: 5.5 (2026-02-12 14-22)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -368,53 +368,98 @@ function setupUserSidebar(user) {
     const sidebar = document.querySelector('.sidebar');
     if (document.getElementById('logoutBtn')) return; 
 
-    // 1. Email (Используем структуру иконка + текст)
+    // Находим футер, чтобы вставлять элементы ПЕРЕД ним
+    const footer = document.querySelector('.footer-info');
+
+    // Хелпер для вставки
+    const insert = (el) => {
+        if(footer) sidebar.insertBefore(el, footer);
+        else sidebar.appendChild(el);
+    };
+
+    // 1. Email
     const userDiv = document.createElement('div');
-    userDiv.className = 'user-profile-info menu-item'; // Добавил menu-item для общих стилей
-    userDiv.style.marginTop = 'auto'; // Прижать вниз
+    userDiv.className = 'user-profile-info menu-item'; 
+    userDiv.style.marginTop = 'auto'; 
     userDiv.style.cursor = 'default';
-    userDiv.style.hover = 'none';
-    
+    userDiv.title = user.email;
     userDiv.innerHTML = `
         <span class="user-profile-icon menu-icon">👤</span>
-        <span class="menu-text" style="overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(user.email)}">${escapeHtml(user.email)}</span>
+        <span class="menu-text" style="overflow:hidden;text-overflow:ellipsis;">${escapeHtml(user.email)}</span>
     `;
+    insert(userDiv);
 
-    // 2. ID (Тоже адаптируем)
+    // 2. ID
     const uidDiv = document.createElement('div');
     uidDiv.className = 'menu-item';
     uidDiv.style.fontSize = '11px';
-    uidDiv.title = 'Скопировать ID';
-    const shortUid = user.uid.substring(0, 6) + '..';
+    uidDiv.style.color = '#64748b';
+    uidDiv.title = 'Нажмите, чтобы скопировать ID';
+    const shortUid = user.uid.substring(0, 8) + '...';
     
     uidDiv.innerHTML = `
         <span class="menu-icon" style="font-size:14px">🆔</span>
-        <span class="menu-text">ID: ${shortUid}</span>
+        <span class="menu-text">ID: <span style="font-family:monospace;">${shortUid}</span></span>
     `;
     uidDiv.onclick = function() {
-        navigator.clipboard.writeText(user.uid).then(() => alert('ID скопирован'));
+        navigator.clipboard.writeText(user.uid).then(() => {
+            // Визуальный отклик внутри текста
+            const textSpan = uidDiv.querySelector('.menu-text');
+            if(textSpan) {
+                const oldText = textSpan.innerHTML;
+                textSpan.textContent = 'Скопировано!';
+                setTimeout(() => textSpan.innerHTML = oldText, 1500);
+            }
+        });
     };
+    insert(uidDiv);
 
-    // 3. Выход
+    // 3. Статус подписки (Вернули!)
+    const subDiv = document.createElement('div');
+    subDiv.id = 'sidebarSubStatus';
+    subDiv.className = 'menu-item';
+    subDiv.style.fontSize = '11px';
+    subDiv.innerHTML = `
+        <span class="menu-icon">⏳</span>
+        <span class="menu-text">Загрузка...</span>
+    `;
+    insert(subDiv);
+
+    // 4. Инструкция (Вернули!)
+    const helpBtn = document.createElement('button');
+    helpBtn.className = 'menu-item';
+    helpBtn.innerHTML = `
+        <span class="menu-icon" style="color: #60a5fa; font-weight: bold; font-size: 16px;">?</span>
+        <span class="menu-text">Инструкция</span>
+    `;
+    helpBtn.onclick = () => {
+        const modal = document.getElementById('helpModal');
+        if (modal) modal.classList.add('active');
+    };
+    insert(helpBtn);
+
+    // 5. Поддержка (Вернули!)
+    const supportDiv = document.createElement('div');
+    supportDiv.className = 'menu-item';
+    supportDiv.innerHTML = `
+        <span class="menu-icon">💬</span>
+        <a href="https://t.me/Artem_Kiyashko" target="_blank" class="menu-text" style="color: #94a3b8; text-decoration: none;">Связаться</a>
+    `;
+    // Ховер эффект для ссылки
+    const link = supportDiv.querySelector('a');
+    supportDiv.addEventListener('mouseenter', () => { if(link) link.style.color = '#fff'; });
+    supportDiv.addEventListener('mouseleave', () => { if(link) link.style.color = '#94a3b8'; });
+    insert(supportDiv);
+
+    // 6. Выход
     const btn = document.createElement('button');
     btn.className = 'menu-item';
     btn.id = 'logoutBtn';
     btn.innerHTML = `<span class="menu-icon">🚪</span><span class="menu-text">Выйти</span>`;
-    btn.onclick = () => { if(confirm('Выйти?')) firebase.auth().signOut().then(() => window.location.reload()); };
-
-    // Вставляем перед футером
-    const footer = document.querySelector('.footer-info');
-    // Если футера нет в HTML (вдруг старая версия), ищем конец
-    if(footer) {
-        sidebar.insertBefore(userDiv, footer);
-        sidebar.insertBefore(uidDiv, footer);
-        sidebar.insertBefore(btn, footer);
-    } else {
-        sidebar.appendChild(userDiv);
-        sidebar.appendChild(uidDiv);
-        sidebar.appendChild(btn);
-    }
+    btn.onclick = () => { if(confirm('Выйти из аккаунта?')) firebase.auth().signOut().then(() => window.location.reload()); };
+    insert(btn);
 }
+
 
 
 
@@ -542,18 +587,25 @@ function checkSubscription(subData) {
     const diffTime = expiry - now;
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
 
-    // === Обновляем инфо в сайдбаре ===
+    // === Обновляем инфо в сайдбаре (Адаптировано под гамбургер) ===
     const sidebarStatus = document.getElementById('sidebarSubStatus');
     if (sidebarStatus) {
         const dateStr = expiry.toLocaleDateString('ru-RU');
         let color = '#4ade80'; // Зеленый
         let text = `Активно до: ${dateStr}`;
+        let iconChar = '●';
         
-        if (diffDays <= 5) color = '#fb923c'; // Оранжевый
-        if (diffDays <= 0) { color = '#f87171'; text = 'Истекла'; } // Красный
+        if (diffDays <= 5) { color = '#fb923c'; iconChar = '⚠️'; } // Оранжевый
+        if (diffDays <= 0) { color = '#f87171'; text = 'Истекла'; iconChar = '⛔'; } // Красный
         
-        sidebarStatus.innerHTML = `<span style="color:${color}">●</span> ${text}`;
-        sidebarStatus.removeAttribute('title'); // Убираем всплывающую подсказку, если она была
+        // Важно: Сохраняем структуру классов menu-icon и menu-text
+        sidebarStatus.innerHTML = `
+            <span class="menu-icon" style="color:${color}; font-size:12px;">${iconChar}</span>
+            <span class="menu-text" style="color:${color === '#4ade80' ? '#64748b' : color}">${text}</span>
+        `;
+        
+        if(diffDays <= 0) sidebarStatus.style.cursor = 'pointer';
+        sidebarStatus.onclick = (diffDays <= 0) ? () => document.getElementById('contactModal').classList.add('active') : null;
     }
     // ==================================
 
@@ -589,6 +641,7 @@ function checkSubscription(subData) {
         if(warning) warning.style.display = 'none';
     }
 }
+
 
 
 
