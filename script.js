@@ -363,33 +363,51 @@ function recalculateInitialStats(data) {
 }
 
 
-
 function setupUserSidebar(user) {
-    const sidebar = document.querySelector('.sidebar');
+    // Если меню уже построено, не дублируем
     if (document.getElementById('logoutBtn')) return; 
 
-    // Находим футер, чтобы вставлять элементы ПЕРЕД ним
-    const footer = document.querySelector('.footer-info');
+    const controlsContainer = document.getElementById('sidebarControls');
+    const userContainer = document.getElementById('sidebarUserInfo');
 
-    // Хелпер для вставки
-    const insert = (el) => {
-        if(footer) sidebar.insertBefore(el, footer);
-        else sidebar.appendChild(el);
-    };
+    // === ГРУППА 1: Инструкции и Выход ===
+    
+    // 1. Инструкция
+    const helpBtn = document.createElement('button');
+    helpBtn.className = 'menu-item';
+    helpBtn.innerHTML = `
+        <span class="menu-icon" style="color: #60a5fa; font-weight: bold; font-size: 16px;">?</span>
+        <span class="menu-text">Инструкция</span>
+    `;
+    helpBtn.onclick = () => document.getElementById('helpModal').classList.add('active');
+    controlsContainer.appendChild(helpBtn);
 
-    // 1. Email
+    // 2. Выход
+    const logoutBtn = document.createElement('button');
+    logoutBtn.className = 'menu-item';
+    logoutBtn.id = 'logoutBtn';
+    logoutBtn.innerHTML = `<span class="menu-icon">🚪</span><span class="menu-text">Выйти</span>`;
+    logoutBtn.onclick = () => { if(confirm('Выйти из аккаунта?')) firebase.auth().signOut().then(() => window.location.reload()); };
+    controlsContainer.appendChild(logoutBtn);
+
+
+    // === ГРУППА 2: Профиль (Прижато к низу) ===
+
+    // 3. Email
     const userDiv = document.createElement('div');
-    userDiv.className = 'user-profile-info menu-item'; 
-    userDiv.style.marginTop = 'auto'; 
+    userDiv.className = 'user-profile-info menu-item';
+    userDiv.style.borderTop = 'none'; // Убираем старую границу
+    userDiv.style.marginTop = '0';
+    userDiv.style.paddingTop = '8px';
     userDiv.style.cursor = 'default';
     userDiv.title = user.email;
     userDiv.innerHTML = `
         <span class="user-profile-icon menu-icon">👤</span>
         <span class="menu-text" style="overflow:hidden;text-overflow:ellipsis;">${escapeHtml(user.email)}</span>
     `;
-    insert(userDiv);
+    userContainer.appendChild(userDiv);
 
-    // 2. ID
+    // 4. ID
     const uidDiv = document.createElement('div');
     uidDiv.className = 'menu-item';
     uidDiv.style.fontSize = '11px';
@@ -403,7 +421,6 @@ function setupUserSidebar(user) {
     `;
     uidDiv.onclick = function() {
         navigator.clipboard.writeText(user.uid).then(() => {
-            // Визуальный отклик внутри текста
             const textSpan = uidDiv.querySelector('.menu-text');
             if(textSpan) {
                 const oldText = textSpan.innerHTML;
@@ -412,9 +429,9 @@ function setupUserSidebar(user) {
             }
         });
     };
-    insert(uidDiv);
+    userContainer.appendChild(uidDiv);
 
-    // 3. Статус подписки (Вернули!)
+    // 5. Статус подписки
     const subDiv = document.createElement('div');
     subDiv.id = 'sidebarSubStatus';
     subDiv.className = 'menu-item';
@@ -423,41 +440,24 @@ function setupUserSidebar(user) {
         <span class="menu-icon">⏳</span>
         <span class="menu-text">Загрузка...</span>
     `;
-    insert(subDiv);
+    userContainer.appendChild(subDiv);
 
-    // 4. Инструкция (Вернули!)
-    const helpBtn = document.createElement('button');
-    helpBtn.className = 'menu-item';
-    helpBtn.innerHTML = `
-        <span class="menu-icon" style="color: #60a5fa; font-weight: bold; font-size: 16px;">?</span>
-        <span class="menu-text">Инструкция</span>
-    `;
-    helpBtn.onclick = () => {
-        const modal = document.getElementById('helpModal');
-        if (modal) modal.classList.add('active');
-    };
-    insert(helpBtn);
+    // 6. Разделитель
+    const divider = document.createElement('div');
+    divider.className = 'sidebar-divider';
+    userContainer.appendChild(divider);
 
-    // 5. Поддержка (Вернули!)
+    // 7. Поддержка (Последний пункт)
     const supportDiv = document.createElement('div');
     supportDiv.className = 'menu-item';
     supportDiv.innerHTML = `
         <span class="menu-icon">💬</span>
         <a href="https://t.me/Artem_Kiyashko" target="_blank" class="menu-text" style="color: #94a3b8; text-decoration: none;">Связаться</a>
     `;
-    // Ховер эффект для ссылки
     const link = supportDiv.querySelector('a');
     supportDiv.addEventListener('mouseenter', () => { if(link) link.style.color = '#fff'; });
     supportDiv.addEventListener('mouseleave', () => { if(link) link.style.color = '#94a3b8'; });
-    insert(supportDiv);
-
-    // 6. Выход
-    const btn = document.createElement('button');
-    btn.className = 'menu-item';
-    btn.id = 'logoutBtn';
-    btn.innerHTML = `<span class="menu-icon">🚪</span><span class="menu-text">Выйти</span>`;
-    btn.onclick = () => { if(confirm('Выйти из аккаунта?')) firebase.auth().signOut().then(() => window.location.reload()); };
-    insert(btn);
+    userContainer.appendChild(supportDiv);
 }
 
 

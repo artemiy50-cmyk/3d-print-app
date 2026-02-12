@@ -173,9 +173,8 @@
 
 
     <!-- Main Container -->
-    <div class="container">
-        <!-- Sidebar -->
         <div class="sidebar">
+            <!-- Основное меню -->
             <button class="menu-item active" data-page="dashboard">
                 <span class="menu-icon">📊</span>
                 <span class="menu-text">Дашборд</span>
@@ -205,8 +204,8 @@
                 <span class="menu-text">Справочники</span>
             </button>
 
+            <!-- Секция Бэкапов -->
             <div class="sidebar-divider"></div>
-            <!-- Для заголовка секции просто скрываем текст в CSS -->
             <div class="sidebar-section-title"><span class="menu-text">Бэкапы</span><span class="menu-icon-placeholder">💾</span></div>
             
             <button class="menu-item" id="exportBtn" title="Скачать базу">
@@ -219,6 +218,15 @@
             </button>
             <input type="file" id="importFile" style="display: none;">
             
+            <div class="sidebar-divider"></div>
+
+            <!-- Группа 1: Инструкции и Выход (Вставляется через JS) -->
+            <div id="sidebarControls"></div>
+
+            <!-- Группа 2: Профиль (Прижата к низу, Вставляется через JS) -->
+            <div id="sidebarUserInfo" style="margin-top: auto;"></div>
+            
+            <!-- Копирайт -->
             <div class="footer-info">
                 <div class="menu-text">
                     © <span id="copyrightYear"></span> Project
