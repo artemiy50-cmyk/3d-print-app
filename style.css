@@ -51,37 +51,66 @@
         .container { display: flex; flex: 1; overflow: hidden; }
         
         /* Sidebar */
-        .sidebar {
-            width: 220px;
-            background: var(--color-sidebar);
-            color: var(--color-sidebar-text);
-            padding: var(--spacing);
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            flex-shrink: 0;
-        }
-        .menu-item {
-            padding: 12px 16px;
-            margin-bottom: 8px;
-            border-radius: var(--radius);
-            cursor: pointer;
-            transition: background 0.2s;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            font-size: 14px;
-            border: none;
-            width: 100%;
-            text-align: left;
-            background: transparent;
-            color: var(--color-sidebar-text);
-        }
-        .menu-item:hover { background: rgba(255,255,255,0.1); }
-        .menu-item.active { background: var(--color-primary); font-weight: 600; }
-        
-        .sidebar-divider { height: 1px; background: rgba(255,255,255,0.2); margin: 16px 0; }
-        .sidebar-section-title { font-size: 11px; text-transform: uppercase; color: rgba(255,255,255,0.5); margin-bottom: 8px; padding-left: 16px; letter-spacing: 0.5px; }
+		.sidebar {
+			width: 220px;
+			background: var(--color-sidebar);
+			color: var(--color-sidebar-text);
+			/* Убираем padding у главного контейнера, чтобы футер прилип к краю, если нужно, 
+			   но лучше оставить небольшой, а паддинг перенести внутрь блоков */
+			padding: 0; 
+			display: flex;
+			flex-direction: column;
+			flex-shrink: 0;
+			transition: width 0.3s ease;
+			overflow: hidden; 
+			height: 100%; /* Гарантируем высоту */
+		}
+		
+		/* Новая обертка для скроллируемой части меню */
+		.sidebar-scroll-area {
+			flex: 1; /* Занимает всё доступное место */
+			overflow-y: auto; /* Скроллится только эта область */
+			padding: var(--spacing);
+			display: flex;
+			flex-direction: column;
+		}		
+				
+		/* Стилизация скроллбара для меню (чтобы был красивым) */
+		.sidebar-scroll-area::-webkit-scrollbar { width: 4px; }
+		.sidebar-scroll-area::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+
+		/* Нижний блок (профиль), который не скроллится */
+		.sidebar-fixed-bottom {
+			flex-shrink: 0; /* Не сжимается */
+			padding: var(--spacing);
+			background: var(--color-sidebar); /* Цвет фона тот же */
+			border-top: 1px solid rgba(255,255,255,0.1);
+		}
+						
+		
+        /* Компактные элементы меню */
+		.menu-item {
+			padding: 8px 12px; /* Было 12px 16px - уменьшили */
+			margin-bottom: 4px; /* Было 8px - уменьшили */
+			border-radius: var(--radius);
+			cursor: pointer;
+			transition: background 0.2s;
+			display: flex;
+			align-items: center;
+			gap: 10px;
+			font-size: 13px; /* Чуть уменьшили шрифт для компактности */
+			border: none;
+			width: 100%;
+			text-align: left;
+			background: transparent;
+			color: var(--color-sidebar-text);
+		}
+
+		.menu-item:hover { background: rgba(255,255,255,0.1); }
+		.menu-item.active { background: var(--color-primary); font-weight: 600; }
+
+		.sidebar-divider { height: 1px; background: rgba(255,255,255,0.2); margin: 8px 0; /* Уменьшили отступы */ }
+		.sidebar-section-title { font-size: 10px; text-transform: uppercase; color: rgba(255,255,255,0.5); margin-bottom: 4px; padding-left: 12px; letter-spacing: 0.5px; }
 
 
         /* Content Layout */
@@ -1062,11 +1091,11 @@
 
 		/* User Profile in Sidebar */
 		.user-profile-info {
-			margin-top: 20px;
-			padding: 12px 16px 0 16px; /* Отступ сверху внутри блока */
-			border-top: 1px solid rgba(255,255,255,0.1);
-			color: #cbd5e1; /* Светло-серый текст */
-			font-size: 13px;
+			margin-top: 0; /* Убираем margin, так как теперь есть контейнер */
+			padding: 8px 4px 0 4px;
+			border-top: none; 
+			color: #cbd5e1;
+			font-size: 12px;
 			display: flex;
 			align-items: center;
 			gap: 10px;
