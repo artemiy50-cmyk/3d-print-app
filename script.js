@@ -1,4 +1,4 @@
-console.log("Version: 5.5 (2026-02-11 09-05)");
+console.log("Version: 5.5 (2026-02-12 08-00)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -2478,7 +2478,7 @@ async function deleteProduct(id) {
         }
     }
 
-    if (!confirm(`Удалить изделие "${p.name}"?`)) return;
+    if (!confirm(`Удалить изделие "${p.name}" и вернуть филамент?`)) return;
 
     // 1. Удаление файлов из облака
     if (p.imageUrl && !isResourceUsedByOthers(p.imageUrl, id)) {
