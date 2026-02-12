@@ -1162,50 +1162,53 @@
 
 /* === СТИЛИ ДЛЯ СКРЫТИЯ МЕНЮ === */
 
+/* === СТИЛИ ДЛЯ СКРЫТИЯ МЕНЮ (ИСПРАВЛЕНО) === */
+
 /* Кнопка гамбургер */
 .btn-menu-toggle {
     background: transparent;
     border: none;
-    color: var(--color-text); /* или #333 */
+    color: var(--color-text);
     font-size: 24px;
     cursor: pointer;
-    margin-right: 15px;
-    padding: 4px 8px;
+    padding: 4px;
     border-radius: 4px;
     transition: background 0.2s;
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 40px;
+    height: 40px;
 }
 
 .btn-menu-toggle:hover {
     background: rgba(0,0,0,0.05);
 }
 
-/* Плавная анимация для основных блоков */
-.sidebar, .content {
+/* Сайдбар - добавляем транзишн для ширины */
+.sidebar {
+    width: 220px;
+    transition: width 0.3s ease, padding 0.3s ease, opacity 0.2s ease;
+    flex-shrink: 0;
+    white-space: nowrap; /* Чтобы текст не прыгал при сужении */
+    overflow: hidden; /* Скрываем контент при сужении */
+}
+
+/* Основной контент - он сам займет место, так как у него flex: 1 */
+.content {
     transition: all 0.3s ease;
 }
 
 /* --- Состояние: МЕНЮ ЗАКРЫТО --- */
-/* Класс вешается на body через JS */
 
-/* 1. Прячем сайдбар влево */
 body.sidebar-closed .sidebar {
-    transform: translateX(-250px); /* Ширина сайдбара, уезжает за экран */
+    width: 0;
+    padding-left: 0;
+    padding-right: 0;
+    opacity: 0; /* Плавно скрываем содержимое */
 }
 
-/* 2. Растягиваем контент на всю ширину */
-body.sidebar-closed .content {
-    margin-left: 0 !important; /* Убираем отступ слева */
-    width: 100%;
+/* Дополнительно: скрываем скроллбар в закрытом состоянии */
+body.sidebar-closed .sidebar::-webkit-scrollbar {
+    display: none;
 }
-
-/* 3. Если шапка тоже сдвинута (зависит от вашей верстки), возвращаем её */
-/* Обычно шапка лежит внутри content или фиксирована. Если она фиксирована: */
-/*
-body.sidebar-closed .header {
-    left: 0; 
-    width: 100%;
-}
-*/
