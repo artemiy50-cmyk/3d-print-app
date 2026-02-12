@@ -1158,3 +1158,54 @@
 			margin-bottom: 6px;
 			font-style: italic;
 		}
+
+
+/* === СТИЛИ ДЛЯ СКРЫТИЯ МЕНЮ === */
+
+/* Кнопка гамбургер */
+.btn-menu-toggle {
+    background: transparent;
+    border: none;
+    color: var(--color-text); /* или #333 */
+    font-size: 24px;
+    cursor: pointer;
+    margin-right: 15px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-menu-toggle:hover {
+    background: rgba(0,0,0,0.05);
+}
+
+/* Плавная анимация для основных блоков */
+.sidebar, .content {
+    transition: all 0.3s ease;
+}
+
+/* --- Состояние: МЕНЮ ЗАКРЫТО --- */
+/* Класс вешается на body через JS */
+
+/* 1. Прячем сайдбар влево */
+body.sidebar-closed .sidebar {
+    transform: translateX(-250px); /* Ширина сайдбара, уезжает за экран */
+}
+
+/* 2. Растягиваем контент на всю ширину */
+body.sidebar-closed .content {
+    margin-left: 0 !important; /* Убираем отступ слева */
+    width: 100%;
+}
+
+/* 3. Если шапка тоже сдвинута (зависит от вашей верстки), возвращаем её */
+/* Обычно шапка лежит внутри content или фиксирована. Если она фиксирована: */
+/*
+body.sidebar-closed .header {
+    left: 0; 
+    width: 100%;
+}
+*/

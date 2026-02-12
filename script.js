@@ -1,4 +1,4 @@
-console.log("Version: 5.5 (2026-02-12 08-00)");
+console.log("Version: 5.5 (2026-02-12 13-45)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -5045,6 +5045,23 @@ function setupEventListeners() {
     
     // Обновляем обновление дат, чтобы захватить и serviceDate
     updateAllDates(); 
+
+    // --- SIDEBAR TOGGLE ---
+    const menuBtn = document.getElementById('menuToggle');
+    if (menuBtn) {
+        menuBtn.addEventListener('click', () => {
+            document.body.classList.toggle('sidebar-closed');
+            
+            // Опционально: сохраняем состояние в памяти, чтобы при обновлении страницы меню оставалось закрытым
+            const isClosed = document.body.classList.contains('sidebar-closed');
+            localStorage.setItem('sidebarState', isClosed ? 'closed' : 'open');
+        });
+        
+        // Восстановление состояния при загрузке (можно вынести отдельно в init)
+        if (localStorage.getItem('sidebarState') === 'closed') {
+            document.body.classList.add('sidebar-closed');
+        }
+    }
 
 	
 }
