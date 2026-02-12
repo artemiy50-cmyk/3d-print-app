@@ -1,4 +1,4 @@
-console.log("Version: 5.5 (2026-02-12 13-45)");
+console.log("Version: 5.5 (2026-02-12 14-15)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -363,76 +363,58 @@ function recalculateInitialStats(data) {
 }
 
 
+
 function setupUserSidebar(user) {
     const sidebar = document.querySelector('.sidebar');
-    
     if (document.getElementById('logoutBtn')) return; 
 
-    // 1. Email
+    // 1. Email (Используем структуру иконка + текст)
     const userDiv = document.createElement('div');
-    userDiv.className = 'user-profile-info';
-    userDiv.title = user.email; 
-    userDiv.innerHTML = `<span class="user-profile-icon">👤</span><span style="overflow:hidden;text-overflow:ellipsis;">${escapeHtml(user.email)}</span>`;
+    userDiv.className = 'user-profile-info menu-item'; // Добавил menu-item для общих стилей
+    userDiv.style.marginTop = 'auto'; // Прижать вниз
+    userDiv.style.cursor = 'default';
+    userDiv.style.hover = 'none';
+    
+    userDiv.innerHTML = `
+        <span class="user-profile-icon menu-icon">👤</span>
+        <span class="menu-text" style="overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(user.email)}">${escapeHtml(user.email)}</span>
+    `;
 
-    // 2. ID
+    // 2. ID (Тоже адаптируем)
     const uidDiv = document.createElement('div');
-    uidDiv.style.cssText = 'padding: 2px 16px 4px 16px; font-size: 11px; color: #64748b; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: color 0.2s;';
-    uidDiv.title = 'Нажмите, чтобы скопировать ID';
-    const shortUid = user.uid.substring(0, 12) + '...';
-    uidDiv.innerHTML = `ID: <span style="font-family:monospace; color: #94a3b8;">${shortUid}</span> <span style="font-size:10px">📋</span>`;
+    uidDiv.className = 'menu-item';
+    uidDiv.style.fontSize = '11px';
+    uidDiv.title = 'Скопировать ID';
+    const shortUid = user.uid.substring(0, 6) + '..';
+    
+    uidDiv.innerHTML = `
+        <span class="menu-icon" style="font-size:14px">🆔</span>
+        <span class="menu-text">ID: ${shortUid}</span>
+    `;
     uidDiv.onclick = function() {
-        navigator.clipboard.writeText(user.uid).then(() => {
-            const originalHTML = uidDiv.innerHTML;
-            uidDiv.innerHTML = `<span style="color:#4ade80; font-weight:bold;">✅ Скопировано!</span>`;
-            setTimeout(() => uidDiv.innerHTML = originalHTML, 2000);
-        }).catch(() => prompt("Ваш ID:", user.uid));
+        navigator.clipboard.writeText(user.uid).then(() => alert('ID скопирован'));
     };
 
-    // 3. Статус подписки (Убран курсор-вопрос)
-    const subDiv = document.createElement('div');
-    subDiv.id = 'sidebarSubStatus';
-    subDiv.style.cssText = 'padding: 0 16px 12px 16px; font-size: 10px; color: #64748b; opacity: 0.8;';
-    subDiv.innerHTML = 'Загрузка...';
-
-    // 4. Кнопка Выхода
+    // 3. Выход
     const btn = document.createElement('button');
     btn.className = 'menu-item';
     btn.id = 'logoutBtn';
-    btn.innerHTML = '🚪 Выйти';
-    btn.style.marginTop = '4px'; 
-    btn.style.borderTop = 'none'; 
-    btn.onclick = () => { if(confirm('Выйти из аккаунта?')) firebase.auth().signOut().then(() => window.location.reload()); };
+    btn.innerHTML = `<span class="menu-icon">🚪</span><span class="menu-text">Выйти</span>`;
+    btn.onclick = () => { if(confirm('Выйти?')) firebase.auth().signOut().then(() => window.location.reload()); };
 
-    // 5. Кнопка Инструкции
-    const helpBtn = document.createElement('button');
-    helpBtn.className = 'menu-item';
-    helpBtn.innerHTML = '<span style="color: #60a5fa; font-weight: bold; font-size: 15px; margin-right: 2px;">?</span> Инструкция';
-    helpBtn.onclick = () => {
-        const modal = document.getElementById('helpModal');
-        if (modal) modal.classList.add('active');
-        else alert('Ошибка: Окно инструкции не найдено в HTML');
-    };
-
-    // 6. Поддержка
-    const supportDiv = document.createElement('div');
-    supportDiv.style.cssText = 'margin-top: auto; padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 12px; text-align: center;';
-    supportDiv.innerHTML = `<a href="https://t.me/Artem_Kiyashko" target="_blank" style="color: #94a3b8; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 8px; transition: color 0.2s;"><span>💬</span> Связаться / Поддержка</a>`;
-    supportDiv.querySelector('a').onmouseover = function() { this.style.color = '#fff'; };
-    supportDiv.querySelector('a').onmouseout = function() { this.style.color = '#94a3b8'; };
-
-    const copyright = sidebar.lastElementChild;
-    sidebar.insertBefore(supportDiv, copyright);
-    
-    sidebar.insertBefore(userDiv, supportDiv);
-    sidebar.insertBefore(uidDiv, supportDiv);
-    sidebar.insertBefore(subDiv, supportDiv);
-    sidebar.insertBefore(helpBtn, supportDiv);
-    sidebar.insertBefore(btn, supportDiv);
-    
-    copyright.style.marginTop = '0'; 
+    // Вставляем перед футером
+    const footer = document.querySelector('.footer-info');
+    // Если футера нет в HTML (вдруг старая версия), ищем конец
+    if(footer) {
+        sidebar.insertBefore(userDiv, footer);
+        sidebar.insertBefore(uidDiv, footer);
+        sidebar.insertBefore(btn, footer);
+    } else {
+        sidebar.appendChild(userDiv);
+        sidebar.appendChild(uidDiv);
+        sidebar.appendChild(btn);
+    }
 }
-
-
 
 
 

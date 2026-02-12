@@ -176,24 +176,56 @@
     <div class="container">
         <!-- Sidebar -->
         <div class="sidebar">
-            <button class="menu-item active" data-page="dashboard">📊 Дашборд</button>
-            <button class="menu-item" data-page="products">📦 Изделия</button>
-            <button class="menu-item" data-page="writeoff">📒 Списания</button>
-			<button class="menu-item" data-page="filament">🧵 Филамент</button>
-			<button class="menu-item" data-page="service">🛠️ Сервис</button>
-            <button class="menu-item" data-page="reports">📈 Отчёты</button>
-            <button class="menu-item" data-page="references">⚙️ Справочники</button>
+            <button class="menu-item active" data-page="dashboard">
+                <span class="menu-icon">📊</span>
+                <span class="menu-text">Дашборд</span>
+            </button>
+            <button class="menu-item" data-page="products">
+                <span class="menu-icon">📦</span>
+                <span class="menu-text">Изделия</span>
+            </button>
+            <button class="menu-item" data-page="writeoff">
+                <span class="menu-icon">📒</span>
+                <span class="menu-text">Списания</span>
+            </button>
+			<button class="menu-item" data-page="filament">
+                <span class="menu-icon">🧵</span>
+                <span class="menu-text">Филамент</span>
+            </button>
+			<button class="menu-item" data-page="service">
+                <span class="menu-icon">🛠️</span>
+                <span class="menu-text">Сервис</span>
+            </button>
+            <button class="menu-item" data-page="reports">
+                <span class="menu-icon">📈</span>
+                <span class="menu-text">Отчёты</span>
+            </button>
+            <button class="menu-item" data-page="references">
+                <span class="menu-icon">⚙️</span>
+                <span class="menu-text">Справочники</span>
+            </button>
 
             <div class="sidebar-divider"></div>
-            <div class="sidebar-section-title">Бэкапы</div>
-            <button class="menu-item" id="exportBtn" title="Скачать базу данных в JSON">💾 Скачать базу</button>
-            <button class="menu-item" id="importBtn" title="Загрузить базу из JSON">📂 Восстановить</button>
+            <!-- Для заголовка секции просто скрываем текст в CSS -->
+            <div class="sidebar-section-title"><span class="menu-text">Бэкапы</span><span class="menu-icon-placeholder">💾</span></div>
+            
+            <button class="menu-item" id="exportBtn" title="Скачать базу">
+                <span class="menu-icon">💾</span>
+                <span class="menu-text">Скачать базу</span>
+            </button>
+            <button class="menu-item" id="importBtn" title="Восстановить">
+                <span class="menu-icon">📂</span>
+                <span class="menu-text">Восстановить</span>
+            </button>
             <input type="file" id="importFile" style="display: none;">
             
-            <div style="margin-top: auto; font-size: 11px; color: #64748b; text-align: center; padding-top: 20px;">
-                © <span id="copyrightYear"></span> Artem Kiyashko Project
+            <div class="footer-info">
+                <div class="menu-text">
+                    © <span id="copyrightYear"></span> Project
+                </div>
             </div>
         </div>
+
 
         <!-- Content -->
         <div class="content">

@@ -377,9 +377,11 @@
             border: 1px solid var(--color-border);
         }
         
-        #reports .table-container {
-            overflow: visible !important; 
-        }
+		#reports .table-container {
+			overflow-x: auto !important; /* Разрешаем горизонтальный скролл */
+			overflow-y: visible; /* Вертикально оставляем как есть */
+		}
+
 
         .report-table {
             width: 100%;
@@ -1160,7 +1162,6 @@
 		}
 
 
-/* === СТИЛИ ДЛЯ СКРЫТИЯ МЕНЮ === */
 
 /* === СТИЛИ ДЛЯ СКРЫТИЯ МЕНЮ (ИСПРАВЛЕНО) === */
 
@@ -1185,30 +1186,105 @@
     background: rgba(0,0,0,0.05);
 }
 
-/* Сайдбар - добавляем транзишн для ширины */
+/* === SIDEBAR STYLES (Minified Support) === */
+
 .sidebar {
     width: 220px;
-    transition: width 0.3s ease, padding 0.3s ease, opacity 0.2s ease;
+    background: var(--color-sidebar);
+    color: var(--color-sidebar-text);
+    padding: var(--spacing);
+    display: flex;
+    flex-direction: column;
     flex-shrink: 0;
-    white-space: nowrap; /* Чтобы текст не прыгал при сужении */
-    overflow: hidden; /* Скрываем контент при сужении */
+    transition: width 0.3s ease; /* Анимация ширины */
+    overflow-x: hidden; /* Скрываем вылезающий текст */
 }
 
-/* Основной контент - он сам займет место, так как у него flex: 1 */
-.content {
-    transition: all 0.3s ease;
+/* Элементы меню */
+.menu-item {
+    padding: 10px 12px; /* Чуть меньше паддинг */
+    margin-bottom: 4px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+    border: none;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    color: var(--color-sidebar-text);
+    white-space: nowrap; /* Текст в одну строку */
 }
 
-/* --- Состояние: МЕНЮ ЗАКРЫТО --- */
+.menu-item:hover { background: rgba(255,255,255,0.1); }
+.menu-item.active { background: var(--color-primary); font-weight: 600; }
+
+.menu-icon {
+    font-size: 18px;
+    width: 24px;
+    text-align: center;
+    display: inline-block;
+    flex-shrink: 0; /* Иконка не сжимается */
+}
+
+.menu-text {
+    opacity: 1;
+    transition: opacity 0.2s;
+}
+
+/* Разделитель и заголовки */
+.sidebar-divider { height: 1px; background: rgba(255,255,255,0.2); margin: 12px 0; }
+.sidebar-section-title { 
+    font-size: 11px; 
+    text-transform: uppercase; 
+    color: rgba(255,255,255,0.5); 
+    margin-bottom: 8px; 
+    padding-left: 12px; 
+    white-space: nowrap;
+    height: 20px;
+    overflow: hidden;
+}
+.menu-icon-placeholder { display: none; font-size: 14px; text-align: center; width: 100%; }
+
+/* Футер внизу */
+.footer-info {
+    margin-top: auto; 
+    font-size: 11px; 
+    color: #64748b; 
+    text-align: center; 
+    padding-top: 20px;
+    white-space: nowrap;
+}
+
+/* === MINIFIED STATE (Когда нажали гамбургер) === */
 
 body.sidebar-closed .sidebar {
-    width: 0;
-    padding-left: 0;
-    padding-right: 0;
-    opacity: 0; /* Плавно скрываем содержимое */
+    width: 70px; /* Узкая полоска */
+    padding: 16px 8px; /* Уменьшаем боковые отступы */
 }
 
-/* Дополнительно: скрываем скроллбар в закрытом состоянии */
-body.sidebar-closed .sidebar::-webkit-scrollbar {
-    display: none;
+/* Скрываем текст */
+body.sidebar-closed .menu-text {
+    opacity: 0;
+    pointer-events: none;
+    display: none; /* Полностью убираем из потока */
 }
+
+/* Центрируем иконки */
+body.sidebar-closed .menu-item {
+    justify-content: center;
+    padding: 10px 0;
+}
+
+/* Скрываем заголовок секции, показываем иконку (опционально) */
+body.sidebar-closed .sidebar-section-title .menu-text { display: none; }
+body.sidebar-closed .sidebar-section-title { padding-left: 0; text-align: center; }
+/* Можно показывать точки вместо заголовка "Бэкапы" */
+body.sidebar-closed .sidebar-section-title::after { content: "•••"; display: block; }
+
+/* Профиль пользователя внизу (если есть) */
+body.sidebar-closed .user-profile-info span:last-child { display: none; } /* Скрыть email */
+body.sidebar-closed .user-profile-info { padding: 12px 0; justify-content: center; } 
