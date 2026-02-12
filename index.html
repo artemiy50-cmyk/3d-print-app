@@ -174,68 +174,55 @@
 
     <!-- Main Container -->
 	<div class="container">  <!-- <-- ДОБАВЬТЕ ЭТУ СТРОКУ -->
-               <div class="sidebar">
-            <!-- Верхняя часть со скроллом -->
+        <div class="sidebar">
+            <!-- ВЕРХНЯЯ ЧАСТЬ (Скроллируемая) -->
             <div class="sidebar-scroll-area">
-                <!-- Основное меню -->
                 <button class="menu-item active" data-page="dashboard">
-                    <span class="menu-icon">📊</span>
-                    <span class="menu-text">Дашборд</span>
+                    <span class="menu-icon">📊</span><span class="menu-text">Дашборд</span>
                 </button>
                 <button class="menu-item" data-page="products">
-                    <span class="menu-icon">📦</span>
-                    <span class="menu-text">Изделия</span>
+                    <span class="menu-icon">📦</span><span class="menu-text">Изделия</span>
                 </button>
                 <button class="menu-item" data-page="writeoff">
-                    <span class="menu-icon">📒</span>
-                    <span class="menu-text">Списания</span>
+                    <span class="menu-icon">📒</span><span class="menu-text">Списания</span>
                 </button>
                 <button class="menu-item" data-page="filament">
-                    <span class="menu-icon">🧵</span>
-                    <span class="menu-text">Филамент</span>
+                    <span class="menu-icon">🧵</span><span class="menu-text">Филамент</span>
                 </button>
                 <button class="menu-item" data-page="service">
-                    <span class="menu-icon">🛠️</span>
-                    <span class="menu-text">Сервис</span>
+                    <span class="menu-icon">🛠️</span><span class="menu-text">Сервис</span>
                 </button>
                 <button class="menu-item" data-page="reports">
-                    <span class="menu-icon">📈</span>
-                    <span class="menu-text">Отчёты</span>
+                    <span class="menu-icon">📈</span><span class="menu-text">Отчёты</span>
                 </button>
                 <button class="menu-item" data-page="references">
-                    <span class="menu-icon">⚙️</span>
-                    <span class="menu-text">Справочники</span>
+                    <span class="menu-icon">⚙️</span><span class="menu-text">Справочники</span>
                 </button>
 
-                <!-- Секция Бэкапов -->
                 <div class="sidebar-divider"></div>
+                <div class="sidebar-section-title"><span class="menu-text">Бэкапы</span></div>
                 
                 <button class="menu-item" id="exportBtn" title="Скачать базу">
-                    <span class="menu-icon">💾</span>
-                    <span class="menu-text">Скачать базу</span>
+                    <span class="menu-icon">💾</span><span class="menu-text">Скачать базу</span>
                 </button>
                 <button class="menu-item" id="importBtn" title="Восстановить">
-                    <span class="menu-icon">📂</span>
-                    <span class="menu-text">Восстановить</span>
+                    <span class="menu-icon">📂</span><span class="menu-text">Восстановить</span>
                 </button>
                 <input type="file" id="importFile" style="display: none;">
                 
                 <div class="sidebar-divider"></div>
 
-                <!-- Группа 1: Инструкции и Выход (Вставляется через JS в этот контейнер) -->
+                <!-- Контейнер для кнопок Инструкция и Выход (Вставляются JS) -->
                 <div id="sidebarControls"></div>
             </div>
 
-            <!-- Нижняя прилипающая часть -->
+            <!-- НИЖНЯЯ ЧАСТЬ (Примагничена) -->
             <div class="sidebar-fixed-bottom">
-                <!-- Группа 2: Профиль (Вставляется через JS) -->
+                <!-- Профиль (Вставляется JS) -->
                 <div id="sidebarUserInfo"></div>
                 
-                <!-- Копирайт -->
-                <div class="footer-info">
-                    <div class="menu-text">
-                        © <span id="copyrightYear"></span> Project
-                    </div>
+                <div class="footer-info" style="margin-top: 4px; padding-top: 4px; font-size: 10px;">
+                    <div class="menu-text">© <span id="copyrightYear"></span> Project Artem Kiyashko</div>
                 </div>
             </div>
         </div>

@@ -66,52 +66,62 @@
 			height: 100%; /* Гарантируем высоту */
 		}
 		
-		/* Новая обертка для скроллируемой части меню */
+		/* Верхняя часть (скроллится при необходимости) */
 		.sidebar-scroll-area {
-			flex: 1; /* Занимает всё доступное место */
-			overflow-y: auto; /* Скроллится только эта область */
-			padding: var(--spacing);
+			flex: 1;
+			overflow-y: auto;
+			overflow-x: hidden;
+			padding: 12px 8px 0 8px; /* Небольшие отступы по бокам */
 			display: flex;
 			flex-direction: column;
 		}		
 				
-		/* Стилизация скроллбара для меню (чтобы был красивым) */
+		/* Скроллбар (тонкий) */
 		.sidebar-scroll-area::-webkit-scrollbar { width: 4px; }
 		.sidebar-scroll-area::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
 
-		/* Нижний блок (профиль), который не скроллится */
+		/* Нижняя часть (примагничена к низу) */
 		.sidebar-fixed-bottom {
-			flex-shrink: 0; /* Не сжимается */
-			padding: var(--spacing);
-			background: var(--color-sidebar); /* Цвет фона тот же */
+			flex-shrink: 0;
+			padding: 0 8px 12px 8px;
+			background: var(--color-sidebar);
 			border-top: 1px solid rgba(255,255,255,0.1);
+			display: flex;
+			flex-direction: column;
+			gap: 2px;
 		}
 						
 		
-        /* Компактные элементы меню */
+		/* Пункты меню (Компактные) */
 		.menu-item {
-			padding: 8px 12px; /* Было 12px 16px - уменьшили */
-			margin-bottom: 4px; /* Было 8px - уменьшили */
+			padding: 6px 10px; /* Сильно уменьшил вертикальные отступы */
+			margin-bottom: 2px;
 			border-radius: var(--radius);
 			cursor: pointer;
 			transition: background 0.2s;
 			display: flex;
 			align-items: center;
 			gap: 10px;
-			font-size: 13px; /* Чуть уменьшили шрифт для компактности */
+			font-size: 13px; /* Чуть меньше шрифт */
 			border: none;
 			width: 100%;
 			text-align: left;
 			background: transparent;
 			color: var(--color-sidebar-text);
+			min-height: 30px; /* Фиксируем минимальную высоту */
 		}
 
 		.menu-item:hover { background: rgba(255,255,255,0.1); }
 		.menu-item.active { background: var(--color-primary); font-weight: 600; }
 
-		.sidebar-divider { height: 1px; background: rgba(255,255,255,0.2); margin: 8px 0; /* Уменьшили отступы */ }
-		.sidebar-section-title { font-size: 10px; text-transform: uppercase; color: rgba(255,255,255,0.5); margin-bottom: 4px; padding-left: 12px; letter-spacing: 0.5px; }
+		.menu-icon { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
 
+		/* Разделители и заголовки */
+		.sidebar-divider { height: 1px; background: rgba(255,255,255,0.2); margin: 6px 0; }
+		.sidebar-section-title { 
+			font-size: 10px; text-transform: uppercase; color: rgba(255,255,255,0.5); 
+			margin-bottom: 2px; padding-left: 10px; letter-spacing: 0.5px; 
+		}
 
         /* Content Layout */
         .content { 
@@ -1088,21 +1098,24 @@
 			background: #94a3b8 !important;
 			cursor: not-allowed;
 		}
-
-		/* User Profile in Sidebar */
+		
+		
+		/* Профиль внизу */
 		.user-profile-info {
-			margin-top: 0; /* Убираем margin, так как теперь есть контейнер */
-			padding: 8px 4px 0 4px;
-			border-top: none; 
+			margin-top: 4px;
+			padding: 4px 8px;
+			border-top: none;
 			color: #cbd5e1;
 			font-size: 12px;
 			display: flex;
 			align-items: center;
-			gap: 10px;
+			gap: 8px;
 			white-space: nowrap;
 			overflow: hidden;
 			text-overflow: ellipsis;
 		}
+		
+		
 		.user-profile-icon {
 			font-size: 16px;
 			opacity: 0.7;
@@ -1221,12 +1234,13 @@
     width: 220px;
     background: var(--color-sidebar);
     color: var(--color-sidebar-text);
-    padding: var(--spacing);
+    padding: 0; /* Убираем отступы контейнера */
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
-    transition: width 0.3s ease; /* Анимация ширины */
-    overflow-x: hidden; /* Скрываем вылезающий текст */
+    transition: width 0.3s ease;
+    overflow: hidden;
+    height: 100%;
 }
 
 /* Элементы меню */
