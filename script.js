@@ -630,9 +630,15 @@ function checkSubscription(subData) {
     }
 }
 
-
-
-
+/** Открывает почтовый клиент для связи с администратором (продление подписки). Безопасно проверяет currentUser. */
+window.openContactEmail = function(subject, bodyPrefix) {
+    const user = firebase.auth().currentUser;
+    const uid = user ? user.uid : '';
+    const subj = subject != null ? subject : 'Продление подписки 3D Manager';
+    const prefix = bodyPrefix != null ? bodyPrefix : 'Мой ID: ';
+    const url = 'mailto:Artemiy50@gmail.com?subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(prefix + uid);
+    window.open(url);
+};
 
 function escapeHtml(text) {
     if (text === null || text === undefined) return '';
