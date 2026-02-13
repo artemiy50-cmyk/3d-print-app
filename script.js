@@ -2177,7 +2177,8 @@ function editProduct(id) {
             const renderLink = (w) => {
                 let details = `${w.date} | ${w.type} | ${w.qty} шт.`;
                 if (w.type === 'Продажа') details += ` | ${w.total.toFixed(2)} ₽`;
-                return `<a class="writeoff-link-item" onclick="closeProductModal(); setTimeout(() => editWriteoff('${w.systemId}'), 200);">${details}</a>`;
+                const safeId = escapeHtml(String(w.systemId || ''));
+                return `<a class="writeoff-link-item" data-writeoff-id="${safeId}" onclick="closeProductModal(); var _el=this; setTimeout(function(){editWriteoff(_el.getAttribute('data-writeoff-id'));}, 200);">${escapeHtml(details)}</a>`;
             };
 
             if (active.length > 0) {
@@ -2637,7 +2638,8 @@ function buildProductRow(p, isChild) {
                     // ----------------------------------
 
                     const style = w.type === 'Подготовлено к продаже' ? 'color: #94a3b8;' : '';
-                    return `<a onclick="editWriteoff('${w.systemId}')" style="${style}">${linkText}</a>`;
+                    const safeId = escapeHtml(String(w.systemId || ''));
+                    return `<a data-writeoff-id="${safeId}" onclick="editWriteoff(this.getAttribute('data-writeoff-id'))" style="${style}">${linkText}</a>`;
                 }).join('');
 
             statusHtml = `<div class="tooltip-container">
@@ -3886,7 +3888,7 @@ function updateWriteoffTable() {
 
         return `<tr>
             <td>${w.date}</td>
-            <td><small>${w.systemId}</small></td>
+            <td><small>${escapeHtml(w.systemId)}</small></td>
             <td ${nameEvents} style="cursor:default"><strong>${escapeHtml(w.productName)}</strong></td>
             <td><span class="badge ${statusBadge}">${escapeHtml(w.type)}</span></td>
             <td>${actualCost} ₽</td>
@@ -3896,9 +3898,9 @@ function updateWriteoffTable() {
             <td>${escapeHtml(w.note || '')}</td>
             <td class="text-center">
                 <div class="action-buttons">
-                    <button class="btn-secondary btn-small" title="Редактировать группу" onclick="editWriteoff('${w.systemId}')">✎</button>
+                    <button class="btn-secondary btn-small" title="Редактировать группу" data-writeoff-id="${escapeHtml(String(w.systemId || ''))}" onclick="editWriteoff(this.getAttribute('data-writeoff-id'))">✎</button>
                     <button class="btn-secondary btn-small" title="Копировать строку" onclick="copyWriteoffItem(${w.id})">❐</button>
-                    <button class="btn-danger btn-small" title="Удалить группу" onclick="deleteWriteoff('${w.systemId}')">✕</button>
+                    <button class="btn-danger btn-small" title="Удалить группу" data-writeoff-id="${escapeHtml(String(w.systemId || ''))}" onclick="deleteWriteoff(this.getAttribute('data-writeoff-id'))">✕</button>
                 </div>
             </td>
         </tr>`;
