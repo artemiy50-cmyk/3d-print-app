@@ -63,6 +63,18 @@ let isModalOpen = false; // Флаг, блокирующий авто-обнов
 
 // ==================== ИНИЦИАЛИЗАЦИЯ И МНОГОПОЛЬЗОВАТЕЛЬСКАЯ ЛОГИКА ====================
 
+/** Toast-уведомления (ошибки и др.). type: 'error' | 'success' | 'warning' | 'info'. Вынесено сюда, чтобы быть доступным при ошибке инициализации Firebase. */
+function showToast(message, type) {
+    type = type || 'error';
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    const el = document.createElement('div');
+    el.className = 'toast toast--' + type;
+    el.textContent = message == null ? '' : String(message);
+    container.appendChild(el);
+    setTimeout(() => { if (el.parentNode) el.remove(); }, type === 'error' ? 6000 : 4000);
+}
+
 // Глобальная переменная для текущего пользователя
 let currentUser = null;
 
@@ -73,7 +85,7 @@ try {
     // dbRef теперь не устанавливается здесь жестко!
 } catch (e) {
     console.error("Firebase init error:", e);
-    alert("Ошибка подключения к сервисам Google!");
+    showToast("Ошибка подключения к сервисам Google!", "error");
 }
 
 // Управление формами
@@ -201,7 +213,7 @@ window.resendVerification = function() {
         user.sendEmailVerification().then(() => {
             alert('Письмо отправлено повторно!');
             btn.textContent = "Отправлено";
-        }).catch(e => alert(e.message));
+        }).catch(e => showToast(e.message, "error"));
     }
 }
 
@@ -479,13 +491,13 @@ async function uploadFileToCloud(file) {
 
     // --- ПРОВЕРКА ЛИМИТОВ ---
     if (userStats.storageUsed + file.size > USER_LIMITS.maxStorage) {
-        alert(`Ошибка: Превышен лимит хранилища (${(USER_LIMITS.maxStorage/1024/1024).toFixed(0)} МБ).\nУдалите старые изделия или фото, чтобы освободить место.\nИли свяжитесь с администратором.`);
+        showToast(`Превышен лимит хранилища (${(USER_LIMITS.maxStorage/1024/1024).toFixed(0)} МБ). Удалите старые фото или свяжитесь с администратором.`, "error");
         return null;
     }
     
     // --- ПРОВЕРКА РАЗМЕРА ФАЙЛА (Client side check) ---
     if (file.size > 5 * 1024 * 1024) { // 5 МБ
-        alert("Файл слишком большой! Максимум 5 МБ.");
+        showToast("Файл слишком большой! Максимум 5 МБ.", "error");
         return null;
     }
 
@@ -519,7 +531,7 @@ async function uploadFileToCloud(file) {
             throw new Error(data.error?.message || 'Unknown error');
         }
     } catch (error) {
-        alert(`Ошибка загрузки: ${error.message}`);
+        showToast("Ошибка загрузки: " + error.message, "error");
         return null;
     }
 }
@@ -557,7 +569,7 @@ async function saveData() {
             header.textContent = "☁️ Сохранено!";
             setTimeout(() => header.textContent = original, 2000);
         }
-    } catch (err) { alert('Ошибка синхронизации!'); }
+    } catch (err) { showToast('Ошибка синхронизации!', 'error'); }
 }
 
 // Алиас для совместимости с кодом из v3.7
@@ -897,11 +909,11 @@ function importData(input) {
                     window.location.reload();
                 }
             } else {
-                alert('Некорректный формат файла JSON.');
+                showToast('Некорректный формат файла JSON.', 'error');
             }
         } catch(err) { 
             console.error(err);
-            alert('Ошибка обработки файла: ' + err); 
+            showToast('Ошибка обработки файла: ' + err, 'error'); 
         } finally {
             const btn = document.getElementById('importBtn');
             if(btn) { btn.textContent = "📂 Восстановить"; btn.disabled = false; }
@@ -1247,7 +1259,7 @@ async function saveFilament() {
 
     } catch (e) {
         console.error("Ошибка сохранения филамента:", e);
-        alert("Ошибка при сохранении: " + e.message);
+        showToast("Ошибка при сохранении: " + e.message, "error");
     } finally {
         saveBtn.textContent = 'Сохранить и закрыть'; 
         saveBtn.disabled = false;
@@ -1302,7 +1314,7 @@ async function deleteFilament(id) {
 
     // Проверка, используется ли филамент в каких-либо изделиях
     if (db.products.some(p => p.filament && p.filament.id === id)) {
-        alert(`Удаление невозможно. Филамент "${f.customId}" использован в изделиях.`);
+        showToast(`Удаление невозможно. Филамент "${f.customId}" использован в изделиях.`, "error");
         return;
     }
 
@@ -1366,7 +1378,7 @@ function handleImageUpload(input) {
     if(file) { 
         // Проверка размера (10 МБ)
         if (file.size > 10 * 1024 * 1024) {
-            alert("Файл изображения слишком большой! Максимальный размер для Cloudinary: 10 МБ");
+            showToast("Файл изображения слишком большой! Максимум: 10 МБ.", "error");
             input.value = '';
             return;
         }
@@ -1382,7 +1394,7 @@ function handleFileUpload(input) {
     const file = input.files[0]; 
     if(file) { 
         // ВЫДАЕМ СООБЩЕНИЕ (как вы просили)
-        alert("Внимание: Сохранение файлов в Cloudinary временно невозможно. Файл будет сохранен в карточке только как текстовая запись (без возможности скачивания).");
+        showToast("Сохранение в Cloudinary временно недоступно. Файл будет сохранён только как запись (без скачивания).", "warning");
         
         // Добавляем в список, чтобы пользователь видел, что он "прикрепил" файл
         currentProductFiles.push({name:file.name, blob:file}); 
@@ -1861,7 +1873,7 @@ async function copyProduct(id) {
             alert(`Составное изделие "${newParent.name}" и ${children.length} его частей успешно скопированы.`);
         } catch (e) {
             console.error("Ошибка копирования:", e);
-            alert("Ошибка при сохранении копии: " + e.message);
+            showToast("Ошибка при сохранении копии: " + e.message, "error");
         }
 
     } else {
@@ -2445,7 +2457,7 @@ async function saveProduct(andThenWriteOff = false) {
 
     } catch (e) {
         console.error('Ошибка при сохранении изделия:', e);
-        alert('Не удалось сохранить изделие: ' + e.message);
+        showToast('Не удалось сохранить изделие: ' + e.message, 'error');
     } finally {
         saveBtn.textContent = 'Сохранить и закрыть'; 
         saveBtn.disabled = false;
@@ -2497,13 +2509,13 @@ async function deleteProduct(id) {
     
     // Проверка списаний
     if (db.writeoffs && db.writeoffs.some(w => w.productId === id)) { 
-        alert('Нельзя удалить изделие, по которому уже есть списания!'); 
+        showToast('Нельзя удалить изделие, по которому уже есть списания!', 'error'); 
         return; 
     }
     // Проверка списаний для родителя (если удаляем часть)
     if (!db.writeoffs.some(w => w.productId === id) && p.type === 'Часть составного' && p.parentId) {
         if (db.writeoffs.some(w => w.productId === p.parentId)) {
-             alert('Нельзя удалить часть, так как родительское изделие имеет списания!'); 
+             showToast('Нельзя удалить часть, так как родительское изделие имеет списания!', 'error'); 
              return;
         }
     }
@@ -2574,7 +2586,7 @@ async function deleteProduct(id) {
         console.log('Изделие успешно удалено');
     } catch (e) {
         console.error("Ошибка удаления:", e);
-        alert("Не удалось удалить изделие: " + e.message);
+        showToast("Не удалось удалить изделие: " + e.message, "error");
     }
 }
 
@@ -3709,7 +3721,7 @@ async function saveWriteoff() {
         return;
     }
     
-    if (newItems.length === 0) { alert('Нет данных для сохранения'); return; }
+    if (newItems.length === 0) { showToast('Нет данных для сохранения', 'error'); return; }
 
     try {
         // 1. [FIX] ТРАНЗАКЦИЯ ДЛЯ СПИСАНИЙ (Решает коллизию массивов)
@@ -3774,7 +3786,7 @@ async function saveWriteoff() {
 
     } catch (e) {
         console.error("Ошибка сохранения списания:", e);
-        alert("Ошибка: " + e.message);
+        showToast("Ошибка: " + e.message, "error");
     }
 }
 
@@ -4121,7 +4133,7 @@ async function addComponent() {
         document.getElementById('newComponentPrice').value = '';
         updateComponentsList();
     } else {
-        alert('Введите название и цену');
+        showToast('Введите название и цену', 'error');
     }
 }
 
@@ -4247,7 +4259,7 @@ async function addBrand(){
 
 async function removeBrand(i){ 
     const val = db.brands[i]; 
-    if(db.filaments.some(f => f.brand === val)) { alert('Нельзя удалить: используется.'); return; } 
+    if(db.filaments.some(f => f.brand === val)) { showToast('Нельзя удалить: используется.', 'error'); return; } 
     
     db.brands.splice(i, 1); // Удаляем из массива
     await dbRef.child('brands').set(db.brands); // Перезаписываем весь массив, чтобы индексы 0,1,2... перестроились
@@ -4289,7 +4301,7 @@ async function addColor(){
 }
 
 async function removeColor(id){ 
-    if(db.filaments.some(f => f.color && f.color.id === id)) { alert('Нельзя удалить: используется.'); return; } 
+    if(db.filaments.some(f => f.color && f.color.id === id)) { showToast('Нельзя удалить: используется.', 'error'); return; } 
     
     db.colors = db.colors.filter(c => c.id !== id); // Фильтруем
     await dbRef.child('colors').set(db.colors); // Перезаписываем весь массив
@@ -4341,7 +4353,7 @@ async function addFilamentType(){
 
 async function removeFilamentType(i){ 
     const val = db.plasticTypes[i]; 
-    if(db.filaments.some(f => f.type === val)) { alert('Нельзя удалить: используется.'); return; } 
+    if(db.filaments.some(f => f.type === val)) { showToast('Нельзя удалить: используется.', 'error'); return; } 
     
     db.plasticTypes.splice(i, 1);
     await dbRef.child('plasticTypes').set(db.plasticTypes);
@@ -4389,7 +4401,7 @@ async function addFilamentStatus(){
 
 async function removeFilamentStatus(i){ 
     const val = db.filamentStatuses[i]; 
-    if(db.filaments.some(f => f.availability === val)) { alert('Нельзя удалить: используется.'); return; } 
+    if(db.filaments.some(f => f.availability === val)) { showToast('Нельзя удалить: используется.', 'error'); return; } 
     
     db.filamentStatuses.splice(i, 1);
     await dbRef.child('filamentStatuses').set(db.filamentStatuses);
@@ -4435,7 +4447,7 @@ async function addPrinter(){
 }
 
 async function removePrinter(id){ 
-    if(db.products.some(p => p.printer && p.printer.id === id)) { alert('Нельзя удалить: используется.'); return; } 
+    if(db.products.some(p => p.printer && p.printer.id === id)) { showToast('Нельзя удалить: используется.', 'error'); return; } 
     
     db.printers = db.printers.filter(p => p.id !== id);
     await dbRef.child('printers').set(db.printers);
@@ -4477,8 +4489,8 @@ async function editPrinter(id) {
 async function addElectricityCost() { 
     const date = document.getElementById('newElectricityDate').value; 
     const cost = parseFloat(document.getElementById('newElectricityCost').value); 
-    if (!date || isNaN(cost) || cost <= 0) { alert('Ошибка ввода.'); return; } 
-    if (db.electricityCosts.some(c => c.date === date)) { alert('Тариф на эту дату уже есть.'); return; } 
+    if (!date || isNaN(cost) || cost <= 0) { showToast('Ошибка ввода.', 'error'); return; } 
+    if (db.electricityCosts.some(c => c.date === date)) { showToast('Тариф на эту дату уже есть.', 'error'); return; } 
     
     const newCost = { id: Date.now(), date: date, cost: cost };
     db.electricityCosts.push(newCost);
@@ -4506,7 +4518,7 @@ async function addElectricityCost() {
 }
 
 async function removeElectricityCost(id) { 
-    if (db.electricityCosts.length <= 1) { alert('Нельзя удалить последний тариф.'); return; } 
+    if (db.electricityCosts.length <= 1) { showToast('Нельзя удалить последний тариф.', 'error'); return; } 
     if(confirm('Удалить?')){ 
         db.electricityCosts = db.electricityCosts.filter(c => c.id !== id);
         await dbRef.child('electricityCosts').set(db.electricityCosts);
@@ -4601,7 +4613,7 @@ async function recalculateFilamentUsage() {
         alert('Пересчет успешно выполнен!');
     } catch (e) {
         console.error("Ошибка пересчета:", e);
-        alert("Не удалось сохранить результаты пересчета: " + e.message);
+        showToast("Не удалось сохранить результаты пересчета: " + e.message, "error");
     }
 }
 
@@ -4773,7 +4785,7 @@ async function saveService() {
 
     } catch (e) {
         console.error(e);
-        alert('Ошибка сохранения: ' + e.message);
+        showToast('Ошибка сохранения: ' + e.message, 'error');
     } finally {
         saveBtn.disabled = false; saveBtn.textContent = 'Сохранить';
     }
@@ -4817,7 +4829,7 @@ async function deleteService(id) {
         updateServiceTable();
         updateReports();
     } catch (e) {
-        alert('Ошибка удаления: ' + e.message);
+        showToast('Ошибка удаления: ' + e.message, 'error');
     }
 }
 
@@ -5119,7 +5131,7 @@ document.addEventListener('click', function(event) {
                 window.addChildPart(productId);
             } else {
                 console.error('Function addChildPart not found!');
-                alert('Ошибка: функция addChildPart не найдена');
+                showToast('Ошибка: функция addChildPart не найдена', 'error');
             }
         }
     }
