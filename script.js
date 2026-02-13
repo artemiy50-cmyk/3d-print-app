@@ -19,8 +19,6 @@ const cloudinaryConfig = {
   uploadPreset: "hcvbf9f9"
 };
 
-// const IMGBB_API_KEY = "326af327af6376b3b4d4e580dba10743";
-
 // ==================== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ====================
 // Лимиты по умолчанию (в байтах)
 const USER_LIMITS = {
@@ -473,30 +471,8 @@ function setupUserSidebar(user) {
 }
 
 
-
-
-
 // ==================== CLOUD & DATA ====================
-
-// async function uploadFileToCloud(file) {
-//    if (!file) return null;
-//    if (!file.type.startsWith('image/')) {
-//        alert(`Файл "${file.name}" не картинка. ImgBB поддерживает только изображения.`);
-//        return null;
-//    }
-//    try {
-//        const formData = new FormData();
-//        formData.append("image", file);
-//        const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, { method: "POST", body: formData });
-//        const data = await response.json();
-//        if (data.success) return data.data.url;
-//        else throw new Error(data.error?.message);
-//    } catch (error) {
-//        alert(`Ошибка загрузки: ${error.message}`);
-//        return null;
-//    }
-// }
-
+// Загрузка файлов выполняется через Cloudinary (см. uploadFileToCloud ниже).
 
 async function uploadFileToCloud(file) {
     if (!file) return null;
