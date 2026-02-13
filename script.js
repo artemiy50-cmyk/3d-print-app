@@ -1,4 +1,4 @@
-console.log("Version: 5.5 (2026-02-13 05-30)");
+console.log("Version: 5.5 (2026-02-13 22-30)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -259,6 +259,18 @@ window.addEventListener('DOMContentLoaded', () => {
 
             setupUserSidebar(user);
             
+            // Превращает значение из Firebase (массив или объект с числовыми ключами) в массив. Избегает ошибки .filter is not a function.
+            function toArray(v) {
+                if (v == null) return [];
+                if (Array.isArray(v)) return v.filter(x => x);
+                if (typeof v === 'object') return Object.values(v).filter(x => x);
+                return [];
+            }
+            function toArrayOrDefault(v, defaultArr) {
+                const arr = toArray(v);
+                return arr.length ? arr : defaultArr;
+            }
+
             // === ИСПРАВЛЕННАЯ ФУНКЦИЯ ОБНОВЛЕНИЯ ===
             window.updateAppFromSnapshot = function(snapshot) {
                 console.log('Updating UI from Firebase snapshot...');
@@ -290,22 +302,21 @@ window.addEventListener('DOMContentLoaded', () => {
                 }
 
                 if (loadedData) {
-                    // Используем .filter(x=>x) чтобы убрать "дырки" (null) из массивов
-                    db.filaments = (loadedData.filaments || []).filter(x => x);
-                    db.products = (loadedData.products || []).filter(x => x);
-                    db.writeoffs = (loadedData.writeoffs || []).filter(x => x);
-                    db.serviceExpenses = (loadedData.serviceExpenses || []).filter(x => x);
+                    // Нормализуем в массив (Firebase иногда отдаёт объект с ключами 0,1,2)
+                    db.filaments = toArray(loadedData.filaments);
+                    db.products = toArray(loadedData.products);
+                    db.writeoffs = toArray(loadedData.writeoffs);
+                    db.serviceExpenses = toArray(loadedData.serviceExpenses);
                     
-                    // Если массив пустой или null, берем дефолтный из const db
-                    db.brands = (loadedData.brands && loadedData.brands.length) ? loadedData.brands.filter(x=>x) : db.brands;
-                    db.colors = (loadedData.colors && loadedData.colors.length) ? loadedData.colors.filter(x=>x) : db.colors;
-                    db.plasticTypes = (loadedData.plasticTypes && loadedData.plasticTypes.length) ? loadedData.plasticTypes.filter(x=>x) : db.plasticTypes;
-                    db.filamentStatuses = (loadedData.filamentStatuses && loadedData.filamentStatuses.length) ? loadedData.filamentStatuses.filter(x=>x) : db.filamentStatuses;
-                    db.printers = (loadedData.printers && loadedData.printers.length) ? loadedData.printers.filter(x=>x) : db.printers;
-                    db.electricityCosts = (loadedData.electricityCosts && loadedData.electricityCosts.length) ? loadedData.electricityCosts.filter(x=>x) : db.electricityCosts;
+                    db.brands = toArrayOrDefault(loadedData.brands, db.brands);
+                    db.colors = toArrayOrDefault(loadedData.colors, db.colors);
+                    db.plasticTypes = toArrayOrDefault(loadedData.plasticTypes, db.plasticTypes);
+                    db.filamentStatuses = toArrayOrDefault(loadedData.filamentStatuses, db.filamentStatuses);
+                    db.printers = toArrayOrDefault(loadedData.printers, db.printers);
+                    db.electricityCosts = toArrayOrDefault(loadedData.electricityCosts, db.electricityCosts);
                     
-                    db.components = (loadedData.components || []).filter(x => x);
-                    db.serviceNames = (loadedData.serviceNames || []).filter(x => x);
+                    db.components = toArray(loadedData.components);
+                    db.serviceNames = toArray(loadedData.serviceNames);
                 } else {
                     // Если данных нет вообще (новый юзер), оставляем db как есть (с дефолтами из кода)
 					// Но очищаем транзакционные массивы
@@ -4875,7 +4886,7 @@ function updateServiceTable() {
             <td>${x.qty}</td>
             <td>${x.price.toFixed(2)}</td>
             <td>${x.total.toFixed(2)}</td>
-            <td style="font-size:12px; color:#64748b; max-width: 200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(x.note || '')}">${escapeHtml(x.note || '-')}</td>
+            <td style="max-width: 200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(x.note || '')}">${escapeHtml(x.note || '-')}</td>
             <td class="text-center">${linkHtml}</td>
             <td class="text-center">
                 <div class="action-buttons">
@@ -4948,8 +4959,8 @@ async function editServiceName(i) {
         const newPrice = prompt("Цена:", item.price);
         if(newPrice && !isNaN(parseFloat(newPrice))) {
             const updates = {};
-            updates[`/serviceNames/${realIdx}/name`] = newName.trim();
-            updates[`/serviceNames/${realIdx}/price`] = parseFloat(newPrice);
+            updates[`serviceNames/${realIdx}/name`] = newName.trim();
+            updates[`serviceNames/${realIdx}/price`] = parseFloat(newPrice);
             await dbRef.update(updates);
             // Local
             db.serviceNames[realIdx].name = newName.trim();
@@ -4958,9 +4969,6 @@ async function editServiceName(i) {
         }
     }
 }
-
-
-
 
 
 // ==================== EVENT LISTENERS ====================
