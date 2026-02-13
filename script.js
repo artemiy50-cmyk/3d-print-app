@@ -4760,11 +4760,11 @@ async function saveService() {
         if (existingNameIndex === -1) {
             const newIdx = db.serviceNames.length;
             const newRef = { name: name, price: price };
-            updates[`/serviceNames/${newIdx}`] = newRef;
+            updates[`serviceNames/${newIdx}`] = newRef;
             db.serviceNames.push(newRef);
         } else {
             if (Math.abs(db.serviceNames[existingNameIndex].price - price) > 0.01) {
-                updates[`/serviceNames/${existingNameIndex}/price`] = price;
+                updates[`serviceNames/${existingNameIndex}/price`] = price;
                 db.serviceNames[existingNameIndex].price = price;
             }
         }
