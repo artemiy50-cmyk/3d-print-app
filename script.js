@@ -4753,7 +4753,7 @@ async function saveService() {
             index = db.serviceExpenses.length;
         }
         
-        updates[`/serviceExpenses/${index}`] = item;
+        updates[`serviceExpenses/${index}`] = item;
 
         // Обновляем справочник имен
         const existingNameIndex = db.serviceNames.findIndex(s => s.name.toLowerCase() === name.toLowerCase());
