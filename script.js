@@ -1,13 +1,19 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
-console.log("Version: 5.6 (2026-02-14 17-30-56)");
+console.log("Version: 5.6 (2026-02-14 19-01-56)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
 /** Единая конфигурация приложения: лимиты, таймауты. */
 const APP_CONFIG = {
-    limits: { maxStorageBytes: 1024 * 1024 * 1024, maxFileSizeBytes: 5 * 1024 * 1024, maxCloudFiles: 1000 },
-    toast: { errorDurationMs: 6000, successDurationMs: 4000 },
-    search: { debounceMs: 300 },
+    limits: { 
+        maxStorageBytes: 1024 * 1024 * 1024, 
+        maxFileSizeBytes: 5 * 1024 * 1024, 
+        maxCloudFiles: 1000 },
+    toast: { 
+        errorDurationMs: 6000, 
+        successDurationMs: 4000 },
+    search: { 
+        debounceMs: 300 },
     trialDays: 30
 };
 
