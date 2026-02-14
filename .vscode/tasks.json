@@ -2,7 +2,7 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Обновить версию",
+            "label": "Обновить время версии script.js",
             "type": "shell",
             "command": "python update_version.py",
             "group": {
