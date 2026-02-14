@@ -1,5 +1,5 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
-console.log("Version: 5.5 (2026-02-14 12-18-48)");
+console.log("Version: 5.5 (2026-02-14 12-58-00)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1129,7 +1129,14 @@ function clearFilamentForm() {
     document.getElementById('filamentValidationMessage').classList.add('hidden'); document.getElementById('filamentUniqueIdMessage').classList.add('hidden');
     document.querySelectorAll('#filamentModal input, #filamentModal select').forEach(el => el.classList.remove('error'));
     document.querySelectorAll('#filamentModal input, #filamentModal select, #filamentModal textarea').forEach(el => el.disabled = false);
-    updateFilamentCalcFields(); updateFilamentStatusUI();
+    
+    // --- ДОБАВИТЬ СЮДА ---
+    document.getElementById('priceTooltip').textContent = "Коэффициент: -";
+    document.getElementById('weightTooltip').textContent = "Граммов в метре: -";
+    // ---------------------
+
+    updateFilamentCalcFields(); 
+    updateFilamentStatusUI();
 }
 
 function validateFilamentForm() {
@@ -1290,6 +1297,7 @@ function filterFilaments() {
     });
 }
 function resetFilamentFilters() { document.getElementById('filamentSearch').value = ''; document.getElementById('filamentStatusFilter').value = ''; updateFilamentsTable(); }
+
 function editFilament(id) {
     const f = db.filaments.find(x => x.id === id); if (!f) return;
     openFilamentModal();
@@ -1309,8 +1317,14 @@ function editFilament(id) {
     document.getElementById('filamentAvailability').value = f.availability;
     
     document.getElementById('filamentModal').setAttribute('data-edit-id', id); 
-    updateFilamentCalcFields(); updateFilamentStatusUI();
+
+    updatePriceTooltip();  
+    updateWeightTooltip(); 
+
+    updateFilamentCalcFields(); 
+    updateFilamentStatusUI();
 }
+
 function copyFilament(id) { 
     editFilament(id); 
     document.getElementById('filamentModal').removeAttribute('data-edit-id'); 
