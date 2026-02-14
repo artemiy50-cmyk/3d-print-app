@@ -1,5 +1,5 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
-console.log("Version: 5.5 (2026-02-14 12-58-00)");
+console.log("Version: 5.5 (2026-02-14 15-23-26)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -1330,8 +1330,12 @@ function copyFilament(id) {
     document.getElementById('filamentModal').removeAttribute('data-edit-id'); 
     document.getElementById('filamentCustomId').value += ' (Копия)';
     document.getElementById('filamentAvailability').value = 'В наличии';
+    
+    document.getElementById('filamentNote').value = ''; // <--- ДОБАВЛЕНО: Очистка комментария
+    
     document.querySelector('#filamentModal .modal-header-title').textContent = 'Копирование';
 }
+
 
 async function deleteFilament(id) {
     const f = db.filaments.find(x => x.id === id);
@@ -1853,7 +1857,8 @@ async function copyProduct(id) {
         newParent.allPartsCreated = false;
         newParent.defective = false;
         newParent.status = determineProductStatus(newParent);
-        newParent.fileUrls = []; 
+        newParent.note = '';
+         newParent.fileUrls = (p.fileUrls || []).map(f => ({ name: f.name, url: null }));
         newParent.imageBlob = null; 
         newParent.attachedFiles = [];
         newParent.printer = newParent.printer || null; // Fix undefined
@@ -1870,7 +1875,8 @@ async function copyProduct(id) {
             newChild.inStock = newChild.quantity;
             newChild.defective = false;
             newChild.status = determineProductStatus(newChild);
-            newChild.fileUrls = []; 
+            newChild.note = '';
+            newChild.fileUrls = (child.fileUrls || []).map(f => ({ name: f.name, url: null }));
             newChild.imageBlob = null;
             newChild.attachedFiles = [];
             newChild.printer = newChild.printer || null; // Fix undefined
@@ -1895,7 +1901,7 @@ async function copyProduct(id) {
 
             updateProductsTable();
             updateDashboard();
-            alert(`Составное изделие "${newParent.name}" и ${children.length} его частей успешно скопированы.`);
+            showToast(`Составное изделие "${newParent.name}" скопировано.`);
         } catch (e) {
             console.error("Ошибка копирования:", e);
             showToast("Ошибка при сохранении копии: " + e.message, "error");
@@ -1920,10 +1926,11 @@ async function copyProduct(id) {
         if(p.printer) document.getElementById('productPrinter').value = p.printer.id;
         
         document.getElementById('productType').value = p.type;
-        document.getElementById('productNote').value = p.note;
+        document.getElementById('productNote').value = '';
         document.getElementById('productDefective').checked = false;
         
         updateProductTypeUI();
+        updateProductFilamentSelect(); 
         
         if (p.type === 'Часть составного') { 
             updateParentSelect(p.parentId);
@@ -1937,17 +1944,34 @@ async function copyProduct(id) {
         }
 
         if (p.type !== 'Составное' && p.filament) { 
-            document.getElementById('productFilament').value = p.filament.id; 
+            // Теперь, когда список заполнен, выбираем нужное значение
+            const filSelect = document.getElementById('productFilament');
+            filSelect.value = p.filament.id; 
+            
+            // Если вдруг филамент закончился и его нет в списке (он скрыт),
+            // updateProductFilamentSelect должен был его добавить как "текущий".
+            // Но так как мы копируем в НОВОЕ окно, "текущего" для окна нет.
+            // Нужно проверить, выбралось ли значение.
+            if (!filSelect.value) {
+                 // Если не выбралось (значит филамент в архиве), добавляем опцию вручную
+                 const opt = document.createElement('option');
+                 opt.value = p.filament.id;
+                 opt.textContent = `${p.filament.customId} (Архивный)`;
+                 filSelect.appendChild(opt);
+                 filSelect.value = p.filament.id;
+            }
+
+            updateProductColorDisplay(); 
         }
         
         currentProductImage = p.imageUrl || null;
         currentProductFiles = []; 
+        currentProductFiles = (p.fileUrls || []).map(f => ({ name: f.name, url: null }));
+  
         
         renderProductImage();
         renderProductFiles();
         
-        updateProductFilamentSelect();
-        if (p.type !== 'Составное' && p.filament) updateProductColorDisplay();
         updateProductCosts();
     }
 }
@@ -2236,14 +2260,17 @@ function editProduct(id) {
     productSnapshotForDirtyCheck = captureProductSnapshot();
 }
 
-
-
-
-
-// ДОБАВЬТЕ ЭТУ ФУНКЦИЮ
 function validateProductForm() {
     let valid = true;
     const t = document.getElementById('productType').value;
+    const msgEl = document.getElementById('productValidationMessage');
+    
+    // Сброс ошибок
+    msgEl.classList.add('hidden');
+    msgEl.textContent = 'Не все обязательные поля заполнены'; // Возвращаем стандартный текст
+    document.querySelectorAll('#productModal input, #productModal select').forEach(el => el.classList.remove('error'));
+
+    // 1. Проверка обязательных полей
     const req = ['productDate', 'productQuantity', 'productName'];
     if (t !== 'Составное') {
         req.push('productFilament', 'productPrinter', 'productWeight', 'productLength');
@@ -2251,9 +2278,6 @@ function validateProductForm() {
     if (t === 'Часть составного') {
         req.push('productParent');
     }
-
-    document.getElementById('productValidationMessage').classList.add('hidden');
-    document.querySelectorAll('#productModal input, #productModal select').forEach(el => el.classList.remove('error'));
 
     req.forEach(id => {
         const el = document.getElementById(id);
@@ -2263,6 +2287,7 @@ function validateProductForm() {
         }
     });
 
+    // 2. Проверка времени (не должно быть 0:00)
     if (t !== 'Составное') {
         const h = parseInt(document.getElementById('productPrintTimeHours').value) || 0;
         const m = parseInt(document.getElementById('productPrintTimeMinutes').value) || 0;
@@ -2273,12 +2298,27 @@ function validateProductForm() {
         }
     }
 
+    // 3. НОВАЯ ПРОВЕРКА: Наличие филамента (только если остальные поля заполнены)
+    if (valid && t !== 'Составное') {
+        const filEl = document.getElementById('productFilament');
+        const filId = filEl.value;
+        const filament = db.filaments.find(f => f.id == filId);
+
+        // Если филамент выбран, но его статус НЕ "В наличии"
+        if (filament && filament.availability !== 'В наличии') {
+            filEl.classList.add('error');
+            msgEl.textContent = 'Выберите цвет имеющийся в наличии'; // Спец. сообщение
+            msgEl.classList.remove('hidden');
+            return false; // Блокируем сохранение
+        }
+    }
+
     if (!valid) {
-        document.getElementById('productValidationMessage').textContent = 'Не все обязательные поля заполнены';
-        document.getElementById('productValidationMessage').classList.remove('hidden');
+        msgEl.classList.remove('hidden');
     }
     return valid;
 }
+
 
 
 async function saveProduct(andThenWriteOff = false) {
@@ -3957,7 +3997,9 @@ function copyWriteoffItem(rowId) {
     writeoffSectionCount = 0;
 
     document.getElementById('writeoffType').value = item.type;
-    document.getElementById('writeoffNote').value = item.note || '';
+    
+    document.getElementById('writeoffNote').value = ''; // <--- ИЗМЕНЕНО: Очистка комментария
+    
     document.getElementById('writeoffDate').value = new Date().toISOString().split('T')[0];
     
     updateWriteoffTypeUI();
@@ -3970,6 +4012,7 @@ function copyWriteoffItem(rowId) {
     
     document.querySelector('#writeoffModal .modal-header-title').textContent = 'Копирование записи списания';
 }
+
 
 
 
@@ -4822,22 +4865,20 @@ function copyService(id) {
     const item = db.serviceExpenses.find(x => x.id === id);
     if (!item) return;
 
-    openServiceModal(); // Открываем форму в режиме добавления (очищаем ID)
+    openServiceModal(); 
     
-    // Заполняем поля данными из копируемого объекта
-    document.getElementById('serviceDate').value = new Date().toISOString().split('T')[0]; // Дата текущая
+    document.getElementById('serviceDate').value = new Date().toISOString().split('T')[0]; 
     document.getElementById('serviceNameInput').value = item.name;
     document.getElementById('serviceQty').value = item.qty;
     document.getElementById('servicePrice').value = item.price;
     document.getElementById('serviceLink').value = item.link || '';
-    document.getElementById('serviceNote').value = item.note || '';
     
-    // Пересчитываем сумму
+    document.getElementById('serviceNote').value = ''; // <--- ИЗМЕНЕНО: Очистка комментария
+    
     calcServiceTotal();
-    
-    // Меняем заголовок
     document.querySelector('#serviceModal .modal-header-title').textContent = 'Копирование расхода';
 }
+
 
 
 
