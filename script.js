@@ -1,5 +1,5 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
-console.log("Version: 5.6 (2026-02-14 19-01-56)");
+console.log("Version: 5.6 (2026-02-14 19-52-42)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -2021,7 +2021,32 @@ async function copyProduct(id) {
                 db.products = result.snapshot.val();
             }
 
+            // Учёт расхода филамента по частям копии (как в saveProduct / recalculate)
+            const deltaByFilId = {};
+            for (const child of newChildren) {
+                if (child.isDraft || !child.filament) continue;
+                const filId = (typeof child.filament === 'object') ? child.filament.id : child.filament;
+                if (!deltaByFilId[filId]) deltaByFilId[filId] = { L: 0, W: 0 };
+                deltaByFilId[filId].L += (child.length || 0);
+                deltaByFilId[filId].W += (child.weight || 0);
+            }
+            const filamentUpdates = {};
+            db.filaments.forEach((f, index) => {
+                const d = deltaByFilId[f.id];
+                if (!d) return;
+                f.usedLength = (f.usedLength || 0) + d.L;
+                f.usedWeight = (f.usedWeight || 0) + d.W;
+                f.remainingLength = Math.max(0, (f.length || 0) - (f.usedLength || 0));
+                filamentUpdates[`filaments/${index}/usedLength`] = f.usedLength;
+                filamentUpdates[`filaments/${index}/usedWeight`] = f.usedWeight;
+                filamentUpdates[`filaments/${index}/remainingLength`] = f.remainingLength;
+            });
+            if (Object.keys(filamentUpdates).length > 0) {
+                await dbRef.update(filamentUpdates);
+            }
+
             updateProductsTable();
+            updateFilamentsTable();
             updateDashboard();
             showToast(`Составное изделие "${newParent.name}" скопировано.`);
         } catch (e) {
