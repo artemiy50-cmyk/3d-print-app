@@ -1,5 +1,5 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
-console.log("Version: 5.5 (2026-02-14 07-00-23)");
+console.log("Version: 5.5 (2026-02-14 10-42-46)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -13,7 +13,6 @@ const firebaseConfig = {
   measurementId: "G-FF384D3F8F",
   databaseURL: "https://d-print-app-3655b-default-rtdb.europe-west1.firebasedatabase.app"
 };
-
 
 // Конфигурация для Cloudinary
 const cloudinaryConfig = {
@@ -51,7 +50,6 @@ const db = {
     ]
 };
 
-
 let productSnapshotForDirtyCheck = '';
 let currentProductImage = null; 
 let currentProductFiles = [];   
@@ -59,7 +57,6 @@ let dbRef;
 let activePreviewProductId = null;
 let writeoffSectionCount = 0; // Для списаний
 let isModalOpen = false; // Флаг, блокирующий авто-обновление UI при открытых модальных окнах
-
 
 
 // ==================== ИНИЦИАЛИЗАЦИЯ И МНОГОПОЛЬЗОВАТЕЛЬСКАЯ ЛОГИКА ====================
@@ -259,6 +256,7 @@ window.addEventListener('DOMContentLoaded', () => {
             });
 
             setupUserSidebar(user);
+            showToast(`Добро пожаловать, ${user.email}!`, 'info');
             
             // Превращает значение из Firebase (массив или объект с числовыми ключами) в массив. Избегает ошибки .filter is not a function.
             function toArray(v) {
@@ -5116,7 +5114,64 @@ function setupEventListeners() {
         }
     }
 
-	
+	    // === ГЛОБАЛЬНЫЕ ТУЛТИПЫ (фикс перекрытия таблицами) ===
+        const globalTooltip = document.getElementById('globalTextTooltip');
+
+        // Делегирование событий на весь документ
+        document.addEventListener('mouseover', function(e) {
+            // Ищем ближайший контейнер тултипа
+            const target = e.target.closest('.tooltip-container');
+            
+            if (target) {
+                // Ищем внутри него скрытый текст
+                const textEl = target.querySelector('.tooltip-text:not(#globalTextTooltip)');
+                if (textEl && globalTooltip) {
+                    // Копируем текст в глобальный тултип
+                    globalTooltip.innerHTML = textEl.innerHTML;
+                    globalTooltip.style.display = 'block';
+                }
+            }
+        });
+    
+        document.addEventListener('mousemove', function(e) {
+            if (globalTooltip && globalTooltip.style.display === 'block') {
+                // Размеры тултипа и окна
+                const w = globalTooltip.offsetWidth;
+                const h = globalTooltip.offsetHeight;
+                const winW = window.innerWidth;
+                const winH = window.innerHeight;
+    
+                // --- ГОРИЗОНТАЛЬ (X) ---
+                // По умолчанию: чуть правее курсора
+                let left = e.clientX + 12;
+                
+                // Если вылезает за правый край -> сдвигаем влево от курсора
+                if (left + w > winW) {
+                    left = e.clientX - w - 12;
+                }
+                
+                // --- ВЕРТИКАЛЬ (Y) ---
+                // По умолчанию: НАД курсором (сдвиг на высоту тултипа + отступ)
+                let top = e.clientY - h - 12;
+    
+                // Если вылезает за ВЕРХНИЙ край (top < 0) -> показываем ПОД курсором
+                if (top < 0) {
+                    top = e.clientY + 20;
+                }
+    
+                globalTooltip.style.left = left + 'px';
+                globalTooltip.style.top = top + 'px';
+            }
+        });
+    
+    
+        document.addEventListener('mouseout', function(e) {
+            const target = e.target.closest('.tooltip-container');
+            if (target && globalTooltip) {
+                globalTooltip.style.display = 'none';
+            }
+        });
+    
 }
 
 
