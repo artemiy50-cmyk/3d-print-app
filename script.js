@@ -1,5 +1,5 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
-console.log("Version: 5.5 (2026-02-14 07-44-45)");
+console.log("Version: 5.5 (2026-02-14 08-14-09)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -50,7 +50,6 @@ const db = {
     ]
 };
 
-
 let productSnapshotForDirtyCheck = '';
 let currentProductImage = null; 
 let currentProductFiles = [];   
@@ -58,7 +57,6 @@ let dbRef;
 let activePreviewProductId = null;
 let writeoffSectionCount = 0; // Для списаний
 let isModalOpen = false; // Флаг, блокирующий авто-обновление UI при открытых модальных окнах
-
 
 
 // ==================== ИНИЦИАЛИЗАЦИЯ И МНОГОПОЛЬЗОВАТЕЛЬСКАЯ ЛОГИКА ====================

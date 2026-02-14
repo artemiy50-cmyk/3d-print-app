@@ -2,11 +2,17 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Auto Version Watcher",
+            "label": "Обновить версию",
             "type": "shell",
-            "command": "python version_watcher.py",
-            "runOptions": { "runOn": "folderOpen" },
-            "presentation": { "reveal": "silent", "panel": "new" }
+            "command": "python update_version.py",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "silent",
+                "close": true
+            }
         }
     ]
 }
