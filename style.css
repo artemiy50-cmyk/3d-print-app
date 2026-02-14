@@ -432,15 +432,16 @@
         .counter-divider { font-size: 32px; color: var(--color-border); font-weight: 300; }
        
  	    
-		/* Basic Table Container */
+        /* Basic Table Container */
         .table-container { 
-            overflow-x: auto; 
+            overflow-x: auto; /* Горизонтальный скролл если надо */
+            overflow-y: auto; /* Вертикальный скролл */
             border: 1px solid var(--color-border); 
             border-radius: var(--radius); 
             position: relative;
-            overflow: visible !important;
+            /* overflow: visible !important;  <-- УДАЛЕНО */
         }
-        
+
         /* Sticky Header for all tables inside container */
         .table-container thead { 
             position: sticky; 
@@ -563,6 +564,7 @@
             line-height: 1.4;
             white-space: normal;
         }
+
         .tooltip-container:hover .tooltip-text { visibility: visible; opacity: 1; }
 
 		/* 1. Тултипы ЗАГОЛОВКОВ (Колонки 2,3,4,5) - ЦЕНТРИРОВАНИЕ */
@@ -1524,11 +1526,25 @@ td:nth-last-child(2) {
     line-height: 1.2;
 }
 
-/* Общая подстраховка: выравниваем текст по верху, если строка стала высокой */
-#productsTable td, #writeoffTable td, #filamentsTable td {
-    vertical-align: top; /* Чтобы даты и цифры были напротив первой строки названия */
+/* Общая подстраховка: выравниваем текст по центру, если строка стала высокой */
+/* Выравнивание по центру для всех таблиц */
+#productsTable td, 
+#writeoffTable td, 
+#filamentsTable td, 
+#serviceTable td, 
+.dashboard-table-card td {
+    vertical-align: middle !important;
 }
+
 /* Кнопки действий оставляем по центру по вертикали */
 #productsTable td:last-child, #writeoffTable td:last-child, #filamentsTable td:last-child {
     vertical-align: middle;
+}
+
+
+/* Выравнивание комментариев в дашборде влево */
+.dashboard-table-card td:nth-child(4) {
+    text-align: left !important;
+    max-width: 200px;
+    line-height: 1.3;
 }
