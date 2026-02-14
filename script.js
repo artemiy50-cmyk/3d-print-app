@@ -1,7 +1,21 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
-console.log("Version: 5.5 (2026-02-14 17-30-56)");
+console.log("Version: 5.6 (2026-02-14 19-52-42)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
+
+/** Единая конфигурация приложения: лимиты, таймауты. */
+const APP_CONFIG = {
+    limits: { 
+        maxStorageBytes: 1024 * 1024 * 1024, 
+        maxFileSizeBytes: 5 * 1024 * 1024, 
+        maxCloudFiles: 1000 },
+    toast: { 
+        errorDurationMs: 6000, 
+        successDurationMs: 4000 },
+    search: { 
+        debounceMs: 300 },
+    trialDays: 30
+};
 
 const firebaseConfig = {
   apiKey: "AIzaSyAC1jhjIEncoLZyoVkPVPs9J1s-cVQeOV4",
@@ -21,10 +35,9 @@ const cloudinaryConfig = {
 };
 
 // ==================== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ====================
-// Лимиты по умолчанию (в байтах)
 const USER_LIMITS = {
-    maxStorage: 1024 * 1024 * 1024, // 1 ГБ
-    maxCloudFiles: 1000 // Максимум файлов (защита от спама мелкими файлами)
+    maxStorage: APP_CONFIG.limits.maxStorageBytes,
+    maxCloudFiles: APP_CONFIG.limits.maxCloudFiles
 };
 
 // Текущая статистика пользователя
@@ -58,6 +71,13 @@ let activePreviewProductId = null;
 let writeoffSectionCount = 0; // Для списаний
 let isModalOpen = false; // Флаг, блокирующий авто-обновление UI при открытых модальных окнах
 
+/** Подтверждение выхода при несохранённых изменениях (открыта модалка с формой). */
+window.addEventListener('beforeunload', (e) => {
+    if (isModalOpen) {
+        e.preventDefault();
+        e.returnValue = '';
+    }
+});
 
 // ==================== ИНИЦИАЛИЗАЦИЯ И МНОГОПОЛЬЗОВАТЕЛЬСКАЯ ЛОГИКА ====================
 
@@ -70,7 +90,8 @@ function showToast(message, type) {
     el.className = 'toast toast--' + type;
     el.textContent = message == null ? '' : String(message);
     container.appendChild(el);
-    setTimeout(() => { if (el.parentNode) el.remove(); }, type === 'error' ? 6000 : 4000);
+    const ms = type === 'error' ? APP_CONFIG.toast.errorDurationMs : APP_CONFIG.toast.successDurationMs;
+    setTimeout(() => { if (el.parentNode) el.remove(); }, ms);
 }
 
 // Глобальная переменная для текущего пользователя
@@ -138,7 +159,7 @@ document.getElementById('regBtn')?.addEventListener('click', () => {
             // === НОВАЯ ЛОГИКА: УСТАНОВКА ПРОБНОГО ПЕРИОДА (30 ДНЕЙ) ===
             const now = new Date();
             const trialEnd = new Date();
-            trialEnd.setDate(now.getDate() + 30); // +30 дней
+            trialEnd.setDate(now.getDate() + APP_CONFIG.trialDays);
             
             const initData = {
                 subscription: {
@@ -154,7 +175,7 @@ document.getElementById('regBtn')?.addEventListener('click', () => {
             firebase.database().ref('users/' + uid).set(initData).then(() => {
                 // Отправка письма
                 userCredential.user.sendEmailVerification().then(() => {
-                    alert("Аккаунт создан! Вам предоставлен пробный период 30 дней. Проверьте почту для подтверждения аккаунта.");
+                    showToast("Аккаунт создан! Вам предоставлен пробный период. Проверьте почту для подтверждения.", "success");
                 });
             });
         })
@@ -209,7 +230,7 @@ window.resendVerification = function() {
         btn.disabled = true;
         btn.textContent = "Отправка...";
         user.sendEmailVerification().then(() => {
-            alert('Письмо отправлено повторно!');
+            showToast('Письмо отправлено повторно!', 'success');
             btn.textContent = "Отправлено";
         }).catch(e => showToast(e.message, "error"));
     }
@@ -514,8 +535,8 @@ async function uploadFileToCloud(file) {
     }
     
     // --- ПРОВЕРКА РАЗМЕРА ФАЙЛА (Client side check) ---
-    if (file.size > 5 * 1024 * 1024) { // 5 МБ
-        showToast("Файл слишком большой! Максимум 5 МБ.", "error");
+    if (file.size > APP_CONFIG.limits.maxFileSizeBytes) {
+        showToast(`Файл слишком большой! Максимум ${APP_CONFIG.limits.maxFileSizeBytes / 1024 / 1024} МБ.`, "error");
         return null;
     }
 
@@ -572,6 +593,10 @@ async function generateSignature(paramsString, secret) { return ""; }
 function getCloudinaryInfo(url) { return null; }
 
 
+/**
+ * Сохраняет db в Firebase (users/{uid}/data). Использует dbRef.update.
+ * Вызывается после изменений в filaments, products, writeoffs, справочниках.
+ */
 async function saveData() {
     if (!dbRef) return;
     const dataToSave = JSON.parse(JSON.stringify(db));
@@ -685,7 +710,64 @@ function clearSearch(inputId, filterFunctionName) {
     const input = document.getElementById(inputId);
     input.value = '';
     toggleClearButton(input);
+    saveFiltersToStorage();
     if(typeof window[filterFunctionName] === 'function') window[filterFunctionName]();
+}
+
+/** Debounce: откладывает вызов fn до тех пор, пока не пройдёт ms мс без новых вызовов. */
+function debounce(fn, ms) {
+    let timer;
+    return function(...args) {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn.apply(this, args), ms);
+    };
+}
+
+/** Ключ localStorage для фильтров и сортировки. */
+const FILTER_STORAGE_KEY = '3d_print_filters';
+
+/** Сохраняет значения фильтров и сортировки в localStorage. */
+function saveFiltersToStorage() {
+    try {
+        const data = {
+            filamentSearch: document.getElementById('filamentSearch')?.value || '',
+            filamentStatusFilter: document.getElementById('filamentStatusFilter')?.value || '',
+            filamentSortBy: document.getElementById('filamentSortBy')?.value || 'date-desc',
+            productSearch: document.getElementById('productSearch')?.value || '',
+            productAvailabilityFilter: document.getElementById('productAvailabilityFilter')?.value || '',
+            productSortBy: document.getElementById('productSortBy')?.value || 'systemId-desc',
+            productShowChildren: document.getElementById('showProductChildren')?.checked ?? true,
+            writeoffSearch: document.getElementById('writeoffSearch')?.value || '',
+            writeoffTypeFilter: document.getElementById('writeoffTypeFilter')?.value || '',
+            writeoffSortBy: document.getElementById('writeoffSortBy')?.value || 'systemId-desc'
+        };
+        localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(data));
+    } catch (e) { /* ignore */ }
+}
+
+/** Восстанавливает значения фильтров и сортировки из localStorage. */
+function loadFiltersFromStorage() {
+    try {
+        const raw = localStorage.getItem(FILTER_STORAGE_KEY);
+        if (!raw) return;
+        const data = JSON.parse(raw);
+        const set = (id, val) => { const el = document.getElementById(id); if (el && val != null) el.value = val; };
+        const setCheck = (id, val) => { const el = document.getElementById(id); if (el && typeof val === 'boolean') el.checked = val; };
+        set('filamentSearch', data.filamentSearch);
+        set('filamentStatusFilter', data.filamentStatusFilter);
+        set('filamentSortBy', data.filamentSortBy);
+        set('productSearch', data.productSearch);
+        set('productAvailabilityFilter', data.productAvailabilityFilter);
+        set('productSortBy', data.productSortBy);
+        setCheck('showProductChildren', data.productShowChildren);
+        set('writeoffSearch', data.writeoffSearch);
+        set('writeoffTypeFilter', data.writeoffTypeFilter);
+        set('writeoffSortBy', data.writeoffSortBy);
+        ['filamentSearch', 'productSearch', 'writeoffSearch'].forEach(id => {
+            const inp = document.getElementById(id);
+            if (inp) toggleClearButton(inp);
+        });
+    } catch (e) { /* ignore */ }
 }
 
 function getCostPerKwForDate(productDateStr) {
@@ -824,7 +906,23 @@ function base64ToBlob(base64) {
     return new Blob([u8arr], { type: mime });
 }
 
-// УМНЫЙ ИМПОРТ С МИГРАЦИЕЙ В ОБЛАКО И ОЧИСТКОЙ МУСОРА
+/**
+ * Валидирует структуру загружаемого JSON-бэкапа. Должны быть массивы products и filaments.
+ * @param {object} loaded - распарсенный JSON
+ * @returns {{ valid: boolean, error?: string }}
+ */
+function validateImportData(loaded) {
+    if (!loaded || typeof loaded !== 'object') return { valid: false, error: 'Файл не является объектом JSON.' };
+    const hasProducts = loaded.products && (Array.isArray(loaded.products) || typeof loaded.products === 'object');
+    const hasFilaments = loaded.filaments && (Array.isArray(loaded.filaments) || typeof loaded.filaments === 'object');
+    if (!hasProducts && !hasFilaments) return { valid: false, error: 'В файле нет разделов products или filaments. Проверьте формат.' };
+    return { valid: true };
+}
+
+/**
+ * Импорт данных из JSON-бэкапа. Валидирует структуру, при невалидном файле не выполняет импорт.
+ * Мигрирует Base64-фото в Cloudinary, очищает устаревшие файлы из облака.
+ */
 function importData(input) {
     const file = input.files[0];
     if (!file) return;
@@ -835,9 +933,19 @@ function importData(input) {
     
     r.onload = async (e) => {
         try {
-            const loaded = JSON.parse(e.target.result);
-            
-            if (loaded.filaments && loaded.products) {
+            let loaded;
+            try {
+                loaded = JSON.parse(e.target.result);
+            } catch (parseErr) {
+                showToast('Некорректный JSON. Файл повреждён или не является бэкапом.', 'error');
+                return;
+            }
+            const validation = validateImportData(loaded);
+            if (!validation.valid) {
+                showToast(validation.error || 'Некорректный формат файла.', 'error');
+                return;
+            }
+            if (loaded.filaments || loaded.products) {
                 if (confirm('Внимание! Загрузка базы.\n\nТекущие данные будут заменены.\nФайлы, отсутствующие в бэкапе, будут удалены из облака.\n\nПродолжить?')) {
                     
                     const btn = document.getElementById('importBtn');
@@ -923,11 +1031,9 @@ function importData(input) {
                     Object.assign(db, loaded);
                     await saveData();
                     
-                    alert('База восстановлена! Устаревшие файлы очищены, новые загружены.');
+                    showToast('База восстановлена! Устаревшие файлы очищены, новые загружены.', 'success');
                     window.location.reload();
                 }
-            } else {
-                showToast('Некорректный формат файла JSON.', 'error');
             }
         } catch(err) { 
             console.error(err);
@@ -944,6 +1050,9 @@ function importData(input) {
 
 
 
+/**
+ * Экспорт всей базы (db) в JSON-файл для бэкапа. Скачивает файл в браузере.
+ */
 function exportData() {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db));
     const dl = document.createElement('a');
@@ -1304,7 +1413,12 @@ function filterFilaments() {
         row.style.display = matchTerm && matchStatus ? '' : 'none'; 
     });
 }
-function resetFilamentFilters() { document.getElementById('filamentSearch').value = ''; document.getElementById('filamentStatusFilter').value = ''; updateFilamentsTable(); }
+function resetFilamentFilters() {
+    document.getElementById('filamentSearch').value = '';
+    document.getElementById('filamentStatusFilter').value = '';
+    saveFiltersToStorage();
+    updateFilamentsTable();
+}
 
 function editFilament(id) {
     const f = db.filaments.find(x => x.id === id); if (!f) return;
@@ -1907,7 +2021,32 @@ async function copyProduct(id) {
                 db.products = result.snapshot.val();
             }
 
+            // Учёт расхода филамента по частям копии (как в saveProduct / recalculate)
+            const deltaByFilId = {};
+            for (const child of newChildren) {
+                if (child.isDraft || !child.filament) continue;
+                const filId = (typeof child.filament === 'object') ? child.filament.id : child.filament;
+                if (!deltaByFilId[filId]) deltaByFilId[filId] = { L: 0, W: 0 };
+                deltaByFilId[filId].L += (child.length || 0);
+                deltaByFilId[filId].W += (child.weight || 0);
+            }
+            const filamentUpdates = {};
+            db.filaments.forEach((f, index) => {
+                const d = deltaByFilId[f.id];
+                if (!d) return;
+                f.usedLength = (f.usedLength || 0) + d.L;
+                f.usedWeight = (f.usedWeight || 0) + d.W;
+                f.remainingLength = Math.max(0, (f.length || 0) - (f.usedLength || 0));
+                filamentUpdates[`filaments/${index}/usedLength`] = f.usedLength;
+                filamentUpdates[`filaments/${index}/usedWeight`] = f.usedWeight;
+                filamentUpdates[`filaments/${index}/remainingLength`] = f.remainingLength;
+            });
+            if (Object.keys(filamentUpdates).length > 0) {
+                await dbRef.update(filamentUpdates);
+            }
+
             updateProductsTable();
+            updateFilamentsTable();
             updateDashboard();
             showToast(`Составное изделие "${newParent.name}" скопировано.`);
         } catch (e) {
@@ -2329,6 +2468,10 @@ function validateProductForm() {
 
 
 
+/**
+ * Сохранение изделия. Транзакция: 1) обновление филамента (usedLength/usedWeight), 2) transaction products.
+ * При редактировании — возврат филамента от старого изделия; при добавлении — списание филамента.
+ */
 async function saveProduct(andThenWriteOff = false) {
     if (!validateProductForm()) return;
 
@@ -2858,6 +3001,7 @@ function filterProducts() { updateProductsTable(); }
 function resetProductFilters() { 
     document.getElementById('productSearch').value = ''; 
     document.getElementById('productAvailabilityFilter').value = '';
+    saveFiltersToStorage();
     updateProductsTable(); 
 }
 
@@ -4687,7 +4831,7 @@ async function recalculateFilamentUsage() {
         
         updateFilamentsTable();
         updateDashboard(); 
-        alert('Пересчет успешно выполнен!');
+        showToast('Пересчет успешно выполнен!', 'success');
     } catch (e) {
         console.error("Ошибка пересчета:", e);
         showToast("Не удалось сохранить результаты пересчета: " + e.message, "error");
@@ -5038,6 +5182,11 @@ async function editServiceName(i) {
 // ==================== EVENT LISTENERS ====================
 
 function setupEventListeners() {
+    loadFiltersFromStorage();
+    const debouncedFilamentFilter = debounce(() => { saveFiltersToStorage(); filterFilaments(); }, APP_CONFIG.search.debounceMs);
+    const debouncedProductFilter = debounce(() => { saveFiltersToStorage(); filterProducts(); }, APP_CONFIG.search.debounceMs);
+    const debouncedWriteoffFilter = debounce(() => { saveFiltersToStorage(); updateWriteoffTable(); }, APP_CONFIG.search.debounceMs);
+
     // Nav
     document.querySelectorAll('.menu-item[data-page]').forEach(b => b.addEventListener('click', () => showPage(b.dataset.page)));
     document.getElementById('exportBtn')?.addEventListener('click', exportData);
@@ -5049,11 +5198,11 @@ function setupEventListeners() {
     document.getElementById('saveFilamentBtn')?.addEventListener('click', saveFilament);
     document.getElementById('closeFilamentModalBtn')?.addEventListener('click', closeFilamentModal);
 	document.getElementById('recalculateFilamentBtn')?.addEventListener('click', recalculateFilamentUsage);
-    // Filters & Sort
-    document.getElementById('filamentSearch')?.addEventListener('input', filterFilaments);
+    // Filters & Sort (search — debounce; select — immediate + save)
+    document.getElementById('filamentSearch')?.addEventListener('input', debouncedFilamentFilter);
     document.getElementById('filamentSearch')?.nextElementSibling.addEventListener('click', () => clearSearch('filamentSearch', 'filterFilaments'));
-    document.getElementById('filamentStatusFilter')?.addEventListener('change', filterFilaments);
-    document.getElementById('filamentSortBy')?.addEventListener('change', updateFilamentsTable);
+    document.getElementById('filamentStatusFilter')?.addEventListener('change', () => { saveFiltersToStorage(); filterFilaments(); });
+    document.getElementById('filamentSortBy')?.addEventListener('change', () => { saveFiltersToStorage(); updateFilamentsTable(); });
     document.getElementById('resetFilamentFiltersBtn')?.addEventListener('click', resetFilamentFilters);
     // Modal
     document.getElementById('filamentAvailability')?.addEventListener('change', updateFilamentStatusUI);
@@ -5073,13 +5222,13 @@ function setupEventListeners() {
     document.getElementById('btnWriteOffProduct')?.addEventListener('click', initiateWriteOff);
 	    // Делегирование событий для динамической таблицы изделий
     		
-    // Filters & Sort
-    document.getElementById('productSearch')?.addEventListener('input', filterProducts);
+    // Filters & Sort (search — debounce; select — immediate + save)
+    document.getElementById('productSearch')?.addEventListener('input', debouncedProductFilter);
     document.getElementById('productSearch')?.nextElementSibling.addEventListener('click', () => clearSearch('productSearch', 'filterProducts'));
-    document.getElementById('productAvailabilityFilter')?.addEventListener('change', filterProducts);
-    document.getElementById('productSortBy')?.addEventListener('change', filterProducts);
+    document.getElementById('productAvailabilityFilter')?.addEventListener('change', () => { saveFiltersToStorage(); filterProducts(); });
+    document.getElementById('productSortBy')?.addEventListener('change', () => { saveFiltersToStorage(); filterProducts(); });
     document.getElementById('resetProductFiltersBtn')?.addEventListener('click', resetProductFilters);
-    document.getElementById('showProductChildren')?.addEventListener('change', filterProducts);
+    document.getElementById('showProductChildren')?.addEventListener('change', () => { saveFiltersToStorage(); filterProducts(); });
     // Modal
     document.getElementById('productType')?.addEventListener('change', updateProductTypeUI);
     document.getElementById('productParent')?.addEventListener('change', onParentProductChange);
@@ -5101,14 +5250,15 @@ function setupEventListeners() {
     document.getElementById('addWriteoffItemBtn')?.addEventListener('click', () => addWriteoffItemSection());
     document.getElementById('writeoffType')?.addEventListener('change', updateWriteoffTypeUI);
     // Filters & Sort
-    document.getElementById('writeoffSearch')?.addEventListener('input', updateWriteoffTable);
+    document.getElementById('writeoffSearch')?.addEventListener('input', debouncedWriteoffFilter);
     document.getElementById('writeoffSearch')?.nextElementSibling.addEventListener('click', () => clearSearch('writeoffSearch', 'updateWriteoffTable'));
-    document.getElementById('writeoffTypeFilter')?.addEventListener('change', updateWriteoffTable);
-    document.getElementById('writeoffSortBy')?.addEventListener('change', updateWriteoffTable);
+    document.getElementById('writeoffTypeFilter')?.addEventListener('change', () => { saveFiltersToStorage(); updateWriteoffTable(); });
+    document.getElementById('writeoffSortBy')?.addEventListener('change', () => { saveFiltersToStorage(); updateWriteoffTable(); });
     document.getElementById('resetWriteoffFiltersBtn')?.addEventListener('click', () => {
         document.getElementById('writeoffSearch').value = '';
         document.getElementById('writeoffTypeFilter').value = '';
         document.getElementById('writeoffSortBy').value = 'systemId-desc';
+        saveFiltersToStorage();
         updateWriteoffTable();
     });
 
