@@ -1,5 +1,5 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
-console.log("Version: 5.5 (2026-02-14 07-00-23)");
+console.log("Version: 5.5 (2026-02-14 07-44-45)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -13,7 +13,6 @@ const firebaseConfig = {
   measurementId: "G-FF384D3F8F",
   databaseURL: "https://d-print-app-3655b-default-rtdb.europe-west1.firebasedatabase.app"
 };
-
 
 // Конфигурация для Cloudinary
 const cloudinaryConfig = {
