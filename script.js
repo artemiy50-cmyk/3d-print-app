@@ -1,4 +1,5 @@
-console.log("Version: 5.5 (2026-02-13 22-30)");
+// Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
+console.log("Version: 5.5 (2026-02-14 07-00-23)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -12,6 +13,7 @@ const firebaseConfig = {
   measurementId: "G-FF384D3F8F",
   databaseURL: "https://d-print-app-3655b-default-rtdb.europe-west1.firebasedatabase.app"
 };
+
 
 // Конфигурация для Cloudinary
 const cloudinaryConfig = {
@@ -31,7 +33,6 @@ let userStats = {
     storageUsed: 0,
     filesCount: 0
 };
-
 
 const db = {
     filaments: [], products: [], writeoffs: [], 
@@ -963,6 +964,7 @@ function updateAllSelects() {
     updatePrintersList(); 
     updateElectricityCostList();
 	updateComponentsList();
+    updateServiceNamesList();
 }
 
 // ==================== DASHBOARD ====================
@@ -2393,9 +2395,9 @@ async function saveProduct(andThenWriteOff = false) {
                         // === ИСПРАВЛЕНИЕ: Обновляем remainingLength в базе ===
                         const newRem = Math.max(0, oldFil.length - newUsedL);
                         
-                        updates[`/filaments/${oldFilIndex}/usedLength`] = newUsedL;
-                        updates[`/filaments/${oldFilIndex}/usedWeight`] = newUsedW;
-                        updates[`/filaments/${oldFilIndex}/remainingLength`] = newRem;
+                        updates[`filaments/${oldFilIndex}/usedLength`] = newUsedL;
+                        updates[`filaments/${oldFilIndex}/usedWeight`] = newUsedW;
+                        updates[`filaments/${oldFilIndex}/remainingLength`] = newRem;
                         
                         oldFil.usedLength = newUsedL;
                         oldFil.usedWeight = newUsedW;
@@ -2416,9 +2418,9 @@ async function saveProduct(andThenWriteOff = false) {
                     // === ИСПРАВЛЕНИЕ: Обновляем remainingLength в базе ===
                     const finalRem = Math.max(0, currentFil.length - finalUsedL);
 
-                    updates[`/filaments/${filIndex}/usedLength`] = finalUsedL;
-                    updates[`/filaments/${filIndex}/usedWeight`] = finalUsedW;
-                    updates[`/filaments/${filIndex}/remainingLength`] = finalRem;
+                    updates[`filaments/${filIndex}/usedLength`] = finalUsedL;
+                    updates[`filaments/${filIndex}/usedWeight`] = finalUsedW;
+                    updates[`filaments/${filIndex}/remainingLength`] = finalRem;
                     
                     currentFil.usedLength = finalUsedL;
                     currentFil.usedWeight = finalUsedW;
@@ -2584,8 +2586,8 @@ async function deleteProduct(id) {
     try {
         // 4. Сохранение полных списков (Перезапись, чтобы не было дырок)
         const updates = {};
-        updates['/products'] = db.products;
-        updates['/filaments'] = db.filaments;
+        updates['products'] = db.products;
+        updates['filaments'] = db.filaments;
         
         await dbRef.update(updates);
         
@@ -3766,11 +3768,11 @@ async function saveWriteoff() {
                     const existingComp = db.components.find(c => c.name.toLowerCase() === comp.name.toLowerCase());
                     if (!existingComp) {
                         const newCompIndex = db.components.length;
-                        updates[`/components/${newCompIndex}`] = { name: comp.name, price: comp.cost };
+                        updates[`components/${newCompIndex}`] = { name: comp.name, price: comp.cost };
                         db.components.push({ name: comp.name, price: comp.cost }); 
                     } else if (Math.abs(existingComp.price - comp.cost) > 0.01) {
                         const cIndex = db.components.indexOf(existingComp);
-                        updates[`/components/${cIndex}/price`] = comp.cost;
+                        updates[`components/${cIndex}/price`] = comp.cost;
                     }
                 });
             }
@@ -3779,9 +3781,9 @@ async function saveWriteoff() {
         // Остатки
         recalculateAllProductStock();
         db.products.forEach((p, idx) => {
-            updates[`/products/${idx}/inStock`] = p.inStock;
-            updates[`/products/${idx}/status`] = p.status;
-            updates[`/products/${idx}/availability`] = p.status;
+            updates[`products/${idx}/inStock`] = p.inStock;
+            updates[`products/${idx}/status`] = p.status;
+            updates[`products/${idx}/availability`] = p.status;
         });
         
         if (Object.keys(updates).length > 0) {
@@ -3827,9 +3829,9 @@ async function deleteWriteoff(systemId) {
             p.inStock += item.qty; 
 
             // Формируем пути для обновления в Firebase
-            stockUpdates[`/products/${productIndex}/inStock`] = p.inStock;
-            stockUpdates[`/products/${productIndex}/status`] = determineProductStatus(p);
-            stockUpdates[`/products/${productIndex}/availability`] = determineProductStatus(p);
+            stockUpdates[`products/${productIndex}/inStock`] = p.inStock;
+            stockUpdates[`products/${productIndex}/status`] = determineProductStatus(p);
+            stockUpdates[`products/${productIndex}/availability`] = determineProductStatus(p);
         }
     });
 
@@ -4176,8 +4178,8 @@ async function editComponent(index) {
         const newPrice = prompt("Цена:", comp.price);
         if (newPrice && !isNaN(parseFloat(newPrice))) {
             const updates = {};
-            updates[`/components/${realIndex}/name`] = newName.trim();
-            updates[`/components/${realIndex}/price`] = parseFloat(newPrice);
+            updates[`components/${realIndex}/name`] = newName.trim();
+            updates[`components/${realIndex}/price`] = parseFloat(newPrice);
             
             // Обновляем локально
             db.components[realIndex].name = newName.trim();
@@ -4287,7 +4289,8 @@ async function editBrand(i) {
         // ВНИМАНИЕ: Нужно обновить все филаменты, использующие этот бренд
         const updates = {};
         db.filaments.forEach((f, idx) => { 
-            if(f.brand === oldVal) updates[`/filaments/${idx}/brand`] = newVal.trim(); 
+            if(f.brand === oldVal) 
+                updates[`filaments/${idx}/brand`] = newVal.trim(); 
         });
         if(Object.keys(updates).length > 0) await dbRef.update(updates);
     } 
@@ -4331,13 +4334,13 @@ async function editColor(id) {
         const index = db.colors.indexOf(c);
         
         // 1. Обновляем имя в справочнике
-        updates[`/colors/${index}/name`] = c.name;
+        updates[`colors/${index}/name`] = c.name;
         
         // 2. Обновляем имя цвета во всех филаментах, где он используется
         db.filaments.forEach((f, idx) => {
             if(f.color && f.color.id === id) {
                 // Обновляем вложенный объект цвета внутри филамента
-                updates[`/filaments/${idx}/color/name`] = c.name;
+                updates[`filaments/${idx}/color/name`] = c.name;
                 // Обновляем локально тоже, чтобы UI сразу перерисовался корректно
                 f.color.name = c.name;
             }
@@ -4382,12 +4385,12 @@ async function editFilamentType(i) {
         
         const updates = {};
         // 1. Обновляем справочник
-        updates[`/plasticTypes/${i}`] = cleanedVal;
+        updates[`plasticTypes/${i}`] = cleanedVal;
         
         // 2. Обновляем филаменты
         db.filaments.forEach((f, idx) => {
             if(f.type === oldVal) {
-                updates[`/filaments/${idx}/type`] = cleanedVal;
+                updates[`filaments/${idx}/type`] = cleanedVal;
                 f.type = cleanedVal; // Локально
             }
         });
@@ -4428,11 +4431,11 @@ async function editFilamentStatus(i) {
         db.filamentStatuses[i] = cleanedVal;
         
         const updates = {};
-        updates[`/filamentStatuses/${i}`] = cleanedVal;
+        updates[`filamentStatuses/${i}`] = cleanedVal;
         
         db.filaments.forEach((f, idx) => {
             if(f.availability === oldVal) {
-                updates[`/filaments/${idx}/availability`] = cleanedVal;
+                updates[`filaments/${idx}/availability`] = cleanedVal;
                 f.availability = cleanedVal;
             }
         });
@@ -4481,12 +4484,12 @@ async function editPrinter(id) {
         const index = db.printers.indexOf(p);
         
         // 1. Обновляем справочник
-        updates[`/printers/${index}`] = p;
+        updates[`printers/${index}`] = p;
         
         // 2. Обновляем изделия
         db.products.forEach((prod, idx) => {
             if(prod.printer && prod.printer.id === id) {
-                updates[`/products/${idx}/printer`] = p;
+                updates[`products/${idx}/printer`] = p;
                 prod.printer = p; // Локально
             }
         });
@@ -4517,10 +4520,10 @@ async function addElectricityCost() {
     // ВАЖНО: При изменении тарифа нужно обновить себестоимость всех изделий в базе
     const updates = {};
     db.products.forEach((prod, idx) => {
-        updates[`/products/${idx}/costActualPrice`] = prod.costActualPrice;
-        updates[`/products/${idx}/costMarketPrice`] = prod.costMarketPrice;
-        updates[`/products/${idx}/costPer1Actual`] = prod.costPer1Actual;
-        updates[`/products/${idx}/costPer1Market`] = prod.costPer1Market;
+        updates[`products/${idx}/costActualPrice`] = prod.costActualPrice;
+        updates[`products/${idx}/costMarketPrice`] = prod.costMarketPrice;
+        updates[`products/${idx}/costPer1Actual`] = prod.costPer1Actual;
+        updates[`products/${idx}/costPer1Market`] = prod.costPer1Market;
     });
     if(Object.keys(updates).length > 0) await dbRef.update(updates);
 
@@ -4609,9 +4612,9 @@ async function recalculateFilamentUsage() {
     const updates = {};
     
     db.filaments.forEach((f, index) => {
-        updates[`/filaments/${index}/usedLength`] = f.usedLength;
-        updates[`/filaments/${index}/usedWeight`] = f.usedWeight;
-        updates[`/filaments/${index}/remainingLength`] = f.remainingLength;
+        updates[`filaments/${index}/usedLength`] = f.usedLength;
+        updates[`filaments/${index}/usedWeight`] = f.usedWeight;
+        updates[`filaments/${index}/remainingLength`] = f.remainingLength;
     });
 
     try {
@@ -4771,11 +4774,11 @@ async function saveService() {
         if (existingNameIndex === -1) {
             const newIdx = db.serviceNames.length;
             const newRef = { name: name, price: price };
-            updates[`serviceNames/${newIdx}`] = newRef;
+            updates[`serviceNames/${newIdx}`] = newRef; // Теперь без слэша в начале
             db.serviceNames.push(newRef);
         } else {
             if (Math.abs(db.serviceNames[existingNameIndex].price - price) > 0.01) {
-                updates[`serviceNames/${existingNameIndex}/price`] = price;
+                updates[`serviceNames/${existingNameIndex}/price`] = price; // Теперь без слэша в начале
                 db.serviceNames[existingNameIndex].price = price;
             }
         }
