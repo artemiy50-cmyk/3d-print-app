@@ -152,15 +152,22 @@
         .dashboard-table-card table {
             table-layout: fixed;
             width: 100%;
+            min-width: 0; /* Важно для флекс-контейнеров */
         }
         
+        /* Убираем жесткий паддинг контейнера, если он есть */
+        .dashboard-table-card .table-container {
+            width: 100%;
+            overflow-x: auto; /* Возвращаем скролл если совсем узко */
+        }
+
         .dashboard-table-card th, 
         .dashboard-table-card td {
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+            padding: 10px 8px; /* Чуть меньше отступы */
         }
-
 
         /* Default Page Style (Dashboard, Reports, References) - Scrollable Page */
         .page { 
@@ -255,8 +262,42 @@
         .table-container { overflow-x: auto; border: 1px solid var(--color-border); border-radius: var(--radius); }
         table { width: 100%; border-collapse: collapse; font-size: 13px; }
         thead { background: var(--color-bg); border-bottom: 2px solid var(--color-border); }
-		th { padding: 12px 10px; text-align: left; font-weight: 600; color: var(--color-text); vertical-align: middle; }
-		td { padding: 12px 10px; border-bottom: 1px solid var(--color-border); vertical-align: middle; }
+
+        /* Общие настройки таблицы */
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            font-size: 12px; /* Чуть меньше шрифт, чтобы влезало больше */
+        }
+
+        /* Заголовки */
+        th { 
+            padding: 10px 4px; /* Компактные отступы */
+            text-align: left; 
+            font-weight: 600; 
+            color: var(--color-text); 
+            vertical-align: middle; 
+            white-space: normal; /* РАЗРЕШАЕМ ПЕРЕНОС СЛОВ В ЗАГОЛОВКАХ */
+            line-height: 1.2;
+        }
+
+        /* Ячейки */
+        td { 
+            padding: 10px 4px; /* Компактные отступы */
+            border-bottom: 1px solid var(--color-border); 
+            vertical-align: middle; 
+            white-space: nowrap; /* Данные в одну строку */
+            max-width: 150px;    /* Ограничение ширины */
+            overflow: hidden;    /* Обрезаем длинный текст */
+            text-overflow: ellipsis; /* ... */
+        }
+
+        /* Исключение для кнопок действий, чтобы их не обрезало */
+        td:last-child {
+            white-space: nowrap;
+            width: 1%; /* Занимает минимум места */
+        }
+
         tbody tr:hover { background: rgba(30, 64, 175, 0.02); }
         
         tr.product-child-row { background-color: rgba(0,0,0,0.02); }
@@ -314,7 +355,7 @@
         .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--spacing); }
         
         /* Tooltip */
-        .tooltip-container { position: relative; display: inline-block; cursor: help; }
+        .tooltip-container { position: relative; display: inline-block; }
         .tooltip-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; margin-left: 6px; background: var(--color-primary); color: white; border-radius: 50%; font-size: 11px; font-weight: bold; line-height: 1; flex-shrink: 0; }
         .tooltip-text { visibility: hidden; width: 220px; background-color: var(--color-primary); color: white; text-align: center; border-radius: var(--radius); padding: 8px 10px; position: absolute; z-index: 100; bottom: 125%; left: 50%; margin-left: -110px; opacity: 0; transition: opacity 0.3s; font-size: 12px; font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,0.15); word-wrap: break-word; }
         .tooltip-text::after { content: ""; position: absolute; top: 100%; left: 50%; margin-left: -5px; border-width: 5px; border-style: solid; border-color: var(--color-primary) transparent transparent transparent; }
@@ -345,7 +386,7 @@
         .validation-message { color: var(--color-danger); font-size: 13px; margin-bottom: var(--spacing); }
 
         /* Utils */
-        .action-buttons { display: flex; gap: 6px; justify-content: flex-end; flex-direction: row; }
+        .action-buttons { display: flex; gap: 4px; justify-content: flex-end; flex-direction: row; }
         .form-section { border-top: 2px solid var(--color-border); padding-top: var(--spacing); margin-top: calc(var(--spacing) * 1.5); }
         .form-section:first-of-type { border-top: none; margin-top: 0; padding-top: 0; }
         .form-section-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-text-light); margin-bottom: var(--spacing); }
@@ -378,6 +419,7 @@
             border: 1px solid var(--color-border); 
             border-radius: var(--radius); 
             position: relative;
+            overflow: visible !important;
         }
         
         /* Sticky Header for all tables inside container */
@@ -401,8 +443,11 @@
             max-height: 250px; 
             overflow-y: auto;
         }
-        .table-container thead { position: sticky; top: 0; z-index: 5; }
-
+        .table-container thead { 
+            position: sticky; 
+            top: 0; 
+            z-index: 5; 
+        }
         
         /* Report Page Styles - Fix v1.93 */
         .report-controls {
@@ -474,7 +519,7 @@
         .col-markup { text-align: center !important; }
 
 		/* === ТУЛТИПЫ (ИСПРАВЛЕНО v1.97) === */
-        .tooltip-container { position: relative; display: inline-block; cursor: help; }
+        .tooltip-container { position: relative; display: inline-block; }
         
         /* Общий стиль тела тултипа */
         .tooltip-text { 
@@ -491,6 +536,7 @@
             box-shadow: 0 4px 20px rgba(0,0,0,0.25); 
             transition: opacity 0.2s; 
             z-index: 10000; /* Максимальный Z-index */
+            pointer-events: none; /* Чтобы мышка не "спотыкалась" об тултип */
             width: 250px;
             line-height: 1.4;
             white-space: normal;
@@ -1361,3 +1407,45 @@ body.sidebar-closed .user-profile-info { padding: 12px 0; justify-content: cente
 .toast--success { background: var(--color-success); color: #fff; border-left: 4px solid #166534; }
 .toast--warning { background: var(--color-warning); color: #fff; border-left: 4px solid #c2410c; }
 .toast--info    { background: var(--color-info); color: #fff; border-left: 4px solid #075985; }
+
+/* === ГЛОБАЛЬНЫЙ ТУЛТИП (JS) === */
+#globalTextTooltip {
+    /* Позиционирование */
+    position: fixed; 
+    z-index: 999999;
+    
+    /* Размеры и текст */
+    width: auto !important;
+    max-width: 350px;
+    height: auto !important;
+    white-space: normal !important; /* Разрешаем перенос строк */
+    text-align: left !important;
+    
+    /* Визуал */
+    background-color: #1e293b;   
+    color: #ffffff;
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.4;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.1);
+    
+    /* Поведение */
+    pointer-events: none;
+    display: none;
+}
+
+/* Убираем любые стрелочки у глобального тултипа */
+#globalTextTooltip::after {
+    content: none !important;
+    display: none !important;
+}
+
+/* !!! ВАЖНО: ГЛОБАЛЬНО СКРЫВАЕМ СТАРЫЕ ТУЛТИПЫ ПРИ НАВЕДЕНИИ !!! */
+/* Это уберет "двойные" тултипы и в таблицах, и в формах */
+.tooltip-container:hover .tooltip-text:not(#globalTextTooltip) {
+    visibility: hidden !important;
+    opacity: 0 !important;
+    display: none !important;
+}
