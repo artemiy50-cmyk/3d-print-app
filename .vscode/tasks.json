@@ -1,0 +1,21 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Auto Version Watcher",
+            "type": "shell",
+            "command": "python version_watcher.py",
+            "runOptions": {
+                "runOn": "folderOpen" // Вот эта настройка отвечает за автозапуск
+            },
+            "presentation": {
+                "reveal": "silent", // Не "выпрыгивать" перед глазами, работать в фоне
+                "panel": "new",
+                "group": "version-tools"
+            },
+            "notification": {
+                "onFinished": "restart" // Если упадет — попробовать перезапустить
+            }
+        }
+    ]
+}
