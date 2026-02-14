@@ -267,36 +267,49 @@
         table { 
             width: 100%; 
             border-collapse: collapse; 
-            font-size: 12px; /* Чуть меньше шрифт, чтобы влезало больше */
+            font-size: 13px !important; /* Принудительно 13px для всей таблицы */
         }
 
         /* Заголовки */
         th { 
-            padding: 10px 4px; /* Компактные отступы */
+            padding: 10px 6px; /* Немного увеличим отступы по бокам */
             text-align: left; 
             font-weight: 600; 
             color: var(--color-text); 
             vertical-align: middle; 
-            white-space: normal; /* РАЗРЕШАЕМ ПЕРЕНОС СЛОВ В ЗАГОЛОВКАХ */
+            white-space: normal; /* Перенос слов разрешен */
             line-height: 1.2;
+            font-size: 13px !important; /* Гарантируем 13px */
         }
 
         /* Ячейки */
         td { 
-            padding: 10px 4px; /* Компактные отступы */
+            padding: 10px 6px; 
             border-bottom: 1px solid var(--color-border); 
             vertical-align: middle; 
-            white-space: nowrap; /* Данные в одну строку */
-            max-width: 150px;    /* Ограничение ширины */
-            overflow: hidden;    /* Обрезаем длинный текст */
-            text-overflow: ellipsis; /* ... */
+            white-space: nowrap; 
+            max-width: 160px;    /* Чуть расширим лимит, раз шрифт стал больше */
+            overflow: hidden;    
+            text-overflow: ellipsis;
+            font-size: 13px !important; /* Гарантируем 13px */
         }
 
-        /* Исключение для кнопок действий, чтобы их не обрезало */
+        /* Исключение для кнопок действий */
         td:last-child {
             white-space: nowrap;
-            width: 1%; /* Занимает минимум места */
+            width: 1%;
+            overflow: visible !important;
+            padding: 4px 8px;
         }
+
+        /* Предпоследняя колонка (Ссылка на модель) */
+        td:nth-last-child(2) {
+            text-align: center !important;
+            padding: 0 15px;
+            min-width: 80px;
+        }
+
+
 
         tbody tr:hover { background: rgba(30, 64, 175, 0.02); }
         
@@ -386,7 +399,13 @@
         .validation-message { color: var(--color-danger); font-size: 13px; margin-bottom: var(--spacing); }
 
         /* Utils */
-        .action-buttons { display: flex; gap: 4px; justify-content: flex-end; flex-direction: row; }
+        .action-buttons { 
+            display: flex; 
+            gap: 4px; 
+            justify-content: flex-end; 
+            flex-direction: row;
+        }
+
         .form-section { border-top: 2px solid var(--color-border); padding-top: var(--spacing); margin-top: calc(var(--spacing) * 1.5); }
         .form-section:first-of-type { border-top: none; margin-top: 0; padding-top: 0; }
         .form-section-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--color-text-light); margin-bottom: var(--spacing); }
@@ -430,13 +449,16 @@
             box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.1); 
         }
 
-        /* Specific height limit for Main Pages (Filament, Products, Writeoff) to avoid page scroll */
-        /* Применяем ограничение только если таблица находится внутри страницы контента, но НЕ в дашборде и НЕ в модальном окне */
-        .content > .page:not(#dashboard) .table-container {
+        /* Specific height limit for Main Pages */
+        /* Мы полагаемся на flex:1 у родительской карточки (задано выше для #products.page ...), 
+           поэтому здесь просто разрешаем скролл и убираем жесткие ограничения */
+           .content > .page:not(#dashboard) .table-container {
             overflow-y: auto;
-            max-height: calc(100vh - 280px); /* Высота экрана минус хедер и контролы */
-            min-height: 300px;
+            height: 100%;      /* Занимаем всю высоту flex-родителя */
+            max-height: none;  /* Отменяем ограничения */
+            min-height: 0;     /* Важно для flexbox, чтобы скролл работал */
         }
+
 
         /* Dashboard tables are smaller */
         .dashboard-table-card .table-container { 
@@ -1448,4 +1470,65 @@ body.sidebar-closed .user-profile-info { padding: 12px 0; justify-content: cente
     visibility: hidden !important;
     opacity: 0 !important;
     display: none !important;
+}
+
+/* Предпоследняя колонка (Ссылка на модель) */
+td:nth-last-child(2) {
+    text-align: center !important; /* Центрируем текст, чтобы он был посередине своей ячейки */
+    padding: 0 15px; /* Добавляем воздух с обеих сторон */
+    min-width: 80px;
+}
+
+/* --- Фикс для таблицы Списаний --- */
+/* Возвращаем примечанию выравнивание влево (перебиваем глобальное центрирование предпоследней колонки) */
+#writeoffTable td:nth-last-child(2) {
+    text-align: left !important;
+    padding-left: 6px;
+    min-width: 200px; /* Дадим примечанию чуть больше места */
+    white-space: normal !important; /* <--- ЭТО ВКЛЮЧАЕТ ПЕРЕНОС ТЕКСТА */
+    line-height: 1.4;       /* Чуть больше высоты строки для читаемости */
+}
+
+/* === ГЛОБАЛЬНОЕ РАЗРЕШЕНИЕ ПЕРЕНОСА ТЕКСТА === */
+
+/* 1. Таблицы Изделий и Филамента (1-я колонка - Название/ID) */
+#productsTable td:first-child,
+#filamentsTable td:first-child {
+    white-space: normal !important; /* Разрешаем перенос */
+    min-width: 140px;               /* Минимальная ширина */
+    max-width: 300px;               /* Ограничение, чтобы не порвало экран */
+    line-height: 1.3;               /* Межстрочный интервал */
+}
+
+/* 2. Таблица Списаний (3-я колонка - Название изделия) */
+#writeoffTable td:nth-child(3) {
+    white-space: normal !important;
+    min-width: 140px;
+    max-width: 250px;
+    line-height: 1.3;
+}
+
+/* 3. Таблица Сервиса (2-я колонка - Наименование) */
+#serviceTable td:nth-child(2) {
+    white-space: normal !important;
+    min-width: 140px;
+    max-width: 250px;
+}
+
+/* 4. Таблицы в Дашборде (1-я колонка - Название) */
+.dashboard-table-card td:first-child {
+    white-space: normal !important;
+    /* Убираем жесткие ограничения overflow, которые были раньше */
+    overflow: visible;
+    text-overflow: clip;
+    line-height: 1.2;
+}
+
+/* Общая подстраховка: выравниваем текст по верху, если строка стала высокой */
+#productsTable td, #writeoffTable td, #filamentsTable td {
+    vertical-align: top; /* Чтобы даты и цифры были напротив первой строки названия */
+}
+/* Кнопки действий оставляем по центру по вертикали */
+#productsTable td:last-child, #writeoffTable td:last-child, #filamentsTable td:last-child {
+    vertical-align: middle;
 }
