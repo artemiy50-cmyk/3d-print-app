@@ -1,5 +1,5 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
-console.log("Version: 5.6 (2026-02-15 10-54-53)");
+console.log("Version: 5.6 (2026-02-15 15-46-39)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -361,23 +361,28 @@ window.addEventListener('DOMContentLoaded', () => {
             };
 
 
-            // Слушаем корень
+            // Слушаем корень (setTimeout(0) — откладываем тяжёлую работу, чтобы избежать Violation)
             userRootRef.on('value', (snapshot) => {
                 if (isModalOpen) return;
-                window.updateAppFromSnapshot(snapshot);
+                setTimeout(() => window.updateAppFromSnapshot(snapshot), 0);
             });
             
             loadShowChildren();
             updateAllDates();
             setupEventListeners();
 
-            // АВТОЗАПУСК ТУРА ДЛЯ НОВИЧКОВ
-            // Проверяем, видел ли пользователь тур ранее
-            if (!localStorage.getItem('tourCompleted_v1')) {
-                setTimeout(() => {
-                    startOnboardingTour();
-                }, 1500); // Задержка 1.5 сек, чтобы интерфейс прогрузился
-            }   
+            // АВТОЗАПУСК ТУРА ДЛЯ НОВИЧКОВ (Через БД)
+            // Ждем первое обновление данных, чтобы проверить настройки
+            userRootRef.child('settings').once('value').then((snap) => {
+                const settings = snap.val() || {};
+                // Если флаг tourCompleted НЕ стоит — запускаем тур
+                if (!settings.tourCompleted) {
+                    setTimeout(() => {
+                        startOnboardingTour();
+                    }, 1500); 
+                }
+            });
+  
 
         } else { 
             currentUser = null;
@@ -5470,149 +5475,56 @@ document.addEventListener('click', function(event) {
     }
 });
 
-
-
-// ==================== ONBOARDING TOUR (Driver.js) ====================
+// ==================== ONBOARDING TOUR (Driver.js 1.3 — рабочий вариант) ====================
 function startOnboardingTour() {
-    // 1. Закрываем модальное окно инструкции, если оно открыто
     document.getElementById('helpModal').classList.remove('active');
     
-    // Проверка ширины экрана (на мобильных тур может выглядеть плохо)
     if (window.innerWidth < 900) {
         showToast("Для обучения рекомендуется использовать широкий экран.", "info");
         return;
     }
 
-    const driver = window.driver.js.driver;
+    // Driver.js 1.3.0 cdnjs IIFE: чаще всего window.driverJs.driver
+    var driverFn = (typeof window.driverJs !== 'undefined' && typeof window.driverJs.driver === 'function') ? window.driverJs.driver
+        : (typeof window.driver !== 'undefined' && window.driver && typeof window.driver.js !== 'undefined' && typeof window.driver.js.driver === 'function') ? window.driver.js.driver
+        : (typeof window['driver.js'] !== 'undefined' && typeof window['driver.js'].driver === 'function') ? window['driver.js'].driver
+        : (typeof window.driver === 'function') ? window.driver
+        : null;
+    if (!driverFn) {
+        showToast('Тур обучения недоступен. Проверьте загрузку Driver.js.', 'error');
+        return;
+    }
 
-    const driverObj = driver({
+    const saveTourCompleted = () => {
+        var uid = firebase.auth().currentUser ? firebase.auth().currentUser.uid : null;
+        if (uid) firebase.database().ref('users/' + uid + '/settings').update({ tourCompleted: true });
+    };
+
+    // API 1.x: первый шаг без element (модалка), остальные element + popover.side
+    const steps = [
+        { popover: { title: 'Добро пожаловать в 3D Manager! 👋', description: 'Это система полного учета вашей печати: от катушки до продажи.<br><br>Давайте быстро посмотрим, как тут всё устроено.' } },
+        { element: '.sidebar', popover: { title: 'Главное меню', description: 'Здесь находятся все разделы. Меню можно свернуть, нажав на иконку "бургер" сверху.', side: 'right' } },
+        { element: '[data-page="references"]', popover: { title: '1. С чего начать?', description: 'Зайдите в Справочники. Добавьте свои принтеры (мощность кВт) и тарифы на электричество - это важная составляющая для точного расчета себестоимости. По мере появления добавляйте новые бренды, типы и цвета филамента.', side: 'right' }, onHighlightStarted: function() { showPage('references'); } },
+        { element: '[data-page="filament"]', popover: { title: '2. Склад филамента', description: 'Добавляйте свои катушки. Система будет учитывать расходуемые метры при каждом изготовлении изделия. Здесь у вас всегда актуальная информация об остатке пластика и вы будете знать достаточно ли его для нового изделия', side: 'right' }, onHighlightStarted: function() { showPage('filament'); } },
+        { element: '#addFilamentBtn', popover: { title: 'Добавить катушку', description: 'Укажите наименование и цену покупки. Если пластик заканчивается, система подсветит его красным - пора планировать покупку.', side: 'bottom' } },
+        { element: '[data-page="products"]', popover: { title: '3. Изделия', description: 'Здесь создаются карточки ваших товаров. Можно загрузить фото и файлы модели.', side: 'right' }, onHighlightStarted: function() { showPage('products'); } },
+        { element: '#addProductBtn', popover: { title: 'Создать изделие', description: 'Выберите используемый пластик, расход материала и время печати. Себестоимость (с учетом затрат электричества) рассчитается мгновенно.', side: 'bottom' } },
+        { element: '[data-page="writeoff"]', popover: { title: '4. Продажи и Списания', description: 'Оформляйте здесь продажи клиентам или списывайте использованные или бракованные изделия. Это формирует вашу финансовую историю.', side: 'right' }, onHighlightStarted: function() { showPage('writeoff'); } },
+        { element: '#addWriteoffBtn', popover: { title: 'Оформить операцию', description: 'Выберите "Продажа", "Брак" или "Использовано".', side: 'bottom' } },
+        { element: '[data-page="service"]', popover: { title: '5. Сервисные расходы', description: 'Учитывайте покупку расходных материалов - клей, смазка, сопла и т.д. Это сделает расчет чистой прибыли точным.', side: 'right' }, onHighlightStarted: function() { showPage('service'); } },
+        { element: '#sidebarControls', popover: { title: 'Вы готовы! 🚀', description: 'Если что-то забудете — нажмите кнопку "Инструкция" внизу меню. Там есть шпаргалка и кнопка повтора этого обучения.', side: 'right' }, onHighlightStarted: function() { showPage('dashboard'); saveTourCompleted(); } }
+    ];
+
+    const driverObj = driverFn({
         showProgress: true,
         allowClose: true,
-        animate: true, // Включаем анимацию для плавности
-        // Настройки кнопок
+        animate: true,
         nextBtnText: 'Далее →',
         prevBtnText: '← Назад',
         doneBtnText: 'Завершить',
-        steps: [
-            // 1. ПРИВЕТСТВИЕ (ИСПРАВЛЕНО: МОДАЛЬНОЕ ОКНО)
-            { 
-                // Мы УБРАЛИ "element: '#dashboard'", чтобы карточка появилась 
-                // по центру экрана как модальное окно на темном фоне.
-                popover: { 
-                    title: 'Добро пожаловать в 3D Manager! 👋', 
-                    description: 'Это система полного учета вашей печати: от катушки до продажи.<br><br>Давайте быстро посмотрим, как тут всё устроено.',
-                } 
-            },
-            // 2. НАВИГАЦИЯ
-            { 
-                element: '.sidebar', 
-                popover: { 
-                    title: 'Главное меню', 
-                    description: 'Здесь находятся все разделы. Меню можно свернуть, нажав на иконку "бургер" сверху.', 
-                    side: 'right' 
-                } 
-            },
-            // 3. ДАШБОРД
-            //{ 
-            //    element: '[data-page="dashboard"]', 
-            //   popover: { 
-            //        title: 'Дашборд', 
-            //        description: 'Ваш центр управления. Здесь видна статистика по пластику, последние продажи и остатки.', 
-            //        side: 'right' 
-            //    },
-            //    onHighlightStarted: () => showPage('dashboard')
-            //},
-            // 4. СПРАВОЧНИКИ
-            { 
-                element: '[data-page="references"]', 
-                popover: { 
-                    title: '1. С чего начать?', 
-                    description: 'Зайдите в Справочники. Добавьте свои принтеры (мощность кВт) и тарифы на электричество - это важная составляющая для точного расчета себестоимости. По мере появления добавляйте новые бренды, типы и цвета филамента.', 
-                    side: 'right' 
-                },
-                onHighlightStarted: () => showPage('references')
-            },
-            // 5. ФИЛАМЕНТ
-            { 
-                element: '[data-page="filament"]', 
-                popover: { 
-                    title: '2. Склад филамента', 
-                    description: 'Добавляйте свои катушки. Система будет учитывать расходуемые метры при каждом изготовлении изделия. Здесь у вас всегда актуальная информация об остатке пластика и вы будете знать достаточно ли его для нового изделия', 
-                    side: 'right' 
-                },
-                onHighlightStarted: () => showPage('filament') 
-            },
-            { 
-                element: '#addFilamentBtn', 
-                popover: { 
-                    title: 'Добавить катушку', 
-                    description: 'Укажите наименование и цену покупки. Если пластик заканчивается, система подсветит его красным - пора планировать покупку.', 
-                    side: 'bottom' 
-                } 
-            },
-            // 6. ИЗДЕЛИЯ
-            { 
-                element: '[data-page="products"]', 
-                popover: { 
-                    title: '3. Изделия', 
-                    description: 'Здесь создаются карточки ваших товаров. Можно загрузить фото и файлы модели.', 
-                    side: 'right' 
-                },
-                onHighlightStarted: () => showPage('products') 
-            },
-            { 
-                element: '#addProductBtn', 
-                popover: { 
-                    title: 'Создать изделие', 
-                    description: 'Выберите используемый пластик, расход материала и время печати. Себестоимость (с учетом затрат электричества) рассчитается мгновенно.', 
-                    side: 'bottom' 
-                } 
-            },
-            // СПИСАНИЯ
-            { 
-                element: '[data-page="writeoff"]', 
-                popover: { 
-                    title: '4. Продажи и Списания', 
-                    description: 'Оформляйте здесь продажи клиентам или списывайте использованные или бракованные изделия. Это формирует вашу финансовую историю.', 
-                    side: 'right' 
-                },
-                onHighlightStarted: () => showPage('writeoff') 
-            },
-            { 
-                element: '#addWriteoffBtn', 
-                popover: { 
-                    title: 'Оформить операцию', 
-                    description: 'Выберите "Продажа", "Брак" или "Использовано".', 
-                    side: 'bottom' 
-                } 
-            },
-            // СЕРВИС
-            { 
-                element: '[data-page="service"]', 
-                popover: { 
-                    title: '5. Сервисные расходы', 
-                    description: 'Учитывайте покупку расходных материалов - клей, смазка, сопла и т.д. Это сделает расчет чистой прибыли точным.', 
-                    side: 'right' 
-                },
-                onHighlightStarted: () => showPage('service') 
-            },
-            // 7. ФИНАЛ
-            { 
-                element: '#sidebarControls', // Кнопка инструкции
-                popover: { 
-                    title: 'Вы готовы! 🚀', 
-                    description: 'Если что-то забудете — нажмите кнопку "Инструкция" внизу меню. Там есть шпаргалка и кнопка повтора этого обучения.', 
-                    side: 'right' 
-                },
-                onHighlightStarted: () => {
-                    showPage('dashboard');
-                    // Запоминаем, что пользователь прошел обучение
-                    localStorage.setItem('tourCompleted_v1', 'true');
-                }
-            }
-        ]
+        steps: steps,
+        onDestroyed: saveTourCompleted
     });
-
     driverObj.drive();
 }
 
