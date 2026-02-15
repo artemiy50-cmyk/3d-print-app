@@ -1,5 +1,5 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
-console.log("Version: 5.6 (2026-02-15 10-45-42)");
+console.log("Version: 5.6 (2026-02-15 10-54-53)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -4358,22 +4358,20 @@ async function addComponent() {
 }
 
 async function removeComponent(index) {
-    // ВАЖНО: index приходит из отсортированного списка UI. Нужно найти реальный элемент.
-    // Но для упрощения в компонентах мы сортируем массив db.components перед рендером
-    // Лучше передавать ID или если массив простой - найти элемент.
-    // В текущей реализации (как у вас было) лучше удалить по значению или синхронизировать индексы.
-    
-    // Исправленная логика удаления компонента:
     const sorted = [...db.components].sort((a, b) => a.name.localeCompare(b.name));
     const toRemove = sorted[index];
     const realIndex = db.components.indexOf(toRemove);
     
+    // ДОБАВЛЕНО ПОДТВЕРЖДЕНИЕ
+    if (!confirm(`Удалить комплектующее "${toRemove.name}"?`)) return;
+
     if (realIndex > -1) {
         db.components.splice(realIndex, 1);
-        await dbRef.child('components').set(db.components); // Перезапись
+        await dbRef.child('components').set(db.components); 
         updateComponentsList();
     }
 }
+
 
 async function editComponent(index) {
     const sorted = [...db.components].sort((a, b) => a.name.localeCompare(b.name));
@@ -4479,12 +4477,19 @@ async function addBrand(){
 
 async function removeBrand(i){ 
     const val = db.brands[i]; 
-    if(db.filaments.some(f => f.brand === val)) { showToast('Нельзя удалить: используется.', 'error'); return; } 
+    if(db.filaments.some(f => f.brand === val)) { 
+        showToast('Нельзя удалить: используется.', 'error'); 
+        return; 
+    } 
     
-    db.brands.splice(i, 1); // Удаляем из массива
-    await dbRef.child('brands').set(db.brands); // Перезаписываем весь массив, чтобы индексы 0,1,2... перестроились
-    updateAllSelects(); // Обновляем UI
+    // ДОБАВЛЕНО ПОДТВЕРЖДЕНИЕ
+    if (!confirm(`Удалить бренд "${val}"?`)) return;
+
+    db.brands.splice(i, 1); 
+    await dbRef.child('brands').set(db.brands); 
+    updateAllSelects(); 
 }
+
 
 async function editBrand(i) { 
     const newVal = prompt("Изменить:", db.brands[i]); 
@@ -4522,12 +4527,22 @@ async function addColor(){
 }
 
 async function removeColor(id){ 
-    if(db.filaments.some(f => f.color && f.color.id === id)) { showToast('Нельзя удалить: используется.', 'error'); return; } 
+    if(db.filaments.some(f => f.color && f.color.id === id)) { 
+        showToast('Нельзя удалить: используется.', 'error'); 
+        return; 
+    } 
     
-    db.colors = db.colors.filter(c => c.id !== id); // Фильтруем
-    await dbRef.child('colors').set(db.colors); // Перезаписываем весь массив
+    const colorToRemove = db.colors.find(c => c.id === id);
+    const name = colorToRemove ? colorToRemove.name : 'цвет';
+
+    // ДОБАВЛЕНО ПОДТВЕРЖДЕНИЕ
+    if (!confirm(`Удалить цвет "${name}"?`)) return;
+    
+    db.colors = db.colors.filter(c => c.id !== id); 
+    await dbRef.child('colors').set(db.colors); 
     updateAllSelects(); 
 }
+
 
 async function editColor(id) { 
     const c = db.colors.find(x => x.id === id); 
@@ -4574,12 +4589,19 @@ async function addFilamentType(){
 
 async function removeFilamentType(i){ 
     const val = db.plasticTypes[i]; 
-    if(db.filaments.some(f => f.type === val)) { showToast('Нельзя удалить: используется.', 'error'); return; } 
+    if(db.filaments.some(f => f.type === val)) { 
+        showToast('Нельзя удалить: используется.', 'error'); 
+        return; 
+    } 
     
+    // ДОБАВЛЕНО ПОДТВЕРЖДЕНИЕ
+    if (!confirm(`Удалить тип пластика "${val}"?`)) return;
+
     db.plasticTypes.splice(i, 1);
     await dbRef.child('plasticTypes').set(db.plasticTypes);
     updateAllSelects(); 
 }
+
 
 async function editFilamentType(i) { 
     const newVal = prompt("Изменить:", db.plasticTypes[i]); 
@@ -4668,12 +4690,22 @@ async function addPrinter(){
 }
 
 async function removePrinter(id){ 
-    if(db.products.some(p => p.printer && p.printer.id === id)) { showToast('Нельзя удалить: используется.', 'error'); return; } 
+    if(db.products.some(p => p.printer && p.printer.id === id)) { 
+        showToast('Нельзя удалить: используется.', 'error'); 
+        return; 
+    } 
+    
+    const printer = db.printers.find(p => p.id === id);
+    const name = printer ? printer.model : 'принтер';
+
+    // ДОБАВЛЕНО ПОДТВЕРЖДЕНИЕ
+    if (!confirm(`Удалить принтер "${name}"?`)) return;
     
     db.printers = db.printers.filter(p => p.id !== id);
     await dbRef.child('printers').set(db.printers);
     updateAllSelects(); 
 }
+
 
 async function editPrinter(id) { 
     const p = db.printers.find(x => x.id === id); 
@@ -4739,16 +4771,35 @@ async function addElectricityCost() {
 }
 
 async function removeElectricityCost(id) { 
-    if (db.electricityCosts.length <= 1) { showToast('Нельзя удалить последний тариф.', 'error'); return; } 
-    if(confirm('Удалить?')){ 
+    if (db.electricityCosts.length <= 1) { 
+        showToast('Нельзя удалить последний тариф.', 'error'); 
+        return; 
+    } 
+    
+    const costItem = db.electricityCosts.find(c => c.id === id);
+    const date = costItem ? costItem.date : '';
+
+    // ПОДТВЕРЖДЕНИЕ УЖЕ БЫЛО, НО УТОЧНИМ ТЕКСТ
+    if(confirm(`Удалить тариф от ${date}?`)){ 
         db.electricityCosts = db.electricityCosts.filter(c => c.id !== id);
         await dbRef.child('electricityCosts').set(db.electricityCosts);
         recalculateAllProductCosts();
-        // ... (код обновления продуктов остается тем же, если он был внутри функции)
+        
+        // ВАЖНО: При удалении тарифа нужно обновить себестоимость всех изделий (как в addElectricityCost)
+        const updates = {};
+        db.products.forEach((prod, idx) => {
+            updates[`products/${idx}/costActualPrice`] = prod.costActualPrice;
+            updates[`products/${idx}/costMarketPrice`] = prod.costMarketPrice;
+            updates[`products/${idx}/costPer1Actual`] = prod.costPer1Actual;
+            updates[`products/${idx}/costPer1Market`] = prod.costPer1Market;
+        });
+        if(Object.keys(updates).length > 0) await dbRef.update(updates);
+
         updateAllSelects(); 
         updateProductsTable(); 
     } 
 }
+
 
 
 // --- SORTING HELPERS ---
@@ -5150,9 +5201,12 @@ async function removeServiceName(i) {
     const item = sorted[i];
     const realIdx = db.serviceNames.indexOf(item);
     
+    // ДОБАВЛЕНО ПОДТВЕРЖДЕНИЕ
+    if (!confirm(`Удалить вид работ "${item.name}"?`)) return;
+
     if (realIdx > -1) {
         db.serviceNames.splice(realIdx, 1);
-        await dbRef.child('serviceNames').set(db.serviceNames); // Перезапись!
+        await dbRef.child('serviceNames').set(db.serviceNames);
         updateServiceNamesList();
     }
 }
