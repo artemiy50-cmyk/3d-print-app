@@ -3520,10 +3520,18 @@ function addWriteoffItemSection(data = null) {
             <button type="button" class="btn-secondary btn-small" onclick="addEnrichmentRow(${index})" style="width: 100%; justify-content: center; border-style: dashed;">+ Добавить деталь</button>
         </div>
 
+        <div class="writeoff-price-block">
         <div class="form-row-3 writeoff-price-row">
             <div class="form-group">
                 <label class="label-with-tooltip" style="justify-content:center;">
-                    Итоговая себест. (1 шт.)
+                    Себест. изд-я (1 шт.)
+                    <span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text tooltip-top-center section-base-tooltip">Себест. (реальная) изделия: 0.00 ₽</span></span>
+                </label>
+                <div class="calc-field section-base-cost">0.00 ₽</div>
+            </div>
+            <div class="form-group">
+                <label class="label-with-tooltip" style="justify-content:center;">
+                    Итог. себест. (1 шт.)
                     <span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text tooltip-top-center section-tooltip">Изделие + Комплектующие</span></span>
                 </label>
                 <div class="calc-field section-cost">0.00 ₽</div>
@@ -3533,7 +3541,7 @@ function addWriteoffItemSection(data = null) {
                 <input type="number" class="section-price" value="${data ? data.price : ''}" step="0.01" oninput="updateWriteoffSection(${index})">
             </div>
             <div class="form-group">
-                <label>Стоимость продажи общая (₽)</label>
+                <label>Стоим. продажи общая (₽)</label>
                 <div class="calc-field section-total">0.00 ₽</div>
             </div>
         </div>
@@ -3548,6 +3556,7 @@ function addWriteoffItemSection(data = null) {
         </div>
 		<div class="profit-info hidden" style="margin-top: 12px; padding: 0 4px; font-weight: bold; font-size: 13px;">
             Прибыль с продажи Изделия: <span class="profit-val">0.00 ₽</span>
+        </div>
         </div>
     `;
     container.appendChild(div);
@@ -3639,9 +3648,10 @@ function updateWriteoffSection(index) {
     const type = document.getElementById('writeoffType').value;
     const isSale = type === 'Продажа';
     const isPrepared = type === 'Подготовлено к продаже';
+    const isUsed = type === 'Использовано';
     
-    // --- ИСПРАВЛЕНИЕ: Комплектующие для Продажи И Подготовленного ---
-    enrichmentSection.classList.toggle('hidden', !(isSale || isPrepared));
+    // Комплектующие для Продажи, Подготовленного и Использовано
+    enrichmentSection.classList.toggle('hidden', !(isSale || isPrepared || isUsed));
     priceInput.disabled = !(isSale || isPrepared);
     
     // Блоки прибыли показываем только для этих двух типов
@@ -3658,6 +3668,8 @@ function updateWriteoffSection(index) {
     if (!product) {
         section.querySelector('.section-stock').textContent = '0 шт.';
         section.querySelector('.section-remaining').textContent = '0 шт.';
+        const baseCostEl = section.querySelector('.section-base-cost');
+        if (baseCostEl) baseCostEl.textContent = '0.00 ₽';
         section.querySelector('.section-cost').textContent = '0.00 ₽';
         section.querySelector('.section-total').textContent = '0.00 ₽';
         calcWriteoffTotal();
@@ -3684,6 +3696,11 @@ function updateWriteoffSection(index) {
     
     const totalCostM = costM + totalEnrichmentCost;
     const totalCostA = costA + totalEnrichmentCost;
+
+    const baseCostEl = section.querySelector('.section-base-cost');
+    if (baseCostEl) baseCostEl.textContent = costM.toFixed(2) + ' ₽';
+    const baseTooltipEl = section.querySelector('.section-base-tooltip');
+    if (baseTooltipEl) baseTooltipEl.textContent = `Себест. (реальная) изделия: ${costA.toFixed(2)} ₽`;
 
     section.querySelector('.section-cost').textContent = totalCostM.toFixed(2) + ' ₽';
     section.querySelector('.section-tooltip').textContent = `Себест. (реальная) изделия: ${costA.toFixed(2)} ₽ + Комплектующие: ${totalEnrichmentCost.toFixed(2)} ₽ = Итого: ${totalCostA.toFixed(2)} ₽`;
@@ -3744,7 +3761,7 @@ function addEnrichmentRow(sectionIndex, data = null) {
             <datalist id="${listId}">${datalistOptions}</datalist>
         </div>
         <input type="number" class="enrichment-cost" placeholder="Цена" value="${costValue}" step="0.01" style="width: 160px;" oninput="updateWriteoffSection(${sectionIndex})">
-        <button type="button" class="btn-remove-enrichment" onclick="this.parentElement.remove(); updateWriteoffSection(${sectionIndex})" style="width: 38px; padding: 0; display: flex; justify-content: center; align-items: center; border: 1px solid var(--color-danger); color: var(--color-danger); background: none; border-radius: 4px; cursor: pointer;">✕</button>
+        <button type="button" class="btn-remove-enrichment" onclick="this.parentElement.remove(); updateWriteoffSection(${sectionIndex})" style="width: 38px; padding: 0; display: flex; justify-content: center; align-items: center; background: none; border-radius: 4px; cursor: pointer;">✕</button>
     `;
     container.appendChild(row);
 }
@@ -3910,7 +3927,7 @@ async function saveWriteoff() {
         }
         
         const enrichmentCosts = [];
-        if (type === 'Продажа' || type === 'Подготовлено к продаже') {
+        if (type === 'Продажа' || type === 'Подготовлено к продаже' || type === 'Использовано') {
             sec.querySelectorAll('.enrichment-row').forEach(row => {
                 const name = row.querySelector('.enrichment-name').value.trim();
                 const cost = parseFloat(row.querySelector('.enrichment-cost').value) || 0;
