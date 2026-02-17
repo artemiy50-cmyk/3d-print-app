@@ -1,5 +1,5 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
-console.log("Version: 5.6 (2026-02-15 15-46-39)");
+console.log("Version: 5.6 (2026-02-17 09-20-59)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -11,7 +11,7 @@ const APP_CONFIG = {
         maxCloudFiles: 1000 },
     toast: { 
         errorDurationMs: 6000, 
-        successDurationMs: 4000 },
+        successDurationMs: 7000 },
     search: { 
         debounceMs: 300 },
     trialDays: 30
@@ -2053,7 +2053,7 @@ async function copyProduct(id) {
             updateProductsTable();
             updateFilamentsTable();
             updateDashboard();
-            showToast(`Составное изделие "${newParent.name}" скопировано.`);
+            showToast(`Составное изделие "${newParent.name}" скопировано.`, 'success');
         } catch (e) {
             console.error("Ошибка копирования:", e);
             showToast("Ошибка при сохранении копии: " + e.message, "error");
