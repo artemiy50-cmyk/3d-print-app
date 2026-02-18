@@ -1,5 +1,75 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
-console.log("Version: 5.6 (2026-02-18 08-11-53)");
+// Номер версии ведём в формате xx.xx.xx, например 5.6.0
+const APP_VERSION_NUMBER = '5.8.0';
+console.log('2026-02-19 00-38-23');
+
+// Базовая версия для кнопки и модалки (без префикса "v")
+const APP_BASE_VERSION = APP_VERSION_NUMBER;
+
+// === CHANGELOG
+const CHANGELOG_ENTRIES = [
+    
+    { version: '5.8.1', 
+        dateDisplay: '18.02.2026', 
+        description: 'Обновлена логика формирования описания версий.' 
+    },
+    {
+        version: '5.8.0',
+        dateDisplay: '18.02.2026',
+        description: 'В карточку списания добавлен фильтр для сужения выпадающего списка изделий. Добавлен свитчер сортировки в карточке списания (по наименованию / по дате создания).'
+    },
+    {
+        version: '5.7.7',
+        dateDisplay: '18.02.2026',
+        description: 'Реализовано восстановление последнего открытого раздела после перезагрузки приложения.'
+    },
+    {
+        version: '5.7.6',
+        dateDisplay: '17.02.2026',
+        description: 'Улучшения карточки списания: цвета для визуального восприятия, добавлен атрибут себестоимости без комплектующих.'
+    },
+    {
+        version: '5.7.5',
+        dateDisplay: '17.02.2026',
+        description: 'Регистрация: предупреждение про проверку «Спама»; зелёная плашка при копировании составного изделия; увеличено время отображения success/info/warning до 7 секунд.'
+    },
+    {
+        version: '5.7.4',
+        dateDisplay: '15.02.2026',
+        description: 'Сохранение признака прохождения onboarding‑тура в БД.'
+    },
+    {
+        version: '5.7.3',
+        dateDisplay: '15.02.2026',
+        description: 'Реорганизация интерфейса справочников: исключён справочник статусов филамента. Добавлено подтверждение удаления записей в справочниках.'
+    },
+    {
+        version: '5.7.2',
+        dateDisplay: '14.02.2026',
+        description: 'Обновлён обучающий тур для новых пользователей. Дополнена пользовательская инструкция.'
+    },
+    {
+        version: '5.7.1',
+        dateDisplay: '14.02.2026',
+        description: 'FIX: при копировании изделия корректно обновляется учёт расхода филамента (длина, вес, обновление полей и таблицы филаментов).'
+    },
+    {
+        version: '5.7.0',
+        dateDisplay: '14.02.2026',
+        description: 'Реализаован онбординг‑тур для новых пользователей. Обновлена инструкция пользователя. Технические улучшения: единая конфигурация APP_CONFIG, централизованные лимиты и тайминги.'
+    },
+    {
+        version: '5.6.1',
+        dateDisplay: '14.02.2026',
+        description: 'Добавлен фавикон; обновлены стили таблиц для лучшего отображения данных. Копирование изделия: примечание больше не копируется, но копируются цвет и прикреплённые файлы.'
+    },
+    {
+        version: '5.6.0',
+        dateDisplay: '13.02.2026',
+        description: 'Внесены важные улучшения, направленные на стабильность работы приложения'
+    }
+];
+
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -835,8 +905,8 @@ function updateAllDates() {
         const el = document.getElementById(id); 
         if(el) el.value = today;
     });
-    document.getElementById('currentDate').textContent = new Date().toLocaleDateString('ru-RU');
     document.getElementById('copyrightYear').textContent = new Date().getFullYear();
+    updateVersionButton();
 }
 
 
@@ -854,6 +924,58 @@ function showPage(id) {
         if(btn.dataset.page === id) btn.classList.add('active');
     });
     try { localStorage.setItem('appLastPage', id); } catch (e) {}
+}
+
+function getCurrentVersionLabel() {
+    if (CHANGELOG_ENTRIES && CHANGELOG_ENTRIES.length > 0 && CHANGELOG_ENTRIES[0].version) {
+        return CHANGELOG_ENTRIES[0].version;
+    }
+    return APP_BASE_VERSION;
+}
+
+function updateVersionButton() {
+    const btn = document.getElementById('versionButton');
+    if (!btn) return;
+    btn.textContent = getCurrentVersionLabel();
+}
+
+function openChangelogModal() {
+    const modal = document.getElementById('changelogModal');
+    if (!modal) return;
+    renderChangelogList();
+    modal.classList.add('active');
+}
+
+function closeChangelogModal() {
+    const modal = document.getElementById('changelogModal');
+    if (!modal) return;
+    modal.classList.remove('active');
+}
+
+function renderChangelogList() {
+    const container = document.getElementById('changelogList');
+    if (!container) return;
+
+    if (!CHANGELOG_ENTRIES || CHANGELOG_ENTRIES.length === 0) {
+        container.innerHTML = '<p style="font-size:13px; color:#64748b;">Пока нет записей о версиях.</p>';
+        return;
+    }
+
+    const html = CHANGELOG_ENTRIES.map(item => {
+        const dateText = item.dateDisplay || item.date || '';
+        const desc = item.description || '';
+        return `
+            <div class="changelog-item">
+                <div class="changelog-item-header">
+                    <span class="changelog-item-version">${escapeHtml(item.version || '')}</span>
+                    <span class="changelog-item-date">${escapeHtml(dateText)}</span>
+                </div>
+                <div class="changelog-item-desc">${escapeHtml(desc)}</div>
+            </div>
+        `;
+    }).join('');
+
+    container.innerHTML = html;
 }
 
 function loadShowChildren() {
@@ -3489,14 +3611,14 @@ function addWriteoffItemSection(data = null) {
             <button class="btn-remove-section" onclick="removeWriteoffSection(${index})">✕</button>
         </div>
         <div class="form-group">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
-                <label style="margin-bottom:0;">Наименование изделия:</label>
-                <div style="display: flex; gap: 16px;">
-                    <!-- СВИТЧЕР СОРТИРОВКИ -->
-                    <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; color: #64748b; font-weight: normal; white-space: nowrap;" title="По умолчанию сортировка по Наименованию (А-Я)">
-                        <input type="checkbox" class="sort-by-id-checkbox" onchange="populateWriteoffProductOptions(this.closest('.writeoff-item-section').querySelector('.writeoff-product-select'), this.closest('.writeoff-item-section').querySelector('.writeoff-product-select').value)"> 
-                        Сортировать по ID
-                    </label>
+            <div class="writeoff-product-row writeoff-product-header-row">
+                <div class="writeoff-product-label">Наименование изделия:</div>
+                <div class="writeoff-sort-row">
+                    <!-- СВИТЧЕР СОРТИРОВКИ: по наименованию / по созданию -->
+                    <div class="writeoff-sort-switcher" role="group">
+                        <button type="button" class="writeoff-sort-option" data-sort="name">Сорт. по наимен-ю</button>
+                        <button type="button" class="writeoff-sort-option" data-sort="creation">Сорт. по созданию</button>
+                    </div>
                     
                     <!-- СВИТЧЕР ПОДГОТОВЛЕННЫХ -->
                     <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; color: #64748b; font-weight: normal; white-space: nowrap;">
@@ -3505,9 +3627,22 @@ function addWriteoffItemSection(data = null) {
                     </label>
                 </div>
             </div>
-            <select class="writeoff-product-select" onchange="updateWriteoffSection(${index})">
-                <option value="">-- Выберите изделие --</option>
-            </select>
+            <div class="writeoff-product-row">
+                <div class="writeoff-product-search-wrapper">
+                    <input 
+                        type="text" 
+                        class="writeoff-product-search" 
+                        placeholder="Фильтр списка по наимен-ю..." 
+                        oninput="handleWriteoffProductSearch(this)">
+                    <span 
+                        class="writeoff-product-clear" 
+                        title="Очистить фильтр" 
+                        onclick="clearWriteoffProductSearch(this)">×</span>
+                </div>
+                <select class="writeoff-product-select" onchange="updateWriteoffSection(${index})">
+                    <option value="">-- Выберите изделие --</option>
+                </select>
+            </div>
         </div>
         
         <div class="form-row-3">
@@ -3572,6 +3707,28 @@ function addWriteoffItemSection(data = null) {
     `;
     container.appendChild(div);
     
+    // Инициализируем свитчер сортировки из localStorage и вешаем обработчики
+    applyWriteoffSortSwitcherState(div);
+    div.querySelectorAll('.writeoff-sort-option').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const sort = this.dataset.sort;
+            try { localStorage.setItem('writeoffProductSortBy', sort); } catch (e) {}
+
+            // Синхронизируем свитчер во всех секциях текущего документа списания
+            document
+                .querySelectorAll('#writeoffModal .writeoff-sort-option')
+                .forEach(b => b.classList.toggle('active', b.dataset.sort === sort));
+
+            // Перестраиваем списки изделий во всех секциях
+            document
+                .querySelectorAll('#writeoffModal .writeoff-item-section')
+                .forEach(sec => {
+                    const sel = sec.querySelector('.writeoff-product-select');
+                    if (sel) populateWriteoffProductOptions(sel, sel.value || null);
+                });
+        });
+    });
+
     // Заполняем список
     const select = div.querySelector('.writeoff-product-select');
     populateWriteoffProductOptions(select, data ? data.productId : null);
@@ -3588,6 +3745,52 @@ function addWriteoffItemSection(data = null) {
 
 
 
+function getWriteoffSortPreference() {
+    try {
+        const s = localStorage.getItem('writeoffProductSortBy');
+        return (s === 'creation' || s === 'name') ? s : 'name';
+    } catch (e) {
+        return 'name';
+    }
+}
+
+function applyWriteoffSortSwitcherState(sectionEl) {
+    const pref = getWriteoffSortPreference();
+    const switcher = sectionEl.querySelector('.writeoff-sort-switcher');
+    if (!switcher) return;
+    switcher.querySelectorAll('.writeoff-sort-option').forEach(b => {
+        b.classList.toggle('active', b.dataset.sort === pref);
+    });
+}
+
+
+function handleWriteoffProductSearch(inputEl) {
+    const section = inputEl.closest('.writeoff-item-section');
+    if (!section) return;
+    const wrapper = inputEl.closest('.writeoff-product-search-wrapper');
+    if (wrapper) {
+        const clearBtn = wrapper.querySelector('.writeoff-product-clear');
+        if (clearBtn) clearBtn.style.visibility = inputEl.value ? 'visible' : 'hidden';
+    }
+    const select = section.querySelector('.writeoff-product-select');
+    if (!select) return;
+    // При поиске сохраняем текущий выбор и просто перестраиваем options
+    populateWriteoffProductOptions(select, select.value || null);
+}
+
+
+function clearWriteoffProductSearch(clearEl) {
+    const wrapper = clearEl.closest('.writeoff-product-search-wrapper');
+    if (!wrapper) return;
+    const inputEl = wrapper.querySelector('.writeoff-product-search');
+    if (!inputEl) return;
+    inputEl.value = '';
+    clearEl.style.visibility = 'hidden';
+    handleWriteoffProductSearch(inputEl);
+    inputEl.focus();
+}
+
+
 function populateWriteoffProductOptions(selectElement, selectedId) {
     const section = selectElement.closest('.writeoff-item-section');
     
@@ -3595,9 +3798,15 @@ function populateWriteoffProductOptions(selectElement, selectedId) {
     const checkboxPrepared = section.querySelector('.show-prepared-checkbox');
     const showPrepared = checkboxPrepared ? checkboxPrepared.checked : false;
     
-    // 2. Получаем состояние чекбокса "Сортировка по ID"
-    const checkboxSort = section.querySelector('.sort-by-id-checkbox');
-    const sortById = checkboxSort ? checkboxSort.checked : false;
+    // 2. Состояние свитчера сортировки: по наименованию (name) или по созданию (creation)
+    const activeSort = section.querySelector('.writeoff-sort-option.active');
+    const sortById = activeSort
+        ? activeSort.dataset.sort === 'creation'
+        : (getWriteoffSortPreference() === 'creation');
+
+    // 3. Строка поиска по наименованию внутри секции
+    const searchInput = section.querySelector('.writeoff-product-search');
+    const searchQuery = searchInput ? searchInput.value.trim().toLowerCase() : '';
 
     const preparedProductIds = new Set();
     if (!showPrepared) {
@@ -3608,7 +3817,7 @@ function populateWriteoffProductOptions(selectElement, selectedId) {
         });
     }
 
-    const availableProducts = db.products.filter(p => {
+    let availableProducts = db.products.filter(p => {
         const editGroup = document.getElementById('writeoffModal').getAttribute('data-edit-group');
         const usedElsewhere = getWriteoffQuantityForProduct(p.id, editGroup);
         const currentStock = Math.max(0, p.quantity - usedElsewhere);
@@ -3621,13 +3830,20 @@ function populateWriteoffProductOptions(selectElement, selectedId) {
                (showPrepared || isSelected || !preparedProductIds.has(p.id));
     });
     
-    // 3. ПРИМЕНЯЕМ СОРТИРОВКУ В ЗАВИСИМОСТИ ОТ ЧЕКБОКСА
+    // 4. Применяем текстовый поиск по наименованию (не скрываем уже выбранное изделие)
+    if (searchQuery) {
+        availableProducts = availableProducts.filter(p => {
+            if (selectedId == p.id) return true;
+            const name = (p.name || '').toLowerCase();
+            return name.includes(searchQuery);
+        });
+    }
+    
+    // 5. Сортировка: по наименованию или по созданию (systemId)
     availableProducts.sort((a, b) => {
         if (sortById) {
-            // Если галочка стоит: Сортировка по System ID (Новые сверху)
             return (b.systemId || '').localeCompare(a.systemId || '');
         } else {
-            // Если галочка НЕ стоит (по умолчанию): Сортировка по Наименованию (А-Я)
             return (a.name || '').localeCompare(b.name || '');
         }
     });
