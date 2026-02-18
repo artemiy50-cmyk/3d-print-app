@@ -1,5 +1,5 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
-console.log("Version: 5.6 (2026-02-18 15-23-15)");
+console.log("Version: 5.6 (2026-02-18 17-26-48)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -3489,9 +3489,9 @@ function addWriteoffItemSection(data = null) {
             <button class="btn-remove-section" onclick="removeWriteoffSection(${index})">✕</button>
         </div>
         <div class="form-group">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
-                <label style="margin-bottom:0;">Наименование изделия:</label>
-                <div style="display: flex; gap: 16px; align-items: center;">
+            <div class="writeoff-product-row writeoff-product-header-row">
+                <div class="writeoff-product-label">Наименование изделия:</div>
+                <div class="writeoff-sort-row">
                     <!-- СВИТЧЕР СОРТИРОВКИ: по наименованию / по созданию -->
                     <div class="writeoff-sort-switcher" role="group">
                         <button type="button" class="writeoff-sort-option" data-sort="name">Сорт. по наимен-ю</button>
@@ -3505,9 +3505,22 @@ function addWriteoffItemSection(data = null) {
                     </label>
                 </div>
             </div>
-            <select class="writeoff-product-select" onchange="updateWriteoffSection(${index})">
-                <option value="">-- Выберите изделие --</option>
-            </select>
+            <div class="writeoff-product-row">
+                <div class="writeoff-product-search-wrapper">
+                    <input 
+                        type="text" 
+                        class="writeoff-product-search" 
+                        placeholder="Фильтр списка по наимен-ю..." 
+                        oninput="handleWriteoffProductSearch(this)">
+                    <span 
+                        class="writeoff-product-clear" 
+                        title="Очистить фильтр" 
+                        onclick="clearWriteoffProductSearch(this)">×</span>
+                </div>
+                <select class="writeoff-product-select" onchange="updateWriteoffSection(${index})">
+                    <option value="">-- Выберите изделие --</option>
+                </select>
+            </div>
         </div>
         
         <div class="form-row-3">
@@ -3629,6 +3642,33 @@ function applyWriteoffSortSwitcherState(sectionEl) {
 }
 
 
+function handleWriteoffProductSearch(inputEl) {
+    const section = inputEl.closest('.writeoff-item-section');
+    if (!section) return;
+    const wrapper = inputEl.closest('.writeoff-product-search-wrapper');
+    if (wrapper) {
+        const clearBtn = wrapper.querySelector('.writeoff-product-clear');
+        if (clearBtn) clearBtn.style.visibility = inputEl.value ? 'visible' : 'hidden';
+    }
+    const select = section.querySelector('.writeoff-product-select');
+    if (!select) return;
+    // При поиске сохраняем текущий выбор и просто перестраиваем options
+    populateWriteoffProductOptions(select, select.value || null);
+}
+
+
+function clearWriteoffProductSearch(clearEl) {
+    const wrapper = clearEl.closest('.writeoff-product-search-wrapper');
+    if (!wrapper) return;
+    const inputEl = wrapper.querySelector('.writeoff-product-search');
+    if (!inputEl) return;
+    inputEl.value = '';
+    clearEl.style.visibility = 'hidden';
+    handleWriteoffProductSearch(inputEl);
+    inputEl.focus();
+}
+
+
 function populateWriteoffProductOptions(selectElement, selectedId) {
     const section = selectElement.closest('.writeoff-item-section');
     
@@ -3642,6 +3682,10 @@ function populateWriteoffProductOptions(selectElement, selectedId) {
         ? activeSort.dataset.sort === 'creation'
         : (getWriteoffSortPreference() === 'creation');
 
+    // 3. Строка поиска по наименованию внутри секции
+    const searchInput = section.querySelector('.writeoff-product-search');
+    const searchQuery = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
     const preparedProductIds = new Set();
     if (!showPrepared) {
         db.writeoffs.forEach(w => {
@@ -3651,7 +3695,7 @@ function populateWriteoffProductOptions(selectElement, selectedId) {
         });
     }
 
-    const availableProducts = db.products.filter(p => {
+    let availableProducts = db.products.filter(p => {
         const editGroup = document.getElementById('writeoffModal').getAttribute('data-edit-group');
         const usedElsewhere = getWriteoffQuantityForProduct(p.id, editGroup);
         const currentStock = Math.max(0, p.quantity - usedElsewhere);
@@ -3664,7 +3708,16 @@ function populateWriteoffProductOptions(selectElement, selectedId) {
                (showPrepared || isSelected || !preparedProductIds.has(p.id));
     });
     
-    // 3. Сортировка: по наименованию или по созданию (systemId)
+    // 4. Применяем текстовый поиск по наименованию (не скрываем уже выбранное изделие)
+    if (searchQuery) {
+        availableProducts = availableProducts.filter(p => {
+            if (selectedId == p.id) return true;
+            const name = (p.name || '').toLowerCase();
+            return name.includes(searchQuery);
+        });
+    }
+    
+    // 5. Сортировка: по наименованию или по созданию (systemId)
     availableProducts.sort((a, b) => {
         if (sortById) {
             return (b.systemId || '').localeCompare(a.systemId || '');
