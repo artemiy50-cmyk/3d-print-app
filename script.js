@@ -1,5 +1,5 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
-console.log("Version: 5.6 (2026-02-18 08-11-53)");
+console.log("Version: 5.6 (2026-02-18 15-23-15)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -3491,12 +3491,12 @@ function addWriteoffItemSection(data = null) {
         <div class="form-group">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
                 <label style="margin-bottom:0;">Наименование изделия:</label>
-                <div style="display: flex; gap: 16px;">
-                    <!-- СВИТЧЕР СОРТИРОВКИ -->
-                    <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; color: #64748b; font-weight: normal; white-space: nowrap;" title="По умолчанию сортировка по Наименованию (А-Я)">
-                        <input type="checkbox" class="sort-by-id-checkbox" onchange="populateWriteoffProductOptions(this.closest('.writeoff-item-section').querySelector('.writeoff-product-select'), this.closest('.writeoff-item-section').querySelector('.writeoff-product-select').value)"> 
-                        Сортировать по ID
-                    </label>
+                <div style="display: flex; gap: 16px; align-items: center;">
+                    <!-- СВИТЧЕР СОРТИРОВКИ: по наименованию / по созданию -->
+                    <div class="writeoff-sort-switcher" role="group">
+                        <button type="button" class="writeoff-sort-option" data-sort="name">Сорт. по наимен-ю</button>
+                        <button type="button" class="writeoff-sort-option" data-sort="creation">Сорт. по созданию</button>
+                    </div>
                     
                     <!-- СВИТЧЕР ПОДГОТОВЛЕННЫХ -->
                     <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; color: #64748b; font-weight: normal; white-space: nowrap;">
@@ -3572,6 +3572,28 @@ function addWriteoffItemSection(data = null) {
     `;
     container.appendChild(div);
     
+    // Инициализируем свитчер сортировки из localStorage и вешаем обработчики
+    applyWriteoffSortSwitcherState(div);
+    div.querySelectorAll('.writeoff-sort-option').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const sort = this.dataset.sort;
+            try { localStorage.setItem('writeoffProductSortBy', sort); } catch (e) {}
+
+            // Синхронизируем свитчер во всех секциях текущего документа списания
+            document
+                .querySelectorAll('#writeoffModal .writeoff-sort-option')
+                .forEach(b => b.classList.toggle('active', b.dataset.sort === sort));
+
+            // Перестраиваем списки изделий во всех секциях
+            document
+                .querySelectorAll('#writeoffModal .writeoff-item-section')
+                .forEach(sec => {
+                    const sel = sec.querySelector('.writeoff-product-select');
+                    if (sel) populateWriteoffProductOptions(sel, sel.value || null);
+                });
+        });
+    });
+
     // Заполняем список
     const select = div.querySelector('.writeoff-product-select');
     populateWriteoffProductOptions(select, data ? data.productId : null);
@@ -3588,6 +3610,25 @@ function addWriteoffItemSection(data = null) {
 
 
 
+function getWriteoffSortPreference() {
+    try {
+        const s = localStorage.getItem('writeoffProductSortBy');
+        return (s === 'creation' || s === 'name') ? s : 'name';
+    } catch (e) {
+        return 'name';
+    }
+}
+
+function applyWriteoffSortSwitcherState(sectionEl) {
+    const pref = getWriteoffSortPreference();
+    const switcher = sectionEl.querySelector('.writeoff-sort-switcher');
+    if (!switcher) return;
+    switcher.querySelectorAll('.writeoff-sort-option').forEach(b => {
+        b.classList.toggle('active', b.dataset.sort === pref);
+    });
+}
+
+
 function populateWriteoffProductOptions(selectElement, selectedId) {
     const section = selectElement.closest('.writeoff-item-section');
     
@@ -3595,9 +3636,11 @@ function populateWriteoffProductOptions(selectElement, selectedId) {
     const checkboxPrepared = section.querySelector('.show-prepared-checkbox');
     const showPrepared = checkboxPrepared ? checkboxPrepared.checked : false;
     
-    // 2. Получаем состояние чекбокса "Сортировка по ID"
-    const checkboxSort = section.querySelector('.sort-by-id-checkbox');
-    const sortById = checkboxSort ? checkboxSort.checked : false;
+    // 2. Состояние свитчера сортировки: по наименованию (name) или по созданию (creation)
+    const activeSort = section.querySelector('.writeoff-sort-option.active');
+    const sortById = activeSort
+        ? activeSort.dataset.sort === 'creation'
+        : (getWriteoffSortPreference() === 'creation');
 
     const preparedProductIds = new Set();
     if (!showPrepared) {
@@ -3621,13 +3664,11 @@ function populateWriteoffProductOptions(selectElement, selectedId) {
                (showPrepared || isSelected || !preparedProductIds.has(p.id));
     });
     
-    // 3. ПРИМЕНЯЕМ СОРТИРОВКУ В ЗАВИСИМОСТИ ОТ ЧЕКБОКСА
+    // 3. Сортировка: по наименованию или по созданию (systemId)
     availableProducts.sort((a, b) => {
         if (sortById) {
-            // Если галочка стоит: Сортировка по System ID (Новые сверху)
             return (b.systemId || '').localeCompare(a.systemId || '');
         } else {
-            // Если галочка НЕ стоит (по умолчанию): Сортировка по Наименованию (А-Я)
             return (a.name || '').localeCompare(b.name || '');
         }
     });

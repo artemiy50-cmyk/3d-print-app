@@ -434,6 +434,12 @@
             background: var(--color-danger); 
             color: #ffffff; 
         }
+        /* Свитчер сортировки в карточке списания */
+        .writeoff-sort-switcher { display: inline-flex; border: 1px solid var(--color-border); border-radius: var(--radius); overflow: hidden; font-size: 12px; }
+        .writeoff-sort-option { padding: 4px 10px; border: none; background: #fff; color: var(--color-text-light); cursor: pointer; font-size: 12px; transition: background 0.15s, color 0.15s; }
+        .writeoff-sort-option:hover { background: var(--color-bg); color: var(--color-text); }
+        .writeoff-sort-option.active { background: var(--color-primary); color: #fff; font-weight: 500; }
+        .writeoff-sort-option + .writeoff-sort-option { border-left: 1px solid var(--color-border); }
 		
 		/* Dashboard New Layout */
         .dashboard-row { display: flex; gap: var(--spacing); margin-bottom: var(--spacing); align-items: stretch; }
