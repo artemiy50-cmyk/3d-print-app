@@ -1,5 +1,75 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
-console.log("Version: 5.6 (2026-02-18 17-26-48)");
+// Номер версии ведём в формате xx.xx.xx, например 5.6.0
+const APP_VERSION_NUMBER = '5.8.0';
+console.log('2026-02-19 00-38-23');
+
+// Базовая версия для кнопки и модалки (без префикса "v")
+const APP_BASE_VERSION = APP_VERSION_NUMBER;
+
+// === CHANGELOG
+const CHANGELOG_ENTRIES = [
+    
+    { version: '5.8.1', 
+        dateDisplay: '18.02.2026', 
+        description: 'Обновлена логика формирования описания версий.' 
+    },
+    {
+        version: '5.8.0',
+        dateDisplay: '18.02.2026',
+        description: 'В карточку списания добавлен фильтр для сужения выпадающего списка изделий. Добавлен свитчер сортировки в карточке списания (по наименованию / по дате создания).'
+    },
+    {
+        version: '5.7.7',
+        dateDisplay: '18.02.2026',
+        description: 'Реализовано восстановление последнего открытого раздела после перезагрузки приложения.'
+    },
+    {
+        version: '5.7.6',
+        dateDisplay: '17.02.2026',
+        description: 'Улучшения карточки списания: цвета для визуального восприятия, добавлен атрибут себестоимости без комплектующих.'
+    },
+    {
+        version: '5.7.5',
+        dateDisplay: '17.02.2026',
+        description: 'Регистрация: предупреждение про проверку «Спама»; зелёная плашка при копировании составного изделия; увеличено время отображения success/info/warning до 7 секунд.'
+    },
+    {
+        version: '5.7.4',
+        dateDisplay: '15.02.2026',
+        description: 'Сохранение признака прохождения onboarding‑тура в БД.'
+    },
+    {
+        version: '5.7.3',
+        dateDisplay: '15.02.2026',
+        description: 'Реорганизация интерфейса справочников: исключён справочник статусов филамента. Добавлено подтверждение удаления записей в справочниках.'
+    },
+    {
+        version: '5.7.2',
+        dateDisplay: '14.02.2026',
+        description: 'Обновлён обучающий тур для новых пользователей. Дополнена пользовательская инструкция.'
+    },
+    {
+        version: '5.7.1',
+        dateDisplay: '14.02.2026',
+        description: 'FIX: при копировании изделия корректно обновляется учёт расхода филамента (длина, вес, обновление полей и таблицы филаментов).'
+    },
+    {
+        version: '5.7.0',
+        dateDisplay: '14.02.2026',
+        description: 'Реализаован онбординг‑тур для новых пользователей. Обновлена инструкция пользователя. Технические улучшения: единая конфигурация APP_CONFIG, централизованные лимиты и тайминги.'
+    },
+    {
+        version: '5.6.1',
+        dateDisplay: '14.02.2026',
+        description: 'Добавлен фавикон; обновлены стили таблиц для лучшего отображения данных. Копирование изделия: примечание больше не копируется, но копируются цвет и прикреплённые файлы.'
+    },
+    {
+        version: '5.6.0',
+        dateDisplay: '13.02.2026',
+        description: 'Внесены важные улучшения, направленные на стабильность работы приложения'
+    }
+];
+
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -835,8 +905,8 @@ function updateAllDates() {
         const el = document.getElementById(id); 
         if(el) el.value = today;
     });
-    document.getElementById('currentDate').textContent = new Date().toLocaleDateString('ru-RU');
     document.getElementById('copyrightYear').textContent = new Date().getFullYear();
+    updateVersionButton();
 }
 
 
@@ -854,6 +924,58 @@ function showPage(id) {
         if(btn.dataset.page === id) btn.classList.add('active');
     });
     try { localStorage.setItem('appLastPage', id); } catch (e) {}
+}
+
+function getCurrentVersionLabel() {
+    if (CHANGELOG_ENTRIES && CHANGELOG_ENTRIES.length > 0 && CHANGELOG_ENTRIES[0].version) {
+        return CHANGELOG_ENTRIES[0].version;
+    }
+    return APP_BASE_VERSION;
+}
+
+function updateVersionButton() {
+    const btn = document.getElementById('versionButton');
+    if (!btn) return;
+    btn.textContent = getCurrentVersionLabel();
+}
+
+function openChangelogModal() {
+    const modal = document.getElementById('changelogModal');
+    if (!modal) return;
+    renderChangelogList();
+    modal.classList.add('active');
+}
+
+function closeChangelogModal() {
+    const modal = document.getElementById('changelogModal');
+    if (!modal) return;
+    modal.classList.remove('active');
+}
+
+function renderChangelogList() {
+    const container = document.getElementById('changelogList');
+    if (!container) return;
+
+    if (!CHANGELOG_ENTRIES || CHANGELOG_ENTRIES.length === 0) {
+        container.innerHTML = '<p style="font-size:13px; color:#64748b;">Пока нет записей о версиях.</p>';
+        return;
+    }
+
+    const html = CHANGELOG_ENTRIES.map(item => {
+        const dateText = item.dateDisplay || item.date || '';
+        const desc = item.description || '';
+        return `
+            <div class="changelog-item">
+                <div class="changelog-item-header">
+                    <span class="changelog-item-version">${escapeHtml(item.version || '')}</span>
+                    <span class="changelog-item-date">${escapeHtml(dateText)}</span>
+                </div>
+                <div class="changelog-item-desc">${escapeHtml(desc)}</div>
+            </div>
+        `;
+    }).join('');
+
+    container.innerHTML = html;
 }
 
 function loadShowChildren() {
