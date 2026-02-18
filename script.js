@@ -1,5 +1,5 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
-console.log("Version: 5.6 (2026-02-17 23-17-33)");
+console.log("Version: 5.6 (2026-02-18 08-11-53)");
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -370,6 +370,11 @@ window.addEventListener('DOMContentLoaded', () => {
             loadShowChildren();
             updateAllDates();
             setupEventListeners();
+            // Восстановить последний открытый раздел после F5
+            try {
+                const saved = localStorage.getItem('appLastPage');
+                if (saved && VALID_PAGE_IDS.includes(saved) && document.getElementById(saved)) showPage(saved);
+            } catch (e) {}
 
             // АВТОЗАПУСК ТУРА ДЛЯ НОВИЧКОВ (Через БД)
             // Ждем первое обновление данных, чтобы проверить настройки
@@ -836,13 +841,19 @@ function updateAllDates() {
 
 
 
+const VALID_PAGE_IDS = ['dashboard', 'products', 'writeoff', 'filament', 'service', 'reports', 'references'];
+
 function showPage(id) {
+    if (!id || !VALID_PAGE_IDS.includes(id)) return;
     document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
     document.querySelectorAll('.menu-item').forEach(m=>m.classList.remove('active'));
-    document.getElementById(id).classList.add('active');
+    const pageEl = document.getElementById(id);
+    if (!pageEl) return;
+    pageEl.classList.add('active');
     document.querySelectorAll('.sidebar .menu-item').forEach(btn => {
         if(btn.dataset.page === id) btn.classList.add('active');
     });
+    try { localStorage.setItem('appLastPage', id); } catch (e) {}
 }
 
 function loadShowChildren() {
