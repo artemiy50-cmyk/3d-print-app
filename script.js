@@ -1,7 +1,7 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
-// Номер версии ведём в формате xx.xx.xx, например 5.6.0
-const APP_VERSION_NUMBER = '5.8.0';
-console.log('2026-02-19 00-38-23');
+// Номер версии ведём в формате xx.xx.xx, например 7.7.7
+const APP_VERSION_NUMBER = '5.8.1';
+console.log('2026-02-19 08-49-17');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
@@ -593,7 +593,7 @@ function setupUserSidebar(user) {
     supportDiv.className = 'menu-item';
     supportDiv.innerHTML = `
         <span class="menu-icon">💬</span>
-        <a href="https://t.me/Artem_Kiyashko" target="_blank" class="menu-text" style="color: #94a3b8; text-decoration: none;">Связаться</a>
+        <a href="https://t.me/LuckArtS" target="_blank" class="menu-text" style="color: #94a3b8; text-decoration: none;">Связаться</a>
     `;
     const link = supportDiv.querySelector('a');
     supportDiv.addEventListener('mouseenter', () => { if(link) link.style.color = '#fff'; });

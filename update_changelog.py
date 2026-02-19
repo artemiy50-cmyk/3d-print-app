@@ -135,13 +135,19 @@ def main():
     print("Верхняя версия в CHANGELOG_ENTRIES: %s" % version)
 
     try:
-        n_str = input("Сколько последних коммитов вывести? (N): ").strip()
+        n_str = input("Сколько последних коммитов вывести? (N, 0 — только обновить время): ").strip()
         n = int(n_str)
     except ValueError:
         print("Введите число.")
         return
-    if n <= 0:
-        print("N должно быть больше 0.")
+    if n < 0:
+        print("N не может быть отрицательным.")
+        return
+
+    if n == 0:
+        with open(SCRIPT_PATH, "w", encoding="utf-8") as f:
+            f.write(content)
+        print("Обновлено только время в console.log. Записи в changelog не добавлены.")
         return
 
     commits = git_log_n(n)
