@@ -1,18 +1,21 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
 // Номер версии ведём в формате xx.xx.xx, например 7.7.7
 const APP_VERSION_NUMBER = '5.8.1';
-console.log('2026-02-20 23-31-03');
+console.log('2026-02-21 00-42-15');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
 
 // === CHANGELOG
 const CHANGELOG_ENTRIES = [
+    { version: '5.8.3', 
+        dateDisplay: '20.02.2026', 
+        description: 'Улучшение функций подсчета расхода филамента для повышение точности расчета' 
+    },
     { version: '5.8.2', 
         dateDisplay: '20.02.2026', 
         description: 'Триальный период увеличен до 90 дней' 
-    },
-     
+    },  
     { version: '5.8.1', 
         dateDisplay: '18.02.2026', 
         description: 'Обновлена логика формирования описания версий.' 
@@ -2732,7 +2735,8 @@ async function saveProduct(andThenWriteOff = false) {
             if (oldProd && oldProd.filament && oldProd.type !== 'Составное') {
                 // Если старое изделие НЕ было черновиком, значит оно потребило филамент. Надо вернуть.
                 if (!oldProd.isDraft) {
-                    const oldFil = db.filaments.find(f => f.id === oldProd.filament.id);
+                    const oldFilId = (typeof oldProd.filament === 'object') ? oldProd.filament.id : oldProd.filament;
+                    const oldFil = oldFilId ? db.filaments.find(f => f.id == oldFilId) : null;
                     if (oldFil) {
                         const oldFilIndex = db.filaments.indexOf(oldFil);
                         const newUsedL = Math.max(0, oldFil.usedLength - (oldProd.length || 0));
@@ -5102,8 +5106,9 @@ async function recalculateFilamentUsage() {
             if (parent && parent.isDraft) return;
         }
 
-        if (p.filament && p.filament.id) {
-            const filamentInDb = db.filaments.find(f => f.id === p.filament.id);
+        const filId = (p.filament && typeof p.filament === 'object') ? p.filament.id : (p.filament || null);
+        if (filId) {
+            const filamentInDb = db.filaments.find(f => f.id == filId);
             if (filamentInDb) {
                 filamentInDb.usedLength += (p.length || 0);
                 filamentInDb.usedWeight += (p.weight || 0);
