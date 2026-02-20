@@ -1,14 +1,18 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
 // Номер версии ведём в формате xx.xx.xx, например 7.7.7
 const APP_VERSION_NUMBER = '5.8.1';
-console.log('2026-02-19 08-49-17');
+console.log('2026-02-20 23-31-03');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
 
 // === CHANGELOG
 const CHANGELOG_ENTRIES = [
-    
+    { version: '5.8.2', 
+        dateDisplay: '20.02.2026', 
+        description: 'Триальный период увеличен до 90 дней' 
+    },
+     
     { version: '5.8.1', 
         dateDisplay: '18.02.2026', 
         description: 'Обновлена логика формирования описания версий.' 
@@ -84,7 +88,7 @@ const APP_CONFIG = {
         successDurationMs: 7000 },
     search: { 
         debounceMs: 300 },
-    trialDays: 30
+    trialDays: 90
 };
 
 const firebaseConfig = {
@@ -226,7 +230,7 @@ document.getElementById('regBtn')?.addEventListener('click', () => {
 		.then((userCredential) => {
             const uid = userCredential.user.uid;
             
-            // === НОВАЯ ЛОГИКА: УСТАНОВКА ПРОБНОГО ПЕРИОДА (30 ДНЕЙ) ===
+            // === УСТАНОВКА ПРОБНОГО ПЕРИОДА (90 ДНЕЙ) ===
             const now = new Date();
             const trialEnd = new Date();
             trialEnd.setDate(now.getDate() + APP_CONFIG.trialDays);
@@ -339,7 +343,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 const subData = snapshot.val();
                 if (!subData) {
                     const now = new Date();
-                    const end = new Date(); end.setDate(now.getDate() + 30);
+                    const end = new Date(); end.setDate(now.getDate() + APP_CONFIG.trialDays);
                     subRef.set({ status: 'trial', startDate: now.toISOString(), expiryDate: end.toISOString() });
                 } else {
                     checkSubscription(subData);
