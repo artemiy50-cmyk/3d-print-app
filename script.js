@@ -1,7 +1,7 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
 // Номер версии ведём в формате xx.xx.xx, например 7.7.7
 const APP_VERSION_NUMBER = '5.8.1';
-console.log('2026-02-21 18-15-55');
+console.log('2026-02-22 00-00-05');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
@@ -9,19 +9,34 @@ const APP_BASE_VERSION = APP_VERSION_NUMBER;
 // === CHANGELOG
 const CHANGELOG_ENTRIES = [
     { 
+        version: '5.9.0', 
+        dateDisplay: '22.02.2026', 
+        description: 'Реализована удобная навигация между составным изделием и его частями: Из карточки составного изделия можно перейти в карточку части по клику на её наименовании. Из карточке части можно перейти к составному изделию с помощью кнопки «Перейти к составному». Произведены визуальные улучшения табличных частей и пиктограмм' 
+    },
+    { 
+        version: '5.8.6', 
+        dateDisplay: '21.02.2026', 
+        description: 'В составном изделии в таблице частей добавлена колонка «Стоимость энергии», улучшено отображение всех данных в таблице.»' 
+    },
+    { 
+        version: '5.8.5', 
+        dateDisplay: '21.02.2026', 
+        description: 'Тултип «Подробный расчёт»: для составных изделий себестоимость показывается суммой из таблицы частей, увеличена ширина тултипа.' 
+    },
+    { 
         version: '5.8.4', 
         dateDisplay: '21.02.2026', 
-        description: 'Добавлен свитчер переключения состояния составного изделия: Сборка в работе/Все части собраны. Состояние можно переключить из табличной части кликом на пикограмму' },
+        description: 'Добавлен свитчер переключения состояния составного изделия: Сборка в работе/Все части собраны. Состояние можно переключить из табличной части кликом на пиктограмму.' },
 
     { 
         version: '5.8.3', 
         dateDisplay: '20.02.2026', 
-        description: 'Улучшение функций подсчета расхода филамента для повышение точности расчета' 
+        description: 'Улучшение функций подсчета расхода филамента для повышение точности расчета.' 
     },
     { 
         version: '5.8.2', 
         dateDisplay: '20.02.2026', 
-        description: 'Триальный период увеличен до 90 дней' 
+        description: 'Триальный период увеличен до 90 дней.' 
     },  
     { 
         version: '5.8.1', 
@@ -878,7 +893,7 @@ function getCostPerKwForDate(productDateStr) {
 
 function recalculateAllProductCosts() {
     if (!db.products) return;
-    // Pass 1: Простые изделия
+    // Pass 1: Простые изделия и части составного
     db.products.forEach(p => {
         if (p.type !== 'Составное') {
             const printer = p.printer;
@@ -888,14 +903,23 @@ function recalculateAllProductCosts() {
                 const costPerKw = getCostPerKwForDate(p.date);
                 energy = (p.printTime / 60) * printer.power * costPerKw;
             }
+            p.energyCost = energy;
             if (filament) {
-                const acW = p.weight * (filament.actualCostPerGram || 0);
-                const acL = p.length * (filament.actualCostPerMeter || 0);
+                const acW = (p.weight || 0) * (filament.actualCostPerGram || 0);
+                const acL = (p.length || 0) * (filament.actualCostPerMeter || 0);
+                p.costActualByWeight = acW;
+                p.costActualByLength = acL;
                 p.costActualPrice = Math.max(acW, acL) + energy;
-                const mkW = p.weight * (filament.avgCostPerGram || 0);
-                const mkL = p.length * (filament.avgCostPerMeter || 0);
+                const mkW = (p.weight || 0) * (filament.avgCostPerGram || 0);
+                const mkL = (p.length || 0) * (filament.avgCostPerMeter || 0);
+                p.marketCostByWeight = mkW;
+                p.marketCostByLength = mkL;
                 p.costMarketPrice = Math.max(mkW, mkL) + energy;
-            } else { p.costActualPrice = energy; p.costMarketPrice = energy; }
+            } else {
+                p.costActualByWeight = p.marketCostByWeight = p.costActualByLength = p.marketCostByLength = 0;
+                p.costActualPrice = energy;
+                p.costMarketPrice = energy;
+            }
             p.costPer1Actual = (p.quantity > 0) ? p.costActualPrice / p.quantity : 0;
             p.costPer1Market = (p.quantity > 0) ? p.costMarketPrice / p.quantity : 0;
         }
@@ -1757,6 +1781,28 @@ function initiateWriteOff() {
     saveProduct(true); 
 }
 
+function navigateToPart(childId) {
+    const currentSnapshot = captureProductSnapshot();
+    if (currentSnapshot !== productSnapshotForDirtyCheck) {
+        if (!confirm('Составное изделие изменено. Сохранить и перейти к части изделия?')) return;
+        saveProduct(false, childId);
+    } else {
+        closeProductModal();
+        setTimeout(() => editProduct(childId), 150);
+    }
+}
+
+function navigateToComposite(parentId) {
+    const currentSnapshot = captureProductSnapshot();
+    if (currentSnapshot !== productSnapshotForDirtyCheck) {
+        if (!confirm('Часть изделия изменена. Сохранить и перейти к составному изделию?')) return;
+        saveProduct(false, parentId);
+    } else {
+        closeProductModal();
+        setTimeout(() => editProduct(parentId), 150);
+    }
+}
+
 
 
 function updateProductCosts() {
@@ -1838,6 +1884,7 @@ function updateProductCosts() {
     const tooltipEl = document.getElementById('costsDetailTooltip');
     let tooltipContent = '';
     const hr = '<hr style="margin: 4px 0; border-color: rgba(255,255,255,0.2); border-style: dashed;">';
+    const hrWithSpacer = hr + '<div class="cost-detail-hr-spacer"></div>';
 
     if (type === 'Составное') {
         const eid = document.getElementById('productModal').getAttribute('data-edit-id');
@@ -1845,43 +1892,61 @@ function updateProductCosts() {
         const totalWeight = kids.reduce((sum, k) => sum + (k.weight || 0), 0);
         const totalLength = kids.reduce((sum, k) => sum + (k.length || 0), 0);
 
+        const weightParts = kids.map(k => (k.weight || 0).toFixed(1));
+        const lengthParts = kids.map(k => (k.length || 0).toFixed(2));
+        const energyParts = kids.map(k => {
+            if (k.printer && k.printer.power) {
+                const costPerKw = getCostPerKwForDate(k.date);
+                return ((k.printTime || 0) / 60) * k.printer.power * costPerKw;
+            }
+            return 0;
+        });
+
+        const weightSummands = kids.length > 1 ? weightParts.join(' + ') + ' = ' : '';
+        const lengthSummands = kids.length > 1 ? lengthParts.join(' + ') + ' = ' : '';
+        const energyNonZero = energyParts.filter(e => e > 0);
+        const energySummands = energyNonZero.length > 1
+            ? energyNonZero.map(e => e.toFixed(2)).join(' + ') + ' = '
+            : '';
+
+        const nlWrap = (s) => `<div class="cost-detail-line cost-detail-line-wrap">${s}</div>`;
+        const costMarketParts = kids.map(k => (k.costMarketPrice || 0).toFixed(2));
+        const costActualParts = kids.map(k => (k.costActualPrice || 0).toFixed(2));
+        const costMarketSummands = costMarketParts.join(' + ');
+        const costActualSummands = costActualParts.join(' + ');
         tooltipContent = [
-			'<b>Расчет для составного изделия (суммирование частей):</b>',
-			hr,
-			`<b>Программный вес (г):</b> ${totalWeight.toFixed(1)} г`,
-			`<b>Программная длина (м):</b> ${totalLength.toFixed(2)} м`,
-			hr,
-			`<b>Стоимость энергии:</b> ${energy.toFixed(2)} ₽`,
-			`<b>Стоим. фил. (рынок/вес):</b> ${mkW.toFixed(2)} ₽`,
-			`<b>Стоим. фил. (реальн/вес):</b> ${acW.toFixed(2)} ₽`,
-			`<b>Стоим. фил. (рынок/длина):</b> ${mkL.toFixed(2)} ₽`,
-			`<b>Стоим. фил. (реальн/длина):</b> ${acL.toFixed(2)} ₽`,
-			hr,
-			`<b>Себест. изделия (рынок):</b> ${costMarket.toFixed(2)} ₽`,
-			`<b>Себест. изделия (реальн):</b> ${costActual.toFixed(2)} ₽`,
-			hr,
-			`<b>Себест. за 1 шт. (рынок):</b> ${costMarket.toFixed(2)} ₽ / ${qty} = <b>${(costMarket/qty).toFixed(2)} ₽</b>`,
-			`<b>Себест. за 1 шт. (реальн):</b> ${costActual.toFixed(2)} ₽ / ${qty} = <b>${(costActual/qty).toFixed(2)} ₽</b>`
-		].join('<br>');
+			nlWrap('<b>Расчет для составного изделия (суммирование частей):</b>'),
+			hrWithSpacer,
+			nlWrap(`<b>Программный вес (г):</b> ${weightSummands}<b>${totalWeight.toFixed(1)} г</b>`),
+			nlWrap(`<b>Программная длина (м):</b> ${lengthSummands}<b>${totalLength.toFixed(2)} м</b>`),
+			hrWithSpacer,
+			nlWrap(`<b>Стоимость энергии:</b> ${energySummands}<b>${energy.toFixed(2)} ₽</b>`),
+			hrWithSpacer,
+			nlWrap(`<b>Себест. изделия (рынок):</b> ${costMarketSummands} = <b>${costMarket.toFixed(2)} ₽</b>`),
+			nlWrap(`<b>Себест. изделия (реальн):</b> ${costActualSummands} = <b>${costActual.toFixed(2)} ₽</b>`),
+			hrWithSpacer,
+			nlWrap(`<b>Себест. за 1 шт. (рынок):</b> ${costMarket.toFixed(2)} ₽ / ${qty} = <b>${(costMarket/qty).toFixed(2)} ₽</b>`),
+			nlWrap(`<b>Себест. за 1 шт. (реальн):</b> ${costActual.toFixed(2)} ₽ / ${qty} = <b>${(costActual/qty).toFixed(2)} ₽</b>`)
+		].join('');
 
     } else {
         const timeH = time / 60;
         const printerP = printer ? printer.power : 0;
-        
+        const nl = (s) => `<div class="cost-detail-line">${s}</div>`;
         tooltipContent = [
-			'<b>Стоимость энергии:</b> ' + `(${timeH.toFixed(2)} ч * ${printerP.toFixed(2)} кВт) * ${currentCostPerKw.toFixed(2)} ₽/кВтч = <b>${energy.toFixed(2)} ₽</b>`,
-			hr,
-			'<b>Стоим. фил. (рынок/вес):</b> ' + `${w.toFixed(1)} г * ${(f ? f.avgCostPerGram : 0).toFixed(2)} ₽/г = <b>${mkW.toFixed(2)} ₽</b>`,
-			'<b>Стоим. фил. (реальн/вес):</b> ' + `${w.toFixed(1)} г * ${(f ? f.actualCostPerGram : 0).toFixed(2)} ₽/г = <b>${acW.toFixed(2)} ₽</b>`,
-			'<b>Стоим. фил. (рынок/длина):</b> ' + `${l.toFixed(2)} м * ${(f ? f.avgCostPerMeter : 0).toFixed(2)} ₽/м = <b>${mkL.toFixed(2)} ₽</b>`,
-			'<b>Стоим. фил. (реальн/длина):</b> ' + `${l.toFixed(2)} м * ${(f ? f.actualCostPerMeter : 0).toFixed(2)} ₽/м = <b>${acL.toFixed(2)} ₽</b>`,
-			hr,
-			'<b>Себест. изделия (рынок):</b> ' + `MAX(${mkW.toFixed(2)}, ${mkL.toFixed(2)}) + ${energy.toFixed(2)} = <b>${costMarket.toFixed(2)} ₽</b>`,
-			'<b>Себест. изделия (реальн):</b> ' + `MAX(${acW.toFixed(2)}, ${acL.toFixed(2)}) + ${energy.toFixed(2)} = <b>${costActual.toFixed(2)} ₽</b>`,
-			hr,
-			'<b>Себест. за 1 шт. (рынок):</b> ' + `${costMarket.toFixed(2)} ₽ / ${qty} = <b>${(costMarket/qty).toFixed(2)} ₽</b>`,
-			'<b>Себест. за 1 шт. (реальн):</b> ' + `${costActual.toFixed(2)} ₽ / ${qty} = <b>${(costActual/qty).toFixed(2)} ₽</b>`
-		].join('<br>');
+			nl('<b>Стоимость энергии:</b> ' + `(${timeH.toFixed(2)} ч * ${printerP.toFixed(2)} кВт) * ${currentCostPerKw.toFixed(2)} ₽/кВтч = <b>${energy.toFixed(2)} ₽</b>`),
+			hrWithSpacer,
+			nl('<b>Стоим. фил. (рынок/вес):</b> ' + `${w.toFixed(1)} г * ${(f ? f.avgCostPerGram : 0).toFixed(2)} ₽/г = <b>${mkW.toFixed(2)} ₽</b>`),
+			nl('<b>Стоим. фил. (реальн/вес):</b> ' + `${w.toFixed(1)} г * ${(f ? f.actualCostPerGram : 0).toFixed(2)} ₽/г = <b>${acW.toFixed(2)} ₽</b>`),
+			nl('<b>Стоим. фил. (рынок/длина):</b> ' + `${l.toFixed(2)} м * ${(f ? f.avgCostPerMeter : 0).toFixed(2)} ₽/м = <b>${mkL.toFixed(2)} ₽</b>`),
+			nl('<b>Стоим. фил. (реальн/длина):</b> ' + `${l.toFixed(2)} м * ${(f ? f.actualCostPerMeter : 0).toFixed(2)} ₽/м = <b>${acL.toFixed(2)} ₽</b>`),
+			hrWithSpacer,
+			nl('<b>Себест. изделия (рынок):</b> ' + `MAX(${mkW.toFixed(2)}, ${mkL.toFixed(2)}) + ${energy.toFixed(2)} = <b>${costMarket.toFixed(2)} ₽</b>`),
+			nl('<b>Себест. изделия (реальн):</b> ' + `MAX(${acW.toFixed(2)}, ${acL.toFixed(2)}) + ${energy.toFixed(2)} = <b>${costActual.toFixed(2)} ₽</b>`),
+			hrWithSpacer,
+			nl('<b>Себест. за 1 шт. (рынок):</b> ' + `${costMarket.toFixed(2)} ₽ / ${qty} = <b>${(costMarket/qty).toFixed(2)} ₽</b>`),
+			nl('<b>Себест. за 1 шт. (реальн):</b> ' + `${costActual.toFixed(2)} ₽ / ${qty} = <b>${(costActual/qty).toFixed(2)} ₽</b>`)
+		].join('');
     }
 
     if (tooltipEl) {
@@ -1987,8 +2052,12 @@ function clearProductForm() {
 	const defCb = document.getElementById('productDefective');
     const draftCb = document.getElementById('productIsDraft');
     
-    if(defCb) { defCb.disabled = false; defCb.removeAttribute('data-locked-by-system'); }
+	if(defCb) { defCb.disabled = false; defCb.removeAttribute('data-locked-by-system'); }
     if(draftCb) { draftCb.disabled = false; draftCb.removeAttribute('data-locked-by-system'); }
+    const draftTooltip = document.getElementById('productDraftTooltipText');
+    if (draftTooltip) { draftTooltip.textContent = ''; draftTooltip.classList.remove('draft-tooltip-active'); }
+    const draftTooltipWrap = document.getElementById('productDraftTooltipWrap');
+    if (draftTooltipWrap) draftTooltipWrap.style.display = '';
 
     // Очистка таблицы
     const childrenTbody = document.querySelector('#childrenTable tbody');
@@ -2091,6 +2160,28 @@ function onAllPartsCreatedSwitcherClick(value) {
     updateAllPartsCreatedButtonState();
 }
 
+function resetCompositeSectionUI() {
+    const timeTitle = document.getElementById('timeResourceSectionTitle');
+    if (timeTitle) timeTitle.textContent = 'Время и ресурс';
+    const weightWrap = document.getElementById('weightTooltipWrap');
+    const lengthWrap = document.getElementById('lengthTooltipWrap');
+    if (weightWrap) weightWrap.style.display = '';
+    if (lengthWrap) lengthWrap.style.display = '';
+    const costTitle = document.getElementById('costSectionTitle');
+    if (costTitle) costTitle.textContent = 'Стоимость';
+    const filamentWeightGr = document.getElementById('filamentCostByWeightGroup');
+    const filamentLengthGr = document.getElementById('filamentCostByLengthGroup');
+    if (filamentWeightGr) filamentWeightGr.style.display = '';
+    if (filamentLengthGr) filamentLengthGr.style.display = '';
+    const costRow2 = document.getElementById('costRow2');
+    const marketCostGr = document.getElementById('marketCostGroup');
+    const marketPerUnitGr = document.getElementById('marketPerUnitGroup');
+    if (costRow2 && marketCostGr && marketPerUnitGr) {
+        costRow2.appendChild(marketCostGr);
+        costRow2.appendChild(marketPerUnitGr);
+    }
+}
+
 function updateProductTypeUI() {
     const type = document.getElementById('productType').value;
     const groups = { 
@@ -2136,14 +2227,40 @@ function updateProductTypeUI() {
         updateChildrenTable();
         updateCompositeProductValues();
         updateAllPartsCreatedButtonState();
+        // Секция Время и ресурс — только для составного
+        const timeTitle = document.getElementById('timeResourceSectionTitle');
+        if (timeTitle) timeTitle.textContent = 'ВРЕМЯ И РЕСУРС (суммирование частей)';
+        const weightWrap = document.getElementById('weightTooltipWrap');
+        const lengthWrap = document.getElementById('lengthTooltipWrap');
+        if (weightWrap) weightWrap.style.display = 'none';
+        if (lengthWrap) lengthWrap.style.display = 'none';
+        // Секция Стоимость — только для составного
+        const costTitle = document.getElementById('costSectionTitle');
+        if (costTitle) costTitle.textContent = 'СТОИМОСТЬ (суммирование частей)';
+        const filamentWeightGr = document.getElementById('filamentCostByWeightGroup');
+        const filamentLengthGr = document.getElementById('filamentCostByLengthGroup');
+        if (filamentWeightGr) filamentWeightGr.style.display = 'none';
+        if (filamentLengthGr) filamentLengthGr.style.display = 'none';
+        const costRow1 = document.getElementById('costRow1');
+        const costRow2 = document.getElementById('costRow2');
+        const marketCostGr = document.getElementById('marketCostGroup');
+        const marketPerUnitGr = document.getElementById('marketPerUnitGroup');
+        if (costRow1 && costRow2 && marketCostGr && marketPerUnitGr) {
+            costRow1.appendChild(marketCostGr);
+            costRow1.appendChild(marketPerUnitGr);
+        }
     } else if (type === 'Часть составного') {
         groups.parent.classList.remove('hidden');
         groups.linkContainer.style.display = 'none';
         if(groups.fileSection) groups.fileSection.classList.add('hidden');
         inputs.forEach(id => { const el = document.getElementById(id); if(el) el.disabled = false; });
         updateParentSelect();
+        const btnGoto = document.getElementById('btnGotoComposite');
+        if (btnGoto) btnGoto.disabled = !document.getElementById('productParent')?.value;
+        resetCompositeSectionUI();
     } else {
         inputs.forEach(id => { const el = document.getElementById(id); if(el) el.disabled = false; });
+        resetCompositeSectionUI();
     }
     
     updateProductCosts();
@@ -2166,6 +2283,8 @@ function onParentProductChange() {
     const pid = document.getElementById('productParent').value;
     const parent = db.products.find(p => p.id == pid);
     if(parent) document.getElementById('productQuantity').value = parent.quantity;
+    const btn = document.getElementById('btnGotoComposite');
+    if (btn) btn.disabled = !pid;
 }
 
 // === ФУНКЦИЯ КОПИРОВАНИЯ ИЗДЕЛИЯ ===
@@ -2401,6 +2520,10 @@ function editProduct(id) {
     const p = db.products.find(x => x.id === productId);
     if (!p) { console.error('Продукт не найден:', id); return; }
 
+    if (p.type === 'Составное') {
+        recalculateAllProductCosts();
+    }
+
     document.getElementById('productSystemId').textContent = p.systemId || '-';
     document.getElementById('productModal').setAttribute('data-edit-id', id);
     document.getElementById('productModal').setAttribute('data-system-id', p.systemId);
@@ -2542,11 +2665,29 @@ function editProduct(id) {
         lockReason = 'Редактирование ограничено: есть списания.';
     }
 
-    // 2. Блокировка Черновика, если есть бракованные дети
-    if (hasDefectiveChild) {
-        draftCb.disabled = true; 
-        draftCb.setAttribute('data-locked-by-system', 'true');
-        if (!lockReason) lockReason = 'Статус "Черновик" недоступен: одна из частей изделия в браке.';
+    // 2. Блокировка Черновика, если есть бракованные дети (хинт — в tooltip при наведении). Не показывать хинт и скрыть блок, если само составное в браке
+    const draftTooltipWrap = document.getElementById('productDraftTooltipWrap');
+    if (p.defective && p.type === 'Составное') {
+        if (draftTooltipWrap) draftTooltipWrap.style.display = 'none';
+    } else {
+        if (draftTooltipWrap) draftTooltipWrap.style.display = '';
+        if (hasDefectiveChild) {
+            draftCb.disabled = true; 
+            draftCb.setAttribute('data-locked-by-system', 'true');
+            const draftTooltip = document.getElementById('productDraftTooltipText');
+            if (draftTooltip) { draftTooltip.textContent = 'Статус "Черновик" недоступен: одна из частей изделия в браке.'; draftTooltip.classList.add('draft-tooltip-active'); }
+        } else {
+            const draftTooltip = document.getElementById('productDraftTooltipText');
+            if (draftTooltip) {
+                if (p.type === 'Составное') {
+                    draftTooltip.textContent = 'Поставьте галочку «Черновик», чтобы рассчитать себестоимость без списания филамента со склада.';
+                    draftTooltip.classList.add('draft-tooltip-active');
+                } else {
+                    draftTooltip.textContent = '';
+                    draftTooltip.classList.remove('draft-tooltip-active');
+                }
+            }
+        }
     }
 
     // Стандартные блокировки
@@ -2683,7 +2824,7 @@ function validateProductForm() {
  * Сохранение изделия. Транзакция: 1) обновление филамента (usedLength/usedWeight), 2) transaction products.
  * При редактировании — возврат филамента от старого изделия; при добавлении — списание филамента.
  */
-async function saveProduct(andThenWriteOff = false) {
+async function saveProduct(andThenWriteOff = false, andThenEditProductId = null) {
     if (!validateProductForm()) return;
 
     const saveBtn = document.getElementById('saveProductBtn');
@@ -2879,6 +3020,9 @@ async function saveProduct(andThenWriteOff = false) {
             const productIdToPass = p.id;
             closeProductModal();
             setTimeout(() => openWriteoffModalForProduct(productIdToPass), 150); 
+        } else if (andThenEditProductId) {
+            closeProductModal();
+            setTimeout(() => editProduct(andThenEditProductId), 150);
         } else {
             closeProductModal();
         }
@@ -3059,7 +3203,7 @@ function buildProductRow(p, isChild) {
     const iconEmoji = p.allPartsCreated ? '📦' : '📂';
     const icon = p.type === 'Составное'
         ? `<button type="button" class="btn-icon-all-parts" data-product-id="${p.id}" title="${p.allPartsCreated ? 'Все части созданы' : 'Сборка в работе'}" ${iconBtnDisabled ? 'disabled' : ''} onclick="toggleAllPartsCreated(${p.id})">${iconEmoji}</button>`
-        : `<span class="product-icon-static">${p.type === 'Часть составного' ? '↳' : '✓'}</span>`;
+        : `<span class="product-icon-static ${p.defective && p.type === 'Часть составного' ? 'icon-defective' : ''}">${p.type === 'Часть составного' ? (p.defective ? '❌' : '↳') : '✓'}</span>`;
     
     let fil = '—';
     if (p.filament && p.type !== 'Составное') {
@@ -3102,12 +3246,12 @@ function buildProductRow(p, isChild) {
 
                     const style = w.type === 'Подготовлено к продаже' ? 'color: #94a3b8;' : '';
                     const safeId = escapeHtml(String(w.systemId || ''));
-                    return `<a data-writeoff-id="${safeId}" onclick="editWriteoff(this.getAttribute('data-writeoff-id'))" style="${style}">${linkText}</a>`;
+                    return `<div class="writeoff-tooltip-row"><a data-writeoff-id="${safeId}" onclick="editWriteoff(this.getAttribute('data-writeoff-id'))" style="${style}">${linkText}</a></div>`;
                 }).join('');
 
             statusHtml = `<div class="tooltip-container">
                             <span class="badge ${statusClass}" style="cursor:pointer;">${escapeHtml(p.status)}</span>
-                            <span class="tooltip-text tooltip-top-right" style="text-align: left; width: auto; white-space: nowrap;">${linksHtml}</span>
+                            <span class="tooltip-text tooltip-top-right tooltip-writeoffs" style="text-align: left; width: auto; white-space: normal;">${linksHtml}</span>
                          </div>`;
         } else {
             statusHtml = `<span class="badge ${statusClass}">${escapeHtml(p.status)}</span>`;
@@ -3172,13 +3316,18 @@ function updateChildrenTable() {
     document.querySelector('#childrenTable tbody').innerHTML = kids.map(k => {
         const colorHex = k.filament && k.filament.color ? k.filament.color.hex : '#eee';
         const colorName = k.filament && k.filament.color ? escapeHtml(k.filament.color.name) : 'Нет цвета';
-        
+        const iconChar = k.defective ? '❌' : '↳';
+        const iconClass = k.defective ? 'children-part-icon icon-defective' : 'children-part-icon';
+        const nameHtml = `<span class="${iconClass}">${iconChar}</span><a href="#" class="child-part-link" onclick="event.preventDefault(); navigateToPart(${k.id});" title="${escapeHtml(k.name)}">${escapeHtml(k.name)}</a>`;
+        const energyCost = k.energyCost != null ? k.energyCost : (k.printer && k.printer.power && k.date
+            ? ((k.printTime || 0) / 60) * k.printer.power * getCostPerKwForDate(k.date) : 0);
         return `<tr>
-            <td>${k.defective?'❌ ':''}${escapeHtml(k.name)}</td>
+            <td class="children-name-cell">${nameHtml}</td>
             <td><span class="color-swatch" style="background:${colorHex}" title="${colorName}"></span></td>
             <td>${k.quantity}</td>
             <td>${(k.weight || 0).toFixed(1)}</td>
             <td>${(k.length || 0).toFixed(2)}</td>
+            <td>${energyCost.toFixed(2)}</td>
             <td>${(k.costMarketPrice || 0).toFixed(2)}</td>
             <td>${(k.costActualPrice || 0).toFixed(2)}</td>
         </tr>`;
@@ -5644,6 +5793,10 @@ function setupEventListeners() {
     // Modal
     document.getElementById('productType')?.addEventListener('change', updateProductTypeUI);
     document.getElementById('productParent')?.addEventListener('change', onParentProductChange);
+    document.getElementById('btnGotoComposite')?.addEventListener('click', () => {
+        const parentId = document.getElementById('productParent')?.value;
+        if (parentId) navigateToComposite(parseInt(parentId));
+    });
     document.getElementById('productDefective')?.addEventListener('change', updateProductAvailability);
     document.getElementById('productFilament')?.addEventListener('change', () => {
         updateProductColorDisplay();
@@ -5756,6 +5909,15 @@ function setupEventListeners() {
                     // Копируем текст в глобальный тултип
                     globalTooltip.innerHTML = textEl.innerHTML;
                     globalTooltip.style.display = 'block';
+                    if (textEl.id === 'costsDetailTooltip') {
+                        globalTooltip.style.width = '500px';
+                        globalTooltip.style.minWidth = '500px';
+                        globalTooltip.style.maxWidth = '500px';
+                    } else {
+                        globalTooltip.style.width = '';
+                        globalTooltip.style.minWidth = '';
+                        globalTooltip.style.maxWidth = '350px';
+                    }
                 }
             }
         });
@@ -5796,6 +5958,9 @@ function setupEventListeners() {
             const target = e.target.closest('.tooltip-container');
             if (target && globalTooltip) {
                 globalTooltip.style.display = 'none';
+                globalTooltip.style.width = '';
+                globalTooltip.style.minWidth = '';
+                globalTooltip.style.maxWidth = '';
             }
         });
     
