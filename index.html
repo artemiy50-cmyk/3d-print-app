@@ -860,9 +860,12 @@
                         <div class="form-group">
                             <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2px;">
                                 <label style="margin:0;">Статус наличия:</label>
-                                <label class="checkbox-label" id="productDraftLabel" style="font-size: 12px; font-weight: normal; color: #64748b; margin: 0;">
-                                    <input type="checkbox" id="productIsDraft" onchange="updateProductAvailability(); updateProductTypeUI();"> Черновик
-                                </label>
+                                <span class="tooltip-container" id="productDraftTooltipWrap">
+                                    <label class="checkbox-label" id="productDraftLabel" style="font-size: 12px; font-weight: normal; color: #64748b; margin: 0;">
+                                        <input type="checkbox" id="productIsDraft" onchange="updateProductAvailability(); updateProductTypeUI();"> Черновик
+                                    </label>
+                                    <span class="tooltip-text tooltip-top-left" id="productDraftTooltipText" style="white-space: normal; max-width: 260px;"></span>
+                                </span>
                             </div>
                             <div class="calc-field" id="productAvailabilityField">В наличии полностью</div>
                         </div>
@@ -875,7 +878,7 @@
                             </div>
                         </div>
                         <div class="form-group" style="grid-column: span 2;"><label id="labelProductName">Наименование изделия:</label><input type="text" id="productName" placeholder="Кубик для тестирования"></div>
-                        <div id="productParentGroup" class="form-group hidden" style="grid-column: span 2;"><label>Составное изделие, для которого изготовлена данная часть изделия:</label><select id="productParent"></select></div>
+                        <div id="productParentGroup" class="form-group hidden" style="grid-column: span 2;"><label>Составное изделие, для которого изготовлена данная часть изделия:</label><div class="parent-select-row"><select id="productParent" class="parent-select-narrow"></select><button type="button" class="btn-secondary btn-small btn-goto-composite" id="btnGotoComposite" title="Перейти к составному изделию">Перейти к составному</button></div></div>
                         <div class="form-group" id="productLinkFieldContainer" style="grid-column: span 2;"><label for="productLink">Ссылка на модель:</label><input type="text" id="productLink" placeholder="https://"></div>
                     </div>
 
@@ -906,34 +909,36 @@
                     </div>
                 </div>
 
-               <div class="form-section">
-                    <div class="form-section-title">Время и ресурс</div>
+               <div id="timeResourceSection" class="form-section">
+                    <div id="timeResourceSectionTitle" class="form-section-title">Время и ресурс</div>
                     <div class="form-row-3">
                         <div class="form-group"><label class="label-with-tooltip">Длительность печати (ЧЧ:MM):<span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text" id="energyCostTooltip">Стоимость 1 кВт: -</span></span></label><div style="display:flex;gap:8px;"><div style="flex:1;"><input type="number" id="productPrintTimeHours" min="0" placeholder="ч"></div><div style="flex:1;"><input type="number" id="productPrintTimeMinutes" min="0" max="59" placeholder="м"></div></div></div>
-                        <div class="form-group"><label class="label-with-tooltip">Программный вес фил. (г):<span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text" id="costPerGramTooltip">Себест. за грамм рынок/реальная: - / -</span></span></label><input type="number" id="productWeight" step="0.1"></div>
-						<div class="form-group"><label class="label-with-tooltip">Программная длина фил. (м):<span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text tooltip-top-left" id="costPerMeterTooltip">Себест. за метр рынок/реальная: - / -</span></span></label><input type="number" id="productLength" step="0.1"></div>
+                        <div class="form-group"><label class="label-with-tooltip">Программный вес фил. (г):<span id="weightTooltipWrap" class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text" id="costPerGramTooltip">Себест. за грамм рынок/реальная: - / -</span></span></label><input type="number" id="productWeight" step="0.1"></div>
+						<div class="form-group"><label class="label-with-tooltip">Программная длина фил. (м):<span id="lengthTooltipWrap" class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text tooltip-top-left" id="costPerMeterTooltip">Себест. за метр рынок/реальная: - / -</span></span></label><input type="number" id="productLength" step="0.1"></div>
                     </div>
                 </div>
 
-                <div class="form-section">
+                <div id="costSection" class="form-section">
 					<div class="form-section-title" style="display: flex; justify-content: space-between; align-items: center;">
-						<div>Стоимость<span id="compositeCostNote" class="hidden" style="font-weight: 400; color: var(--color-text-light); margin-left: 8px;">(суммарные значения по всем частям)</span></div>
-						<div class="tooltip-container"><span style="font-size: 11px; font-weight: 400; text-transform: none; cursor: help; border-bottom: 1px dashed var(--color-text-light);">Подробный расчет</span><span class="tooltip-text tooltip-top-left" id="costsDetailTooltip" style="width: 450px; text-align: left; line-height: 1.4;">Здесь будут формулы...</span></div>
+						<div id="costSectionTitle">Стоимость<span id="compositeCostNote" class="hidden" style="font-weight: 400; color: var(--color-text-light); margin-left: 8px;">(суммарные значения по всем частям)</span></div>
+						<div class="tooltip-container"><span style="font-size: 11px; font-weight: 400; text-transform: none; cursor: pointer; border-bottom: 1px dashed var(--color-text-light);">Подробный расчет</span><span class="tooltip-text tooltip-top-left" id="costsDetailTooltip" style="width: 500px; text-align: left; line-height: 1.4;">Здесь будут формулы...</span></div>
 					</div>
-                    <div class="form-row-3">
-                        <div class="form-group"><label>Стоим. энергии на изделие</label><div class="calc-field" id="productEnergyCostCalc" style="text-align:left;">0.00</div></div>
-                        <div class="form-group"><label class="label-with-tooltip">Рынок. Стоим. фил. по весу<span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text" id="filamentCostByWeightTooltip">С реальной стоимостью: -</span></span></label><div class="calc-field" id="productFilamentCostByWeightCalc" style="text-align:left;">0.00</div></div>
-                        <div class="form-group"><label class="label-with-tooltip">Рынок. Стоим. фил. по длине<span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text tooltip-top-left" id="filamentCostByLengthTooltip">С реальной стоимостью: -</span></span></label><div class="calc-field" id="productFilamentCostByLengthCalc" style="text-align:left;">0.00</div></div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group"><label class="label-with-tooltip">Рынок. себест. изделия<span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text" id="productCostActualTooltip">С реальной стоимостью: -</span></span></label><div class="calc-field" id="productCostMarketCalc" style="text-align:left;">0.00</div></div>
-                        <div class="form-group"><label class="label-with-tooltip">Рынок. себест. за 1 шт.<span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text" id="productCostPerUnitActualTooltip">С реальной стоимостью: -</span></span></label><div class="calc-field" id="productCostMarketPerUnitCalc" style="text-align:left;">0.00</div></div>
+                    <div id="costFieldsWrapper" class="cost-fields-wrapper">
+                        <div id="costRow1" class="form-row-3 cost-row1">
+                            <div class="form-group"><label>Стоим. энергии на изделие</label><div class="calc-field" id="productEnergyCostCalc" style="text-align:left;">0.00</div></div>
+                            <div id="filamentCostByWeightGroup" class="form-group"><label class="label-with-tooltip">Рынок. Стоим. фил. по весу<span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text" id="filamentCostByWeightTooltip">С реальной стоимостью: -</span></span></label><div class="calc-field" id="productFilamentCostByWeightCalc" style="text-align:left;">0.00</div></div>
+                            <div id="filamentCostByLengthGroup" class="form-group"><label class="label-with-tooltip">Рынок. Стоим. фил. по длине<span class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text tooltip-top-left" id="filamentCostByLengthTooltip">С реальной стоимостью: -</span></span></label><div class="calc-field" id="productFilamentCostByLengthCalc" style="text-align:left;">0.00</div></div>
+                        </div>
+                        <div id="costRow2" class="form-row cost-row2">
+                            <div id="marketCostGroup" class="form-group"><label class="label-with-tooltip">Рынок. себест. изделия<span id="marketCostTooltipWrap" class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text" id="productCostActualTooltip">С реальной стоимостью: -</span></span></label><div class="calc-field" id="productCostMarketCalc" style="text-align:left;">0.00</div></div>
+                            <div id="marketPerUnitGroup" class="form-group"><label class="label-with-tooltip">Рынок. себест. за 1 шт.<span id="marketPerUnitTooltipWrap" class="tooltip-container"><span class="tooltip-icon">ℹ</span><span class="tooltip-text" id="productCostPerUnitActualTooltip">С реальной стоимостью: -</span></span></label><div class="calc-field" id="productCostMarketPerUnitCalc" style="text-align:left;">0.00</div></div>
+                        </div>
                     </div>
                 </div>
 
                 <div class="form-section hidden" id="childrenTableGroup">
                     <div class="form-section-title">Части составного изделия</div>
-                    <div class="table-container"><table id="childrenTable"><thead><tr><th>Наименование</th><th>Цвет</th><th>Кол-во</th><th>Вес (г)</th><th>Длина (м)</th><th>Рын. себест.</th><th>Себест.</th></tr></thead><tbody></tbody></table></div>
+                    <div class="table-container"><table id="childrenTable"><thead><tr><th>Наименование</th><th>Цвет</th><th>Кол-во</th><th>Вес (г)</th><th>Длина (м)</th><th>Стоим. энергии</th><th>Рын. себест.</th><th>Себест.</th></tr></thead><tbody></tbody></table></div>
                 </div>
 
                 <div class="form-section"><div class="form-group"><label>Примечание:</label><textarea id="productNote" placeholder="Дополнительная информация..."></textarea></div></div>

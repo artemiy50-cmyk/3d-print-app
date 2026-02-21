@@ -339,6 +339,9 @@
         .product-name-cell { display: flex; align-items: center; }
         .product-icon-wrapper { width: 24px; display: flex; justify-content: center; align-items: center; margin-right: 4px; flex-shrink: 0; }
         .product-icon-static { font-size: 14px; line-height: 1; font-weight: 500; color: var(--color-text); }
+        .product-icon-static.icon-defective, #childrenTable .children-part-icon.icon-defective { font-size: 11px; }
+        .child-part-link { color: var(--color-primary); text-decoration: underline; cursor: pointer; }
+        .child-part-link:hover { text-decoration: none; }
         .product-child-indent { padding-left: 24px; }
 
         .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; text-align: center; white-space: nowrap; }
@@ -383,9 +386,25 @@
         .tooltip-text a:hover {
             background-color: rgba(255, 255, 255, 0.2);
         }
+        .tooltip-text.tooltip-writeoffs .writeoff-tooltip-row { display: block; margin-bottom: 8px; }
+        .tooltip-text.tooltip-writeoffs .writeoff-tooltip-row:last-child { margin-bottom: 0; }
  
         .color-swatch { display: inline-block; width: 20px; height: 20px; border-radius: 4px; border: 1px solid var(--color-border); vertical-align: middle; margin-right: 8px; }
         .form-group { margin-bottom: var(--spacing); }
+        .parent-select-row { display: flex; gap: 8px; align-items: stretch; width: 100%; }
+        .parent-select-row .parent-select-narrow { flex: 1; min-width: 0; background: #dbeafe; border-color: #93c5fd; }
+        .parent-select-row .btn-goto-composite { flex-shrink: 0; align-self: stretch; padding: 10px 16px; font-size: 13px; background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; border-radius: var(--radius); white-space: nowrap; }
+        .parent-select-row .btn-goto-composite:hover:not(:disabled) { background: #bfdbfe; color: #1e3a8a; }
+        /* Таблица частей составного изделия */
+        #childrenTable .children-part-icon { display: inline-block; width: 20px; margin-right: 4px; font-size: 14px; font-weight: 500; vertical-align: middle; }
+        #childrenTable td:first-child { max-width: none; }
+        #childrenTable .children-name-cell { padding-left: 12px !important; min-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+        #childrenTable th:first-child { min-width: 220px; }
+        #childrenTable th { text-align: left; padding: 8px 6px !important; }
+        #childrenTable td { text-align: left; padding: 8px 6px !important; }
+        #childrenTable th:first-child, #childrenTable td:first-child { padding-left: 12px !important; }
+        #childrenTable th:last-child, #childrenTable td:last-child { padding-right: 12px !important; }
+        #childrenTable td:nth-child(7) { text-align: left !important; }
         .form-group label { display: block; margin-bottom: 6px; font-weight: 500; font-size: 12px; color: var(--color-text); }
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing); }
         .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--spacing); }
@@ -409,6 +428,21 @@
         
         /* Left aligned tooltip */
         .tooltip-text.tooltip-left::after { top: 50%; left: 100%; margin-left: 0; margin-top: -5px; border-color: transparent transparent transparent var(--color-primary); }
+
+        /* Подробный расчёт — фиксированная ширина, переопределяет базовый .tooltip-text (220px) */
+        #costsDetailTooltip { width: 500px !important; min-width: 500px; max-width: 500px; }
+        .cost-detail-line { white-space: nowrap; }
+        .cost-detail-line-wrap { white-space: normal !important; word-break: break-word; }
+        .cost-detail-hr-spacer { height: 8px; }
+
+        /* Карточка изделия: запрет горизонтального скролла модалки, скролл только у таблицы частей */
+        #productModal .modal-body { overflow-x: hidden; }
+        #productModal #childrenTableGroup .table-container { min-width: 0; }
+
+        /* Хинт Черновика — показывать при draft-tooltip-active (предупреждение или подсказка) */
+        #productDraftTooltipWrap #productDraftTooltipText { visibility: hidden; opacity: 0; }
+        #productDraftTooltipWrap #productDraftTooltipText:not(.draft-tooltip-active) { display: none !important; }
+        #productDraftTooltipWrap:hover #productDraftTooltipText.draft-tooltip-active { display: block !important; visibility: visible; opacity: 1; }
 
         .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; overflow: hidden; }
         .modal.active { display: flex; }
