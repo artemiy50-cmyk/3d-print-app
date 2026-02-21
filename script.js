@@ -1,22 +1,30 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
 // Номер версии ведём в формате xx.xx.xx, например 7.7.7
 const APP_VERSION_NUMBER = '5.8.1';
-console.log('2026-02-21 00-42-15');
+console.log('2026-02-21 18-15-55');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
 
 // === CHANGELOG
 const CHANGELOG_ENTRIES = [
-    { version: '5.8.3', 
+    { 
+        version: '5.8.4', 
+        dateDisplay: '21.02.2026', 
+        description: 'Добавлен свитчер переключения состояния составного изделия: Сборка в работе/Все части собраны. Состояние можно переключить из табличной части кликом на пикограмму' },
+
+    { 
+        version: '5.8.3', 
         dateDisplay: '20.02.2026', 
         description: 'Улучшение функций подсчета расхода филамента для повышение точности расчета' 
     },
-    { version: '5.8.2', 
+    { 
+        version: '5.8.2', 
         dateDisplay: '20.02.2026', 
         description: 'Триальный период увеличен до 90 дней' 
     },  
-    { version: '5.8.1', 
+    { 
+        version: '5.8.1', 
         dateDisplay: '18.02.2026', 
         description: 'Обновлена логика формирования описания версий.' 
     },
@@ -1734,7 +1742,7 @@ function captureProductSnapshot() {
         defective: document.getElementById('productDefective').checked,
         filament: document.getElementById('productFilament').value,
         parentId: type === 'Часть составного' ? document.getElementById('productParent').value : '',
-        allPartsCreated: type === 'Составное' ? document.getElementById('productAllPartsCreated').checked : false,
+        allPartsCreated: type === 'Составное' ? getProductAllPartsCreatedValue() : false,
     };
     return JSON.stringify(snapshot);
 }
@@ -1967,8 +1975,14 @@ function clearProductForm() {
     setCheck('productDefective', false);
 	setCheck('productIsDraft', false); 
     
-    if(document.getElementById('productAllPartsCreated')) 
-        document.getElementById('productAllPartsCreated').checked = false;
+    const btnInProgress = document.getElementById('btnAllPartsInProgress');
+    const btnCreated = document.getElementById('btnAllPartsCreated');
+    if (btnInProgress && btnCreated) {
+        btnInProgress.classList.add('btn-switcher-active');
+        btnCreated.classList.remove('btn-switcher-active');
+        btnInProgress.disabled = false;
+        btnCreated.disabled = false;
+    }
 	
 	const defCb = document.getElementById('productDefective');
     const draftCb = document.getElementById('productIsDraft');
@@ -2025,6 +2039,58 @@ function clearProductForm() {
     updateProductCosts();
 }
 
+function getProductAllPartsCreatedValue() {
+    const type = document.getElementById('productType').value;
+    if (type !== 'Составное') return false;
+    const eid = document.getElementById('productModal').getAttribute('data-edit-id');
+    const product = eid ? db.products.find(p => p.id == parseInt(eid)) : null;
+    if (product) return product.allPartsCreated || false;
+    const btnCreated = document.getElementById('btnAllPartsCreated');
+    return btnCreated ? btnCreated.classList.contains('btn-switcher-active') : false;
+}
+
+function updateAllPartsCreatedButtonState() {
+    const btnInProgress = document.getElementById('btnAllPartsInProgress');
+    const btnCreated = document.getElementById('btnAllPartsCreated');
+    const container = document.getElementById('productAllPartsCreatedContainer');
+    if (!btnInProgress || !btnCreated || !container || container.style.display === 'none') return;
+
+    const type = document.getElementById('productType').value;
+    if (type !== 'Составное') return;
+
+    const eid = document.getElementById('productModal').getAttribute('data-edit-id');
+    const product = eid ? db.products.find(p => p.id == parseInt(eid)) : null;
+    const isPressed = product ? (product.allPartsCreated || false) : btnCreated.classList.contains('btn-switcher-active');
+
+    const productId = product ? product.id : null;
+    const hasRealWriteoffs = productId && (db.writeoffs || []).some(w =>
+        w.productId === productId && w.type !== 'Подготовлено к продаже'
+    );
+    const isDisabled = !!hasRealWriteoffs;
+    btnInProgress.disabled = isDisabled;
+    btnCreated.disabled = isDisabled;
+
+    btnInProgress.classList.toggle('btn-switcher-active', !isPressed);
+    btnCreated.classList.toggle('btn-switcher-active', isPressed);
+}
+
+function onAllPartsCreatedSwitcherClick(value) {
+    const type = document.getElementById('productType').value;
+    if (type !== 'Составное') return;
+    const btnInProgress = document.getElementById('btnAllPartsInProgress');
+    const btnCreated = document.getElementById('btnAllPartsCreated');
+    if (!btnInProgress || !btnCreated || btnInProgress.disabled) return;
+
+    const newVal = value === 'true';
+    const eid = document.getElementById('productModal').getAttribute('data-edit-id');
+    const product = eid ? db.products.find(p => p.id == parseInt(eid)) : null;
+    if (product) {
+        product.allPartsCreated = newVal;
+    }
+    updateProductCosts();
+    updateAllPartsCreatedButtonState();
+}
+
 function updateProductTypeUI() {
     const type = document.getElementById('productType').value;
     const groups = { 
@@ -2069,6 +2135,7 @@ function updateProductTypeUI() {
         });
         updateChildrenTable();
         updateCompositeProductValues();
+        updateAllPartsCreatedButtonState();
     } else if (type === 'Часть составного') {
         groups.parent.classList.remove('hidden');
         groups.linkContainer.style.display = 'none';
@@ -2419,8 +2486,7 @@ function editProduct(id) {
     }
 
     if (p.type === 'Составное') {
-        const allPartsEl = document.getElementById('productAllPartsCreated');
-        if(allPartsEl) allPartsEl.checked = p.allPartsCreated || false;
+        updateAllPartsCreatedButtonState();
     }
 
     updateProductCosts();
@@ -2700,7 +2766,7 @@ async function saveProduct(andThenWriteOff = false) {
     p.availability = p.status;
 
     if (type === 'Часть составного') p.parentId = parseInt(document.getElementById('productParent').value); 
-    if (type === 'Составное') p.allPartsCreated = document.getElementById('productAllPartsCreated').checked;
+    if (type === 'Составное') p.allPartsCreated = getProductAllPartsCreatedValue();
     
     let filament = null; 
     if (type !== 'Составное') { 
@@ -2955,6 +3021,26 @@ async function deleteProduct(id) {
 
 
 
+async function toggleAllPartsCreated(productId) {
+    const p = db.products.find(x => x.id === productId);
+    if (!p || p.type !== 'Составное') return;
+    const hasRealWriteoffs = (db.writeoffs || []).some(w => w.productId === productId && w.type !== 'Подготовлено к продаже');
+    if (hasRealWriteoffs) return;
+    if (!dbRef) return;
+
+    p.allPartsCreated = !(p.allPartsCreated || false);
+    try {
+        await dbRef.update({ products: db.products });
+        updateProductsTable();
+        updateDashboard();
+        const eid = document.getElementById('productModal')?.getAttribute('data-edit-id');
+        if (eid && parseInt(eid) === productId) updateAllPartsCreatedButtonState();
+    } catch (e) {
+        console.error('Ошибка при переключении allPartsCreated:', e);
+        showToast('Не удалось обновить', 'error');
+    }
+}
+
 function buildProductRow(p, isChild) {
     let weight = p.weight, length = p.length, printTime = p.printTime;
     if (p.type === 'Составное') {
@@ -2968,9 +3054,12 @@ function buildProductRow(p, isChild) {
     const minutes = printTime % 60;
     const formattedTime = `${hours}:${String(minutes).padStart(2, '0')}`;
 
-    const icon = p.type === 'Составное' 
-        ? (p.allPartsCreated ? '📦' : '🥡') 
-        : (p.type === 'Часть составного' ? '↳' : '✓');
+    const hasRealWriteoffs = (db.writeoffs || []).some(w => w.productId === p.id && w.type !== 'Подготовлено к продаже');
+    const iconBtnDisabled = hasRealWriteoffs;
+    const iconEmoji = p.allPartsCreated ? '📦' : '📂';
+    const icon = p.type === 'Составное'
+        ? `<button type="button" class="btn-icon-all-parts" data-product-id="${p.id}" title="${p.allPartsCreated ? 'Все части созданы' : 'Сборка в работе'}" ${iconBtnDisabled ? 'disabled' : ''} onclick="toggleAllPartsCreated(${p.id})">${iconEmoji}</button>`
+        : `<span class="product-icon-static">${p.type === 'Часть составного' ? '↳' : '✓'}</span>`;
     
     let fil = '—';
     if (p.filament && p.type !== 'Составное') {
@@ -3039,8 +3128,8 @@ function buildProductRow(p, isChild) {
     const nameEvents = `onmouseenter="showProductImagePreview(this, ${p.id})" onmousemove="moveProductImagePreview(event)" onmouseleave="hideProductImagePreview(this)"`;
 
     let nameHtml = isChild 
-        ? `<div class="product-name-cell product-child-indent"><div class="product-icon-wrapper"><strong>${icon}</strong></div><span ${nameEvents} style="cursor:default">${escapeHtml(p.name)}</span>${note}</div>`
-        : `<div class="product-name-cell"><div class="product-icon-wrapper"><strong>${icon}</strong></div><span ${nameEvents} style="cursor:default"><strong>${escapeHtml(p.name)}</strong></span>${note}</div>`;
+        ? `<div class="product-name-cell product-child-indent"><div class="product-icon-wrapper">${icon}</div><span ${nameEvents} style="cursor:default">${escapeHtml(p.name)}</span>${note}</div>`
+        : `<div class="product-name-cell"><div class="product-icon-wrapper">${icon}</div><span ${nameEvents} style="cursor:default"><strong>${escapeHtml(p.name)}</strong></span>${note}</div>`;
 
     let addPartButtonHtml = '';
 	if (p.type === 'Составное') {
@@ -3253,8 +3342,19 @@ function updateProductAvailability() {
 
     // Авто-активация признака сборки для составного при браке
     if (type === 'Составное' && defCb.checked) {
-        const allPartsCb = document.getElementById('productAllPartsCreated');
-        if(allPartsCb) allPartsCb.checked = true;
+        const eid = document.getElementById('productModal').getAttribute('data-edit-id');
+        const product = eid ? db.products.find(p => p.id == parseInt(eid)) : null;
+        if (product) {
+            product.allPartsCreated = true;
+        } else {
+            const btnInProgress = document.getElementById('btnAllPartsInProgress');
+            const btnCreated = document.getElementById('btnAllPartsCreated');
+            if (btnInProgress && btnCreated) {
+                btnInProgress.classList.remove('btn-switcher-active');
+                btnCreated.classList.add('btn-switcher-active');
+            }
+        }
+        updateAllPartsCreatedButtonState();
     }
 
     let statusText = 'В наличии полностью'; 
@@ -5549,10 +5649,12 @@ function setupEventListeners() {
         updateProductColorDisplay();
         updateProductCosts();
     });
-    ['productQuantity', 'productPrintTimeHours', 'productPrintTimeMinutes', 'productWeight', 'productLength', 'productAllPartsCreated'].forEach(id => {
+    ['productQuantity', 'productPrintTimeHours', 'productPrintTimeMinutes', 'productWeight', 'productLength'].forEach(id => {
         const el = document.getElementById(id);
         if(el) el.addEventListener('input', updateProductCosts);
     });
+    document.getElementById('btnAllPartsInProgress')?.addEventListener('click', () => onAllPartsCreatedSwitcherClick('false'));
+    document.getElementById('btnAllPartsCreated')?.addEventListener('click', () => onAllPartsCreatedSwitcherClick('true'));
 
     // --- WRITEOFFS ---
     document.getElementById('addWriteoffBtn')?.addEventListener('click', () => openWriteoffModal());
