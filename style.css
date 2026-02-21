@@ -237,6 +237,24 @@
         .btn-secondary { background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border); }
         .btn-secondary:hover { background: var(--color-bg); }
         .btn-small { padding: 6px 12px; font-size: 13px; }
+
+        .btn-all-parts-switcher { display: flex; border-radius: 999px; overflow: hidden; border: 1px solid var(--color-border); }
+        .btn-switcher-option { padding: 6px 14px; font-size: 12px; font-weight: 500; cursor: pointer; transition: background 0.2s, color 0.2s; border: none; background: #e2e8f0; color: var(--color-text); border-radius: 0; }
+        .btn-switcher-option:first-child { border-right: 1px solid var(--color-border); border-radius: 999px 0 0 999px; }
+        .btn-switcher-option:last-child { border-radius: 0 999px 999px 0; }
+        .btn-switcher-option:hover:not(:disabled) { background: #cbd5e1; }
+        .btn-switcher-option.btn-switcher-active { background: var(--color-success); color: white; }
+        .btn-switcher-option.btn-switcher-active:hover:not(:disabled) { background: #166534; }
+        .btn-switcher-option#btnAllPartsInProgress.btn-switcher-active { background: #9A7B4F; color: white; }
+        .btn-switcher-option#btnAllPartsInProgress.btn-switcher-active:hover:not(:disabled) { background: #8B6B3F; }
+        .btn-switcher-option:disabled { cursor: not-allowed; }
+        .btn-switcher-option.btn-switcher-active:disabled { background: rgba(21, 128, 61, 0.72); color: rgba(255,255,255,0.98); }
+        .btn-switcher-option#btnAllPartsInProgress.btn-switcher-active:disabled { background: rgba(154, 123, 79, 0.82); color: rgba(255,255,255,0.96); }
+        .btn-switcher-option:not(.btn-switcher-active):disabled { background: #cfd3d7; color: #5c6470; }
+
+        .btn-icon-all-parts { background: none; border: none; padding: 0; font-size: 18px; cursor: pointer; line-height: 1; opacity: 1; }
+        .btn-icon-all-parts:hover:not(:disabled) { opacity: 0.8; }
+        .btn-icon-all-parts:disabled { cursor: not-allowed; opacity: 1; filter: contrast(1.2) saturate(1.15); }
         .btn-danger { background: var(--color-danger); color: white; }
         .btn-danger:hover { background: #b91c1c; }
 
@@ -317,8 +335,10 @@
         tbody tr:hover { background: rgba(30, 64, 175, 0.02); }
         
         tr.product-child-row { background-color: rgba(0,0,0,0.02); }
+        #productsTable th.th-name-align { padding-left: 40px; } /* Выравнивание по левому краю названий (12+24+4) */
         .product-name-cell { display: flex; align-items: center; }
-        .product-icon-wrapper { width: 24px; display: flex; justify-content: center; margin-right: 4px; flex-shrink: 0; }
+        .product-icon-wrapper { width: 24px; display: flex; justify-content: center; align-items: center; margin-right: 4px; flex-shrink: 0; }
+        .product-icon-static { font-size: 14px; line-height: 1; font-weight: 500; color: var(--color-text); }
         .product-child-indent { padding-left: 24px; }
 
         .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; text-align: center; white-space: nowrap; }
@@ -940,6 +960,10 @@
 			align-items: flex-end; /* Выравнивание элементов шапки по нижней линии */
 			position: relative; /* Для позиционирования ошибки */
 		}
+
+		.modal-header-left { flex: 1; display: flex; align-items: flex-end; }
+		.modal-header-center { flex: 0 0 auto; display: flex; justify-content: center; align-items: flex-end; }
+		.header-right-elements { flex: 1; display: flex; justify-content: flex-end; align-items: flex-end; gap: 16px; }
 		
         .modal-header-title {
             font-size: 20px;
@@ -947,12 +971,6 @@
             line-height: 1; /* Чтобы убрать лишние отступы шрифта */
             margin: 0;
         }
-	
-		.header-right-elements {
-			display: flex;
-			align-items: flex-end; /* Выравнивание ID и чекбокса по нижнему краю (п.1) */
-			gap: 16px;
-		}
 
 		/* Блок с ID */
 		.system-id-block {
@@ -1547,6 +1565,12 @@ td:nth-last-child(2) {
     padding: 0 15px; /* Добавляем воздух с обеих сторон */
     min-width: 80px;
 }
+
+/* --- Отступы колонки Дата (как в Отчётах: padding-left 12px) --- */
+#writeoffTable th:first-child,
+#writeoffTable td:first-child { padding-left: 12px; }
+#serviceTable th:first-child,
+#serviceTable td:first-child { padding-left: 12px; }
 
 /* --- Фикс для таблицы Списаний --- */
 /* Возвращаем примечанию выравнивание влево (перебиваем глобальное центрирование предпоследней колонки) */
