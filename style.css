@@ -1299,7 +1299,42 @@
             border: 1px solid #cbd5e1 !important; 
         }
 		
-		/* --- Writeoff Status Select Styling --- */
+		/* --- Writeoff Type Switcher --- */
+        .writeoff-type-switcher {
+            display: flex;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            height: 42px;
+        }
+        .writeoff-type-option {
+            flex: 1;
+            min-width: 0;
+            padding: 8px 6px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+            border: none;
+            background: #e2e8f0;
+            color: var(--color-text);
+            border-left: 1px solid #cbd5e1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .writeoff-type-option:first-child { border-left: none; border-radius: var(--radius) 0 0 var(--radius); }
+        .writeoff-type-option:nth-child(2), .writeoff-type-option:nth-child(3) { border-radius: 0; }
+        .writeoff-type-option:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+        .writeoff-type-option:hover { background: #cbd5e1; }
+        .writeoff-type-option.writeoff-type-active { color: white; font-weight: 700; }
+        .writeoff-type-option[data-value="Продажа"].writeoff-type-active { background: var(--color-success); }
+        .writeoff-type-option[data-value="Подготовлено к продаже"].writeoff-type-active { background: #475569; }
+        .writeoff-type-option[data-value="Использовано"].writeoff-type-active { background: var(--color-purple); }
+        .writeoff-type-option[data-value="Брак"].writeoff-type-active { background: var(--color-danger); }
+        .writeoff-type-option.writeoff-type-active:hover { filter: brightness(1.05); }
+
+		/* --- Writeoff Status Select Styling (for filter) --- */
         .select-writeoff-sale {
             background-color: var(--color-light-green-bg) !important;
             color: var(--color-success) !important;

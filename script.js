@@ -3798,15 +3798,6 @@ function openWriteoffModal(systemId = null) {
     document.getElementById('writeoffValidationMessage').classList.add('hidden');
     const isEdit = !!systemId;
     document.getElementById('writeoffModal').setAttribute('data-edit-group', isEdit ? systemId : '');
-    
-    // Обновляем список типов списания
-    const typeSelect = document.getElementById('writeoffType');
-    typeSelect.innerHTML = `
-        <option value="Продажа">Продажа</option>
-        <option value="Использовано">Использовано</option>
-        <option value="Брак">Брак</option>
-        <option value="Подготовлено к продаже">Подготовлено к продаже</option>
-    `;
 
     if (isEdit) {
         document.querySelector('#writeoffModal .modal-header-title').textContent = 'Редактировать списание';
@@ -3879,12 +3870,20 @@ function closeWriteoffModal() {
 
 
 
+function syncWriteoffTypeSwitcherUI() {
+    const input = document.getElementById('writeoffType');
+    const val = input ? input.value : 'Продажа';
+    document.querySelectorAll('.writeoff-type-option').forEach(btn => {
+        btn.classList.toggle('writeoff-type-active', btn.getAttribute('data-value') === val);
+    });
+}
+
 function updateWriteoffTypeUI() {
+    syncWriteoffTypeSwitcherUI();
     const type = document.getElementById('writeoffType').value;
     const isSale = type === 'Продажа';
     const isPrepared = type === 'Подготовлено к продаже';
     
-    // --- ИЗМЕНЕНИЕ: Показываем сводку и для Подготовленного ---
     document.getElementById('writeoffTotalSummary').classList.toggle('hidden', !(isSale || isPrepared));
     
     document.querySelectorAll('.writeoff-item-section').forEach(sec => {
@@ -3892,20 +3891,6 @@ function updateWriteoffTypeUI() {
         updateWriteoffSection(idx);
     });
     calcWriteoffTotal();
-    
-    const el = document.getElementById('writeoffType');
-    el.className = '';
-    el.style = ''; // Сброс инлайн стилей
-    
-    if (type === 'Продажа') el.classList.add('select-writeoff-sale');
-    else if (type === 'Использовано') el.classList.add('select-writeoff-used');
-    else if (type === 'Брак') el.classList.add('select-writeoff-defective');
-    else if (type === 'Подготовлено к продаже') { 
-        el.style.backgroundColor = '#ffffff'; 
-        el.style.color = '#475569'; 
-        el.style.border = '1px solid #cbd5e1'; 
-        el.style.fontWeight = '500';
-    }
 }
 
 
@@ -5895,6 +5880,17 @@ function setupEventListeners() {
     document.getElementById('closeWriteoffModalBtn')?.addEventListener('click', closeWriteoffModal);
     document.getElementById('addWriteoffItemBtn')?.addEventListener('click', () => addWriteoffItemSection());
     document.getElementById('writeoffType')?.addEventListener('change', updateWriteoffTypeUI);
+    document.querySelectorAll('.writeoff-type-option').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const input = document.getElementById('writeoffType');
+            if (!input) return;
+            const val = btn.getAttribute('data-value');
+            if (input.value === val) return;
+            input.value = val;
+            syncWriteoffTypeSwitcherUI();
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+    });
     // Filters & Sort
     document.getElementById('writeoffSearch')?.addEventListener('input', debouncedWriteoffFilter);
     document.getElementById('writeoffSearch')?.nextElementSibling.addEventListener('click', () => clearSearch('writeoffSearch', 'updateWriteoffTable'));

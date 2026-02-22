@@ -997,7 +997,16 @@
                 <div class="form-section">
                     <div class="form-section-title">Основная информация</div>
                     <div class="form-row-3">
-                        <div class="form-group" style="grid-column: span 2;"><label>Тип списания:*</label><select id="writeoffType"><option value="Продажа">Продажа</option><option value="Использовано">Использовано</option><option value="Брак">Брак</option></select></div>
+                        <div class="form-group" style="grid-column: span 2;">
+                            <label>Тип списания:*</label>
+                            <div class="writeoff-type-switcher" role="group" aria-label="Тип списания">
+                                <button type="button" class="writeoff-type-option" data-value="Продажа">Продажа</button>
+                                <button type="button" class="writeoff-type-option" data-value="Подготовлено к продаже">Подготовлено</button>
+                                <button type="button" class="writeoff-type-option" data-value="Использовано">Использовано</button>
+                                <button type="button" class="writeoff-type-option" data-value="Брак">Брак</button>
+                            </div>
+                            <input type="hidden" id="writeoffType" value="Продажа">
+                        </div>
                         <div class="form-group"><label>Дата списания:*</label><input type="date" id="writeoffDate"></div>
                     </div>
                 </div>
