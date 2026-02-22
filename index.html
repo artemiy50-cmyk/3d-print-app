@@ -758,6 +758,48 @@
                 </div>
             </div>
 
+            <div id="profile" class="page">
+                <div class="page-title">Личный кабинет</div>
+                <div class="card profile-cabinet-card" style="max-width: 560px;">
+                    <div class="profile-cabinet-avatar-row">
+                        <div class="profile-avatar-wrap">
+                            <img id="profileAvatarImg" src="" alt="" class="profile-avatar-img" style="display: none;">
+                            <div id="profileAvatarPlaceholder" class="profile-avatar-placeholder">👤</div>
+                            <label class="profile-avatar-upload" title="Загрузить фото">
+                                <input type="file" id="profileImageInput" accept="image/*" style="display: none;">
+                                <span class="profile-avatar-edit">✎</span>
+                            </label>
+                        </div>
+                        <div class="profile-cabinet-name-block">
+                            <label class="profile-field-label">Имя (необязательно)</label>
+                            <input type="text" id="profileDisplayName" placeholder="Как к вам обращаться?" class="profile-name-input">
+                        </div>
+                    </div>
+                    <div class="profile-cabinet-info-card">
+                        <div class="profile-info-row">
+                            <span class="profile-info-label">Email</span>
+                            <span id="profileEmail" class="profile-info-value">—</span>
+                        </div>
+                        <div class="profile-info-row">
+                            <span class="profile-info-label">ID пользователя</span>
+                            <span id="profileUserId" class="profile-info-value profile-info-monospace" title="Нажмите, чтобы скопировать">—</span>
+                        </div>
+                        <div class="profile-info-row">
+                            <span class="profile-info-label">Дата регистрации</span>
+                            <span id="profileRegDate" class="profile-info-value">—</span>
+                        </div>
+                        <div class="profile-info-row">
+                            <span class="profile-info-label">Подписка</span>
+                            <span id="profileSubStatus" class="profile-info-value profile-info-sub">—</span>
+                        </div>
+                    </div>
+                    <div class="profile-cabinet-actions">
+                        <button type="button" class="btn-secondary" onclick="window.open('https://t.me/LuckArtS', '_blank')">💬 Связаться</button>
+                        <button type="button" class="btn-primary" id="profileSaveBtn" onclick="saveProfileSettings()">Сохранить</button>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 

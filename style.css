@@ -1493,7 +1493,8 @@
 		
 		.user-profile-icon {
 			font-size: 16px;
-			opacity: 0.7;
+			opacity: 1;
+			filter: brightness(1.4);
 		}
 
 
@@ -1894,4 +1895,112 @@ td:nth-last-child(2) {
     text-align: left !important;
     max-width: 200px;
     line-height: 1.3;
+}
+
+/* --- Личный кабинет (страница) --- */
+.profile-cabinet-card {
+    padding: var(--spacing);
+}
+.profile-cabinet-avatar-row {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    margin-bottom: 24px;
+}
+.profile-avatar-wrap {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: var(--color-border);
+    overflow: hidden;
+    flex-shrink: 0;
+}
+.profile-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.profile-avatar-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    color: var(--color-text-light);
+}
+.profile-avatar-upload {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 12px;
+}
+.profile-avatar-upload:hover {
+    background: #1e3a8a;
+}
+.profile-cabinet-name-block {
+    flex: 1;
+}
+.profile-field-label {
+    display: block;
+    font-size: 12px;
+    color: var(--color-text-light);
+    margin-bottom: 4px;
+}
+.profile-name-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    font-size: 15px;
+}
+.profile-name-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+.profile-cabinet-info-card {
+    background: var(--color-bg);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 20px;
+}
+.profile-info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--color-border);
+}
+.profile-info-row:last-child {
+    border-bottom: none;
+}
+.profile-info-label {
+    font-size: 13px;
+    color: var(--color-text-light);
+}
+.profile-info-value {
+    font-size: 14px;
+}
+.profile-info-monospace {
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    cursor: pointer;
+}
+.profile-info-sub {
+    font-weight: 500;
+}
+.profile-cabinet-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
 }

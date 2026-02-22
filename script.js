@@ -296,7 +296,7 @@ document.getElementById('regBtn')?.addEventListener('click', () => {
                     startDate: now.toISOString(),
                     expiryDate: trialEnd.toISOString()
                 },
-                settings: { lastSeenChangelogVersion: topVersion },
+                settings: { lastSeenChangelogVersion: topVersion, displayName: '', profileImageUrl: '' },
                 // Пустые структуры данных
                 data: { filaments: [], products: [], writeoffs: [] }
             };
@@ -407,7 +407,14 @@ window.addEventListener('DOMContentLoaded', () => {
             });
 
             setupUserSidebar(user);
-            showToast(`Добро пожаловать, ${user.email}!`, 'welcome');
+            initProfileCabinetHandlers();
+            userRootRef.child('settings').once('value').then((snap) => {
+                const s = snap.val() || {};
+                const name = (s.displayName && String(s.displayName).trim()) || '';
+                showToast(`Добро пожаловать, ${name || user.email}!`, 'welcome');
+            }).catch(() => {
+                showToast(`Добро пожаловать, ${user.email}!`, 'welcome');
+            });
             
             // Превращает значение из Firebase (массив или объект с числовыми ключами) в массив. Избегает ошибки .filter is not a function.
             function toArray(v) {
@@ -576,9 +583,8 @@ function setupUserSidebar(user) {
     const controlsContainer = document.getElementById('sidebarControls');
     const userContainer = document.getElementById('sidebarUserInfo');
 
-    // === ГРУППА 1: Инструкции и Выход ===
+    // === ГРУППА 1: Инструкция и Профиль (клик — Личный кабинет) ===
     
-    // 1. Инструкция
     const helpBtn = document.createElement('button');
     helpBtn.className = 'menu-item';
     helpBtn.innerHTML = `
@@ -588,72 +594,43 @@ function setupUserSidebar(user) {
     helpBtn.onclick = () => document.getElementById('helpModal').classList.add('active');
     controlsContainer.appendChild(helpBtn);
 
-    // 2. Выход
+    const userDiv = document.createElement('div');
+    userDiv.className = 'user-profile-info menu-item';
+    userDiv.style.borderTop = 'none';
+    userDiv.style.marginTop = '0';
+    userDiv.style.paddingTop = '8px';
+    userDiv.style.cursor = 'pointer';
+    userDiv.title = 'Личный кабинет';
+    userDiv.innerHTML = `
+        <span class="user-profile-icon menu-icon">👤</span>
+        <span class="menu-text user-profile-label" style="overflow:hidden;text-overflow:ellipsis;">${escapeHtml(user.email)}</span>
+    `;
+    userDiv.onclick = () => showPage('profile');
+    controlsContainer.appendChild(userDiv);
+
+    const settingsRef = firebase.database().ref('users/' + user.uid + '/settings');
+    settingsRef.on('value', (snap) => {
+        const s = snap.val();
+        const label = userDiv.querySelector('.user-profile-label');
+        if (label) {
+            const dn = (s && s.displayName && String(s.displayName).trim()) || '';
+            label.textContent = dn || user.email;
+        }
+    });
+
+    // === ГРУППА 2: Выход и Поддержка (прижато к низу) ===
+
     const logoutBtn = document.createElement('button');
     logoutBtn.className = 'menu-item';
     logoutBtn.id = 'logoutBtn';
     logoutBtn.innerHTML = `<span class="menu-icon">🚪</span><span class="menu-text">Выйти</span>`;
     logoutBtn.onclick = () => { if(confirm('Выйти из аккаунта?')) firebase.auth().signOut().then(() => window.location.reload()); };
-    controlsContainer.appendChild(logoutBtn);
+    userContainer.appendChild(logoutBtn);
 
-
-    // === ГРУППА 2: Профиль (Прижато к низу) ===
-
-    // 3. Email
-    const userDiv = document.createElement('div');
-    userDiv.className = 'user-profile-info menu-item';
-    userDiv.style.borderTop = 'none'; // Убираем старую границу
-    userDiv.style.marginTop = '0';
-    userDiv.style.paddingTop = '8px';
-    userDiv.style.cursor = 'default';
-    userDiv.title = user.email;
-    userDiv.innerHTML = `
-        <span class="user-profile-icon menu-icon">👤</span>
-        <span class="menu-text" style="overflow:hidden;text-overflow:ellipsis;">${escapeHtml(user.email)}</span>
-    `;
-    userContainer.appendChild(userDiv);
-
-    // 4. ID
-    const uidDiv = document.createElement('div');
-    uidDiv.className = 'menu-item';
-    uidDiv.style.fontSize = '11px';
-    uidDiv.style.color = '#64748b';
-    uidDiv.title = 'Нажмите, чтобы скопировать ID';
-    const shortUid = user.uid.substring(0, 8) + '...';
-    
-    uidDiv.innerHTML = `
-        <span class="menu-icon" style="font-size:14px">🆔</span>
-        <span class="menu-text">ID: <span style="font-family:monospace;">${shortUid}</span></span>
-    `;
-    uidDiv.onclick = function() {
-        navigator.clipboard.writeText(user.uid).then(() => {
-            const textSpan = uidDiv.querySelector('.menu-text');
-            if(textSpan) {
-                const oldText = textSpan.innerHTML;
-                textSpan.textContent = 'Скопировано!';
-                setTimeout(() => textSpan.innerHTML = oldText, 1500);
-            }
-        });
-    };
-    userContainer.appendChild(uidDiv);
-
-    // 5. Статус подписки
-    const subDiv = document.createElement('div');
-    subDiv.id = 'sidebarSubStatus';
-    subDiv.className = 'menu-item';
-    subDiv.style.fontSize = '11px';
-    subDiv.innerHTML = `
-        <span class="menu-icon">⏳</span>
-        <span class="menu-text">Загрузка...</span>
-    `;
-    userContainer.appendChild(subDiv);
-
-    // 6. Разделитель
     const divider = document.createElement('div');
     divider.className = 'sidebar-divider';
     userContainer.appendChild(divider);
 
-    // 7. Поддержка (Последний пункт)
     const supportDiv = document.createElement('div');
     supportDiv.className = 'menu-item';
     supportDiv.innerHTML = `
@@ -664,6 +641,117 @@ function setupUserSidebar(user) {
     supportDiv.addEventListener('mouseenter', () => { if(link) link.style.color = '#fff'; });
     supportDiv.addEventListener('mouseleave', () => { if(link) link.style.color = '#94a3b8'; });
     userContainer.appendChild(supportDiv);
+}
+
+
+function fillProfilePage() {
+    const user = firebase.auth().currentUser;
+    if (!user) return;
+
+    const emailEl = document.getElementById('profileEmail');
+    const uidEl = document.getElementById('profileUserId');
+    const regEl = document.getElementById('profileRegDate');
+    const subEl = document.getElementById('profileSubStatus');
+    const nameInput = document.getElementById('profileDisplayName');
+    const avatarImg = document.getElementById('profileAvatarImg');
+    const avatarPlaceholder = document.getElementById('profileAvatarPlaceholder');
+
+    if (emailEl) emailEl.textContent = user.email || '—';
+    if (uidEl) {
+        uidEl.textContent = user.uid;
+        uidEl.title = 'Нажмите, чтобы скопировать';
+        uidEl.style.cursor = 'pointer';
+        uidEl.onclick = () => {
+            navigator.clipboard.writeText(user.uid).then(() => showToast('ID скопирован', 'success'));
+        };
+    }
+
+    const creationTime = user.metadata && user.metadata.creationTime;
+    if (regEl) regEl.textContent = creationTime ? new Date(creationTime).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
+
+    if (subEl && lastSubscriptionData) {
+        const expiry = new Date(lastSubscriptionData.expiryDate);
+        const now = new Date();
+        const diffDays = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
+        const dateStr = expiry.toLocaleDateString('ru-RU');
+        if (diffDays <= 0) {
+            subEl.textContent = 'Истекла';
+            subEl.style.color = '#dc2626';
+        } else if (diffDays <= 5) {
+            subEl.textContent = `Активно до ${dateStr} (осталось ${diffDays} дн.)`;
+            subEl.style.color = '#ea580c';
+        } else {
+            subEl.textContent = `Активно до ${dateStr}`;
+            subEl.style.color = '#16a34a';
+        }
+    } else if (subEl) {
+        subEl.textContent = 'Загрузка...';
+        subEl.style.color = '';
+    }
+
+    firebase.database().ref('users/' + user.uid + '/settings').once('value').then((snap) => {
+        const s = snap.val() || {};
+        if (nameInput) nameInput.value = s.displayName || '';
+        const url = s.profileImageUrl;
+        if (url && avatarImg && avatarPlaceholder) {
+            avatarImg.src = url;
+            avatarImg.style.display = '';
+            avatarPlaceholder.style.display = 'none';
+        } else if (avatarImg && avatarPlaceholder) {
+            avatarImg.style.display = 'none';
+            avatarPlaceholder.style.display = '';
+        }
+    });
+}
+
+
+async function saveProfileSettings() {
+    const user = firebase.auth().currentUser;
+    if (!user) return;
+
+    const nameInput = document.getElementById('profileDisplayName');
+    const displayName = nameInput ? String(nameInput.value || '').trim() : '';
+    const settingsRef = firebase.database().ref('users/' + user.uid + '/settings');
+
+    try {
+        await settingsRef.update({ displayName });
+        showToast('Настройки сохранены', 'success');
+    } catch (e) {
+        showToast('Ошибка: ' + e.message, 'error');
+    }
+}
+
+
+function initProfileCabinetHandlers() {
+    const input = document.getElementById('profileImageInput');
+    const saveBtn = document.getElementById('profileSaveBtn');
+    if (!input || !saveBtn) return;
+
+    input.addEventListener('change', async function() {
+        const file = this.files && this.files[0];
+        if (!file || !file.type.startsWith('image/')) return;
+
+        const user = firebase.auth().currentUser;
+        if (!user) return;
+
+        const result = await uploadFileToCloud(file);
+        if (!result || !result.url) return;
+
+        const settingsRef = firebase.database().ref('users/' + user.uid + '/settings');
+        await settingsRef.update({ profileImageUrl: result.url });
+
+        const avatarImg = document.getElementById('profileAvatarImg');
+        const avatarPlaceholder = document.getElementById('profileAvatarPlaceholder');
+        if (avatarImg && avatarPlaceholder) {
+            avatarImg.src = result.url;
+            avatarImg.style.display = '';
+            avatarPlaceholder.style.display = 'none';
+        }
+
+        // Обновить sidebar, если там показывается аватар (сейчас нет, только имя)
+        showToast('Фото загружено', 'success');
+        this.value = '';
+    });
 }
 
 
@@ -767,8 +855,11 @@ function saveToLocalStorage() { saveData(); }
 
 // ==================== HELPERS ====================
 
+let lastSubscriptionData = null;
+
 function checkSubscription(subData) {
     if (!subData) return;
+    lastSubscriptionData = subData;
 
     const now = new Date();
     const expiry = new Date(subData.expiryDate);
@@ -985,7 +1076,7 @@ function updateAllDates() {
 
 
 
-const VALID_PAGE_IDS = ['dashboard', 'products', 'writeoff', 'filament', 'service', 'reports', 'references'];
+const VALID_PAGE_IDS = ['dashboard', 'products', 'writeoff', 'filament', 'service', 'reports', 'references', 'profile'];
 
 function showPage(id) {
     if (!id || !VALID_PAGE_IDS.includes(id)) return;
@@ -997,6 +1088,7 @@ function showPage(id) {
     document.querySelectorAll('.sidebar .menu-item').forEach(btn => {
         if(btn.dataset.page === id) btn.classList.add('active');
     });
+    if (id === 'profile') fillProfilePage();
     try { localStorage.setItem('appLastPage', id); } catch (e) {}
 }
 
