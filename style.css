@@ -46,9 +46,21 @@
         }
         .header-title { font-size: 24px; font-weight: 700; color: var(--color-primary); display: flex; align-items: center; }
         .header-info { font-size: 12px; color: var(--color-text-light); }
-        .btn-version { border: 1px solid var(--color-border); background: #f8fafc; color: #64748b; font-size: 11px; padding: 4px 10px; border-radius: 999px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+        .btn-version { position: relative; overflow: hidden; border: 1px solid var(--color-border); background: #f8fafc; color: #64748b; font-size: 11px; padding: 4px 10px; border-radius: 999px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
         .btn-version::before { content: "Версия"; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
         .btn-version:hover { background: #e5edff; color: #1e40af; border-color: #cbd5e1; }
+        .btn-version--has-new { animation: changelog-shimmer-sweep 6.5s ease-in-out infinite; }
+        .btn-version--has-new::after { content: ''; position: absolute; top: 0; left: -100%; width: 60%; height: 100%; background: linear-gradient(100deg, transparent 15%, rgba(255,255,255,0.85) 50%, transparent 85%); transform: skewX(-20deg); pointer-events: none; z-index: 0; }
+        @keyframes changelog-shimmer-sweep {
+            0%, 77% { box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+            88% { box-shadow: 0 2px 8px rgba(30, 64, 175, 0.25); }
+            100% { box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+        }
+        .btn-version--has-new::after { animation: changelog-shimmer-sweep-beam 6.5s ease-in-out infinite; }
+        @keyframes changelog-shimmer-sweep-beam {
+            0%, 77% { left: -100%; }
+            100% { left: 120%; }
+        }
 
         /* Main Layout */
         .container { display: flex; flex: 1; overflow: hidden; }
@@ -251,6 +263,43 @@
         .btn-switcher-option.btn-switcher-active:disabled { background: rgba(21, 128, 61, 0.72); color: rgba(255,255,255,0.98); }
         .btn-switcher-option#btnAllPartsInProgress.btn-switcher-active:disabled { background: rgba(154, 123, 79, 0.82); color: rgba(255,255,255,0.96); }
         .btn-switcher-option:not(.btn-switcher-active):disabled { background: #cfd3d7; color: #5c6470; }
+
+        /* Тип изделия: свитчер вместо select */
+        .product-type-switcher {
+            display: flex;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            height: 42px;
+        }
+        .product-type-option {
+            flex: 1;
+            min-width: 0;
+            padding: 5px 6px;
+            font-size: 12px;
+            font-weight: 500;
+            line-height: 1.2;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+            border: none;
+            background: #e2e8f0;
+            color: var(--color-text);
+            border-left: 1px solid #cbd5e1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+        .product-type-option:first-child { border-left: none; }
+        .product-type-option:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+        .product-type-option:nth-child(2) { border-radius: 0; }
+        .product-type-option:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+        .product-type-option:hover { background: #cbd5e1; }
+        .product-type-option.product-type-active {
+            background: var(--color-primary);
+            color: white;
+        }
+        .product-type-option.product-type-active:hover { background: #1e3a8a; }
 
         .btn-icon-all-parts { background: none; border: none; padding: 0; font-size: 18px; cursor: pointer; line-height: 1; opacity: 1; }
         .btn-icon-all-parts:hover:not(:disabled) { opacity: 0.8; }
@@ -510,8 +559,12 @@
 
         /* Changelog styles */
         .changelog-list { display: flex; flex-direction: column; gap: 12px; font-size: 13px; color: #1e293b; }
-        .changelog-item { padding: 10px 12px; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; }
-        .changelog-item-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+        .changelog-item { padding: 10px 12px; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; transition: box-shadow 0.2s ease; }
+        .changelog-item:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .changelog-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; gap: 8px; }
+        .changelog-version-wrap { display: inline-flex; align-items: center; gap: 6px; }
+        .changelog-item-dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: #22c55e; transition: opacity 0.2s ease; }
+        .changelog-item--new:hover .changelog-item-dot { opacity: 0; }
         .changelog-item-version { font-weight: 600; color: #1e40af; }
         .changelog-item-date { font-size: 11px; color: #64748b; }
         .changelog-item-desc { font-size: 13px; color: #334155; }
@@ -1201,7 +1254,38 @@
             padding-top: 0;
         }
 
-		/* --- Filament Status Select Styling --- */
+		/* --- Filament Availability Switcher --- */
+        .filament-availability-switcher {
+            display: flex;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            height: 42px;
+        }
+        .filament-availability-option {
+            flex: 1;
+            min-width: 0;
+            padding: 8px 12px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+            border: none;
+            background: #e2e8f0;
+            color: var(--color-text);
+            border-left: 1px solid #cbd5e1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .filament-availability-option:first-child { border-left: none; border-radius: var(--radius) 0 0 var(--radius); }
+        .filament-availability-option:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+        .filament-availability-option:hover { background: #cbd5e1; }
+        .filament-availability-option.filament-availability-active { background: var(--color-success); color: white; font-weight: 700; }
+        .filament-availability-option[data-value="Израсходовано"].filament-availability-active { background: #475569; color: white; font-weight: 600; }
+        .filament-availability-option.filament-availability-active:hover { filter: brightness(1.05); }
+
+		/* --- Filament Status Select Styling (for filter) --- */
         .select-status-stock { 
             background-color: var(--color-light-green-bg) !important; 
             color: var(--color-light-green-text) !important; 
@@ -1215,7 +1299,42 @@
             border: 1px solid #cbd5e1 !important; 
         }
 		
-		/* --- Writeoff Status Select Styling --- */
+		/* --- Writeoff Type Switcher --- */
+        .writeoff-type-switcher {
+            display: flex;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            height: 42px;
+        }
+        .writeoff-type-option {
+            flex: 1;
+            min-width: 0;
+            padding: 8px 6px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+            border: none;
+            background: #e2e8f0;
+            color: var(--color-text);
+            border-left: 1px solid #cbd5e1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .writeoff-type-option:first-child { border-left: none; border-radius: var(--radius) 0 0 var(--radius); }
+        .writeoff-type-option:nth-child(2), .writeoff-type-option:nth-child(3) { border-radius: 0; }
+        .writeoff-type-option:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+        .writeoff-type-option:hover { background: #cbd5e1; }
+        .writeoff-type-option.writeoff-type-active { color: white; font-weight: 700; }
+        .writeoff-type-option[data-value="Продажа"].writeoff-type-active { background: var(--color-success); }
+        .writeoff-type-option[data-value="Подготовлено к продаже"].writeoff-type-active { background: #475569; }
+        .writeoff-type-option[data-value="Использовано"].writeoff-type-active { background: var(--color-purple); }
+        .writeoff-type-option[data-value="Брак"].writeoff-type-active { background: var(--color-danger); }
+        .writeoff-type-option.writeoff-type-active:hover { filter: brightness(1.05); }
+
+		/* --- Writeoff Status Select Styling (for filter) --- */
         .select-writeoff-sale {
             background-color: var(--color-light-green-bg) !important;
             color: var(--color-success) !important;
@@ -1235,7 +1354,99 @@
             border: 1px solid var(--color-danger) !important;
         }
 
-		/* Auth Styles */
+		/* === Auth Screen Styles === */
+		.login-overlay {
+			position: fixed;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			z-index: 99999;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			color: white;
+			overflow: hidden;
+		}
+		.login-overlay-bg {
+			position: absolute;
+			inset: 0;
+			background: url(assets/auth-dashboard-bg.png) center center / cover no-repeat;
+			filter: blur(6px);
+			transform: scale(1.05);
+		}
+		.login-overlay-bg::after {
+			content: '';
+			position: absolute;
+			inset: 0;
+			background: rgba(30, 41, 59, 0.7);
+		}
+		.auth-container {
+			background: white;
+			padding: 30px;
+			border-radius: 12px;
+			width: 340px;
+			color: #333;
+			box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+			position: relative;
+			z-index: 1;
+		}
+		.auth-welcome {
+			text-align: center;
+			font-size: 18px;
+			font-weight: 600;
+			margin-bottom: 8px;
+			background: linear-gradient(90deg, #b8860b 0%, #e8d48b 25%, #d4af37 50%, #e8d48b 75%, #b8860b 100%);
+			background-size: 200% auto;
+			-webkit-background-clip: text;
+			background-clip: text;
+			-webkit-text-fill-color: transparent;
+			color: #d4af37;
+			animation: auth-gold-shimmer 3s ease-in-out infinite;
+		}
+		@keyframes auth-gold-shimmer {
+			0%, 100% { background-position: 0% center; }
+			50% { background-position: 100% center; }
+		}
+		.auth-value-prop {
+			text-align: center;
+			font-size: 12px;
+			color: var(--color-text-light);
+			margin-bottom: 20px;
+			line-height: 1.4;
+		}
+		.auth-app-name {
+			font-size: 14px;
+			font-weight: 600;
+			color: var(--color-text);
+			text-align: center;
+			margin-bottom: 12px;
+			line-height: 1.3;
+		}
+		.auth-remember-label {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			font-size: 13px;
+			font-weight: 500;
+			cursor: pointer;
+			color: var(--color-text);
+		}
+		.auth-remember-label input { width: auto; cursor: pointer; }
+		.auth-trial-banner {
+			background: linear-gradient(135deg, rgba(21, 128, 61, 0.12) 0%, rgba(22, 163, 74, 0.08) 100%);
+			border: 1px solid rgba(21, 128, 61, 0.3);
+			border-radius: var(--radius);
+			padding: 12px 16px;
+			margin-bottom: 20px;
+			text-align: center;
+			font-size: 13px;
+			color: var(--color-success);
+			line-height: 1.4;
+		}
+		.auth-trial-banner strong { font-size: 14px; }
+
 		.auth-input {
 			width: 100%;
 			padding: 10px;
@@ -1550,6 +1761,17 @@ body.sidebar-closed .user-profile-info { padding: 12px 0; justify-content: cente
 .toast--success { background: var(--color-success); color: #fff; border-left: 4px solid #166534; }
 .toast--warning { background: var(--color-warning); color: #fff; border-left: 4px solid #c2410c; }
 .toast--info    { background: var(--color-info); color: #fff; border-left: 4px solid #075985; }
+.toast--welcome {
+    background: linear-gradient(135deg, #c9a227 0%, #d4af37 25%, #e8d48b 50%, #d4af37 75%, #c9a227 100%);
+    background-size: 200% 200%;
+    color: #2d1f0a;
+    border-left: 4px solid #9a7b1a;
+    animation: toast-welcome-shimmer 2.5s ease-in-out infinite;
+}
+@keyframes toast-welcome-shimmer {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+}
 
 /* === ГЛОБАЛЬНЫЙ ТУЛТИП (JS) === */
 #globalTextTooltip {

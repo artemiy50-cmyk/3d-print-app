@@ -1,13 +1,38 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
 // Номер версии ведём в формате xx.xx.xx, например 7.7.7
 const APP_VERSION_NUMBER = '5.8.1';
-console.log('2026-02-22 00-00-05');
+console.log('2026-02-22 12-50-04');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
 
 // === CHANGELOG
 const CHANGELOG_ENTRIES = [
+    { 
+        version: '5.9.5', 
+        dateDisplay: '22.02.2026', 
+        description: 'Добавлен свитчер для выбора типа списания, заменяющий выпадающий список. Улучшен интерфейс для более удобного выбора типа списания.' 
+    },
+    { 
+        version: '5.9.4', 
+        dateDisplay: '22.02.2026', 
+        description: 'Добавлен свитчер для выбора наличия филамента, заменяющий выпадающий список. Улучшен интерфейс для более удобного выбора наличия филамента.' 
+    },
+    { 
+        version: '5.9.3', 
+        dateDisplay: '22.02.2026', 
+        description: 'Добавлен свитчер для выбора типа изделия, заменяющий выпадающий список. Улучшен интерфейс для более удобного выбора типа изделия.' 
+    },
+    { 
+        version: '5.9.2', 
+        dateDisplay: '22.02.2026', 
+        description: 'Обновление экрана авторизации: улучшены элементы интерфейса, добавлены новые сообщения и функционал "Запомнить меня".' 
+    },
+    { 
+        version: '5.9.1', 
+        dateDisplay: '22.02.2026', 
+        description: 'Улучшение модального окна "Что нового?" и добавление функционала для уведомления о последней версии изменений' 
+    },
     { 
         version: '5.9.0', 
         dateDisplay: '22.02.2026', 
@@ -223,6 +248,7 @@ document.getElementById('loginBtn')?.addEventListener('click', () => {
     const pass = document.getElementById('passwordInput').value;
     const msg = document.getElementById('authMessage');
     const btn = document.getElementById('loginBtn');
+    const rememberMe = document.getElementById('authRememberMe')?.checked !== false;
 
     if(!email || !pass) return;
 
@@ -230,13 +256,15 @@ document.getElementById('loginBtn')?.addEventListener('click', () => {
     btn.disabled = true;
     msg.style.display = 'none';
 
-    firebase.auth().signInWithEmailAndPassword(email, pass)
-        .catch((error) => {
-            btn.textContent = "Войти";
-            btn.disabled = false;
-            msg.textContent = "Ошибка: " + error.message;
-            msg.style.display = 'block';
-        });
+    const persistence = rememberMe ? firebase.auth.Auth.Persistence.LOCAL : firebase.auth.Auth.Persistence.SESSION;
+    firebase.auth().setPersistence(persistence).then(() =>
+        firebase.auth().signInWithEmailAndPassword(email, pass)
+    ).catch((error) => {
+        btn.textContent = "Войти";
+        btn.disabled = false;
+        msg.textContent = "Ошибка: " + error.message;
+        msg.style.display = 'block';
+    });
 });
 
 // 2. РЕГИСТРАЦИЯ
@@ -261,12 +289,14 @@ document.getElementById('regBtn')?.addEventListener('click', () => {
             const trialEnd = new Date();
             trialEnd.setDate(now.getDate() + APP_CONFIG.trialDays);
             
+            const topVersion = (CHANGELOG_ENTRIES && CHANGELOG_ENTRIES[0]) ? CHANGELOG_ENTRIES[0].version : APP_BASE_VERSION;
             const initData = {
                 subscription: {
                     status: 'trial',
                     startDate: now.toISOString(),
                     expiryDate: trialEnd.toISOString()
                 },
+                settings: { lastSeenChangelogVersion: topVersion },
                 // Пустые структуры данных
                 data: { filaments: [], products: [], writeoffs: [] }
             };
@@ -377,7 +407,7 @@ window.addEventListener('DOMContentLoaded', () => {
             });
 
             setupUserSidebar(user);
-            showToast(`Добро пожаловать, ${user.email}!`, 'info');
+            showToast(`Добро пожаловать, ${user.email}!`, 'welcome');
             
             // Превращает значение из Firebase (массив или объект с числовыми ключами) в массив. Избегает ошибки .filter is not a function.
             function toArray(v) {
@@ -486,11 +516,16 @@ window.addEventListener('DOMContentLoaded', () => {
                         startOnboardingTour();
                     }, 1500); 
                 }
+                // Changelog: загружаем lastSeen. Новые пользователи уже имеют его в initData при регистрации.
+                const lastSeen = settings.lastSeenChangelogVersion || null;
+                updateChangelogBadgeState(lastSeen);
             });
   
 
         } else { 
             currentUser = null;
+            lastSeenChangelogVersion = null;
+            document.getElementById('versionButton')?.classList.remove('btn-version--has-new');
             if(overlay) overlay.style.display = 'flex';
             authContainer.style.display = 'block';
             verifyContainer.style.display = 'none';
@@ -978,20 +1013,42 @@ function updateVersionButton() {
     btn.textContent = getCurrentVersionLabel();
 }
 
+let lastSeenChangelogVersion = null;
+
+function updateChangelogBadgeState(lastSeen) {
+    lastSeenChangelogVersion = lastSeen;
+    const btn = document.getElementById('versionButton');
+    if (!btn) return;
+    const top = getCurrentVersionLabel();
+    const hasNew = !lastSeen || lastSeen !== top;
+    if (hasNew) btn.classList.add('btn-version--has-new');
+    else btn.classList.remove('btn-version--has-new');
+}
+
+function saveLastSeenChangelogVersion() {
+    const uid = firebase.auth().currentUser && firebase.auth().currentUser.uid;
+    if (!uid) return;
+    const top = CHANGELOG_ENTRIES && CHANGELOG_ENTRIES[0] ? CHANGELOG_ENTRIES[0].version : null;
+    if (!top) return;
+    firebase.database().ref('users/' + uid + '/settings').update({ lastSeenChangelogVersion: top });
+    updateChangelogBadgeState(top);
+}
+
 function openChangelogModal() {
     const modal = document.getElementById('changelogModal');
     if (!modal) return;
-    renderChangelogList();
+    renderChangelogList(lastSeenChangelogVersion);
     modal.classList.add('active');
 }
 
 function closeChangelogModal() {
     const modal = document.getElementById('changelogModal');
     if (!modal) return;
+    saveLastSeenChangelogVersion();
     modal.classList.remove('active');
 }
 
-function renderChangelogList() {
+function renderChangelogList(lastSeen) {
     const container = document.getElementById('changelogList');
     if (!container) return;
 
@@ -1000,13 +1057,20 @@ function renderChangelogList() {
         return;
     }
 
-    const html = CHANGELOG_ENTRIES.map(item => {
+    const lastSeenIdx = lastSeen ? CHANGELOG_ENTRIES.findIndex(e => e.version === lastSeen) : -1;
+
+    const html = CHANGELOG_ENTRIES.map((item, idx) => {
         const dateText = item.dateDisplay || item.date || '';
         const desc = item.description || '';
+        const isNew = lastSeenIdx < 0 ? true : idx < lastSeenIdx;
+        const itemClass = isNew ? 'changelog-item changelog-item--new' : 'changelog-item';
+        const versionHtml = isNew
+            ? `<span class="changelog-version-wrap"><span class="changelog-item-version">${escapeHtml(item.version || '')}</span><span class="changelog-item-dot" aria-hidden="true"></span></span>`
+            : `<span class="changelog-item-version">${escapeHtml(item.version || '')}</span>`;
         return `
-            <div class="changelog-item">
+            <div class="${itemClass}">
                 <div class="changelog-item-header">
-                    <span class="changelog-item-version">${escapeHtml(item.version || '')}</span>
+                    ${versionHtml}
                     <span class="changelog-item-date">${escapeHtml(dateText)}</span>
                 </div>
                 <div class="changelog-item-desc">${escapeHtml(desc)}</div>
@@ -1241,10 +1305,9 @@ function exportData() {
 
 
 function updateAllSelects() {
-    document.querySelectorAll('#filamentBrand').forEach(s => s.innerHTML = db.brands.map((b, i) => `<option value="${i}">${escapeHtml(b)}</option>`).join(''));
+    document.querySelectorAll('#filamentBrand').forEach(s => s.innerHTML = '<option value="">-- Выберите бренд --</option>' + db.brands.map((b, i) => `<option value="${i}">${escapeHtml(b)}</option>`).join(''));
     document.querySelectorAll('#filamentColor').forEach(s => { const editId = document.getElementById('filamentModal')?.getAttribute('data-edit-id'); let opts = !editId ? [`<option value="">-- Выберите цвет --</option>`] : []; opts.push(...db.colors.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`)); s.innerHTML = opts.join(''); });
-    document.querySelectorAll('#filamentType').forEach(s => s.innerHTML = db.plasticTypes.map(p => `<option value="${p}">${escapeHtml(p)}</option>`).join(''));
-    document.querySelectorAll('#filamentAvailability').forEach(s => s.innerHTML = db.filamentStatuses.map(s => `<option value="${s}">${escapeHtml(s)}</option>`).join(''));
+    document.querySelectorAll('#filamentType').forEach(s => s.innerHTML = '<option value="">-- Выберите тип пластика --</option>' + db.plasticTypes.map(p => `<option value="${p}">${escapeHtml(p)}</option>`).join(''));
     const fs = document.getElementById('filamentStatusFilter'); if(fs) { const v=fs.value; fs.innerHTML = '<option value="">— Все статусы —</option>' + db.filamentStatuses.map(s => `<option value="${s}">${escapeHtml(s)}</option>`).join(''); fs.value=v; }
     document.querySelectorAll('#productPrinter').forEach(s => s.innerHTML = db.printers.map(p => `<option value="${p.id}">${escapeHtml(p.model)}</option>`).join(''));
     
@@ -1416,9 +1479,10 @@ function closeFilamentModal() {
 
 
 function clearFilamentForm() {
-    document.getElementById('filamentCustomId').value = ''; document.getElementById('filamentName').value = ''; document.getElementById('filamentLink').value = ''; document.getElementById('filamentType').value = 'PLA';
+    document.getElementById('filamentCustomId').value = ''; document.getElementById('filamentName').value = ''; document.getElementById('filamentLink').value = '';
+    document.getElementById('filamentType').value = '';
     document.getElementById('filamentAvgPrice').value = ''; document.getElementById('filamentActualPrice').value = ''; document.getElementById('filamentNote').value = '';
-    document.getElementById('filamentBrand').value = '0'; document.getElementById('filamentColorPreview').style.background = '#ffffff'; document.getElementById('filamentAvailability').value = 'В наличии';
+    document.getElementById('filamentBrand').value = ''; document.getElementById('filamentColorPreview').style.background = '#ffffff'; document.getElementById('filamentAvailability').value = 'В наличии';
     document.getElementById('filamentWeight').value = '1000'; document.getElementById('filamentLength').value = '330'; document.getElementById('filamentDate').value = new Date().toISOString().split('T')[0];
     document.getElementById('filamentValidationMessage').classList.add('hidden'); document.getElementById('filamentUniqueIdMessage').classList.add('hidden');
     document.querySelectorAll('#filamentModal input, #filamentModal select').forEach(el => el.classList.remove('error'));
@@ -1435,14 +1499,15 @@ function clearFilamentForm() {
 
 function validateFilamentForm() {
     let valid = true;
-    const requiredIds = ['filamentCustomId','filamentDate','filamentName','filamentActualPrice','filamentAvgPrice','filamentWeight','filamentLength','filamentColor'];
+    const requiredIds = ['filamentCustomId','filamentDate','filamentName','filamentActualPrice','filamentAvgPrice','filamentWeight','filamentLength','filamentColor','filamentBrand','filamentType'];
     
     requiredIds.forEach(id => {
         const el = document.getElementById(id);
+        if (!el) return;
         const val = parseFloat(el.value);
         
         // Проверка: Пустое, или (если число) меньше или равно нулю
-        let isInvalid = !el.value.trim();
+        let isInvalid = el.value === undefined || el.value === null || String(el.value).trim() === '';
         if (el.type === 'number') {
             isInvalid = isInvalid || isNaN(val) || val <= 0;
         }
@@ -1469,8 +1534,7 @@ function validateFilamentForm() {
     const msg = document.getElementById('filamentValidationMessage');
     if (!valid) {
         if (document.getElementById('filamentUniqueIdMessage').classList.contains('hidden')) {
-            // Уточняем текст ошибки
-            msg.textContent = 'Заполните все поля корректными значениями (числа > 0)';
+            msg.textContent = 'Заполните все обязательные поля (бренд, тип пластика, цвет и др.)';
             msg.classList.remove('hidden');
         }
     } else {
@@ -1601,8 +1665,9 @@ function editFilament(id) {
     const f = db.filaments.find(x => x.id === id); if (!f) return;
     openFilamentModal();
     document.getElementById('filamentCustomId').value = f.customId; 
-    document.getElementById('filamentBrand').value = db.brands.indexOf(f.brand);
-    document.getElementById('filamentType').value = f.type;
+    const brandIdx = db.brands.indexOf(f.brand);
+    document.getElementById('filamentBrand').value = brandIdx >= 0 ? String(brandIdx) : '';
+    document.getElementById('filamentType').value = f.type || '';
     document.getElementById('filamentColor').value = f.color.id;
     updateFilamentColorPreview();
     document.getElementById('filamentDate').value = f.date;
@@ -1629,6 +1694,7 @@ function copyFilament(id) {
     document.getElementById('filamentModal').removeAttribute('data-edit-id'); 
     document.getElementById('filamentCustomId').value += ' (Копия)';
     document.getElementById('filamentAvailability').value = 'В наличии';
+    updateFilamentStatusUI();
     
     document.getElementById('filamentNote').value = ''; // <--- ДОБАВЛЕНО: Очистка комментария
     
@@ -1654,9 +1720,16 @@ async function deleteFilament(id) {
     }
 }
 
+function syncFilamentAvailabilitySwitcherUI() {
+    const input = document.getElementById('filamentAvailability');
+    const val = input ? input.value : 'В наличии';
+    document.querySelectorAll('.filament-availability-option').forEach(btn => {
+        btn.classList.toggle('filament-availability-active', btn.getAttribute('data-value') === val);
+    });
+}
+
 function updateFilamentStatusUI() {
-    const el = document.getElementById('filamentAvailability');
-    el.className = el.value === 'В наличии' ? 'select-status-stock' : 'select-status-used';
+    syncFilamentAvailabilitySwitcherUI();
 }
 
 
@@ -2182,7 +2255,16 @@ function resetCompositeSectionUI() {
     }
 }
 
+function syncProductTypeSwitcherUI() {
+    const input = document.getElementById('productType');
+    const val = input ? input.value : 'Самостоятельное';
+    document.querySelectorAll('.product-type-option').forEach(btn => {
+        btn.classList.toggle('product-type-active', btn.getAttribute('data-value') === val);
+    });
+}
+
 function updateProductTypeUI() {
+    syncProductTypeSwitcherUI();
     const type = document.getElementById('productType').value;
     const groups = { 
         parent: document.getElementById('productParentGroup'), 
@@ -3741,15 +3823,6 @@ function openWriteoffModal(systemId = null) {
     document.getElementById('writeoffValidationMessage').classList.add('hidden');
     const isEdit = !!systemId;
     document.getElementById('writeoffModal').setAttribute('data-edit-group', isEdit ? systemId : '');
-    
-    // Обновляем список типов списания
-    const typeSelect = document.getElementById('writeoffType');
-    typeSelect.innerHTML = `
-        <option value="Продажа">Продажа</option>
-        <option value="Использовано">Использовано</option>
-        <option value="Брак">Брак</option>
-        <option value="Подготовлено к продаже">Подготовлено к продаже</option>
-    `;
 
     if (isEdit) {
         document.querySelector('#writeoffModal .modal-header-title').textContent = 'Редактировать списание';
@@ -3822,12 +3895,20 @@ function closeWriteoffModal() {
 
 
 
+function syncWriteoffTypeSwitcherUI() {
+    const input = document.getElementById('writeoffType');
+    const val = input ? input.value : 'Продажа';
+    document.querySelectorAll('.writeoff-type-option').forEach(btn => {
+        btn.classList.toggle('writeoff-type-active', btn.getAttribute('data-value') === val);
+    });
+}
+
 function updateWriteoffTypeUI() {
+    syncWriteoffTypeSwitcherUI();
     const type = document.getElementById('writeoffType').value;
     const isSale = type === 'Продажа';
     const isPrepared = type === 'Подготовлено к продаже';
     
-    // --- ИЗМЕНЕНИЕ: Показываем сводку и для Подготовленного ---
     document.getElementById('writeoffTotalSummary').classList.toggle('hidden', !(isSale || isPrepared));
     
     document.querySelectorAll('.writeoff-item-section').forEach(sec => {
@@ -3835,20 +3916,6 @@ function updateWriteoffTypeUI() {
         updateWriteoffSection(idx);
     });
     calcWriteoffTotal();
-    
-    const el = document.getElementById('writeoffType');
-    el.className = '';
-    el.style = ''; // Сброс инлайн стилей
-    
-    if (type === 'Продажа') el.classList.add('select-writeoff-sale');
-    else if (type === 'Использовано') el.classList.add('select-writeoff-used');
-    else if (type === 'Брак') el.classList.add('select-writeoff-defective');
-    else if (type === 'Подготовлено к продаже') { 
-        el.style.backgroundColor = '#ffffff'; 
-        el.style.color = '#475569'; 
-        el.style.border = '1px solid #cbd5e1'; 
-        el.style.fontWeight = '500';
-    }
 }
 
 
@@ -5767,6 +5834,17 @@ function setupEventListeners() {
     document.getElementById('resetFilamentFiltersBtn')?.addEventListener('click', resetFilamentFilters);
     // Modal
     document.getElementById('filamentAvailability')?.addEventListener('change', updateFilamentStatusUI);
+    document.querySelectorAll('.filament-availability-option').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const input = document.getElementById('filamentAvailability');
+            if (!input) return;
+            const val = btn.getAttribute('data-value');
+            if (input.value === val) return;
+            input.value = val;
+            syncFilamentAvailabilitySwitcherUI();
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+    });
     document.getElementById('filamentColor')?.addEventListener('change', updateFilamentColorPreview);
     ['filamentActualPrice', 'filamentAvgPrice', 'filamentWeight', 'filamentLength'].forEach(id => {
         const el = document.getElementById(id);
@@ -5792,6 +5870,17 @@ function setupEventListeners() {
     document.getElementById('showProductChildren')?.addEventListener('change', () => { saveFiltersToStorage(); filterProducts(); });
     // Modal
     document.getElementById('productType')?.addEventListener('change', updateProductTypeUI);
+    document.querySelectorAll('.product-type-option').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const input = document.getElementById('productType');
+            if (!input) return;
+            const val = btn.getAttribute('data-value');
+            if (input.value === val) return;
+            input.value = val;
+            syncProductTypeSwitcherUI();
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+    });
     document.getElementById('productParent')?.addEventListener('change', onParentProductChange);
     document.getElementById('btnGotoComposite')?.addEventListener('click', () => {
         const parentId = document.getElementById('productParent')?.value;
@@ -5816,6 +5905,17 @@ function setupEventListeners() {
     document.getElementById('closeWriteoffModalBtn')?.addEventListener('click', closeWriteoffModal);
     document.getElementById('addWriteoffItemBtn')?.addEventListener('click', () => addWriteoffItemSection());
     document.getElementById('writeoffType')?.addEventListener('change', updateWriteoffTypeUI);
+    document.querySelectorAll('.writeoff-type-option').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const input = document.getElementById('writeoffType');
+            if (!input) return;
+            const val = btn.getAttribute('data-value');
+            if (input.value === val) return;
+            input.value = val;
+            syncWriteoffTypeSwitcherUI();
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+    });
     // Filters & Sort
     document.getElementById('writeoffSearch')?.addEventListener('input', debouncedWriteoffFilter);
     document.getElementById('writeoffSearch')?.nextElementSibling.addEventListener('click', () => clearSearch('writeoffSearch', 'updateWriteoffTable'));
@@ -5873,6 +5973,14 @@ function setupEventListeners() {
     document.getElementById('serviceSearch')?.addEventListener('input', updateServiceTable);
     document.getElementById('serviceSearch')?.nextElementSibling.addEventListener('click', () => clearSearch('serviceSearch', 'updateServiceTable'));
     document.getElementById('addServiceNameBtn')?.addEventListener('click', addServiceName);
+
+    // Changelog modal: закрытие по клику на оверлей
+    const changelogModal = document.getElementById('changelogModal');
+    if (changelogModal) {
+        changelogModal.addEventListener('click', function(e) {
+            if (e.target === changelogModal) closeChangelogModal();
+        });
+    }
     
     // Обновляем обновление дат, чтобы захватить и serviceDate
     updateAllDates(); 
