@@ -880,7 +880,15 @@
                             <div class="calc-field" id="productAvailabilityField">В наличии полностью</div>
                         </div>
 
-                        <div class="form-group"><label>Тип изделия:</label><select id="productType"><option value="Самостоятельное">Самостоятельное</option><option value="Составное">Составное</option><option value="Часть составного">Часть составного</option></select></div>
+                        <div class="form-group">
+                            <label>Тип изделия:</label>
+                            <div class="product-type-switcher" role="group" aria-label="Тип изделия">
+                                <button type="button" class="product-type-option" data-value="Самостоятельное">Само-<br>стоятельное</button>
+                                <button type="button" class="product-type-option" data-value="Составное">Составное<br>(цвета, части)</button>
+                                <button type="button" class="product-type-option" data-value="Часть составного">Часть составного</button>
+                            </div>
+                            <input type="hidden" id="productType" value="Самостоятельное">
+                        </div>
                         <div class="form-group">
                             <div style="display: flex; gap: 10px; width: 100%;">
                                 <div style="flex: 1;"><label>Кол-во (шт):</label><input type="number" id="productQuantity" value="1" min="1"></div>

@@ -2221,7 +2221,16 @@ function resetCompositeSectionUI() {
     }
 }
 
+function syncProductTypeSwitcherUI() {
+    const input = document.getElementById('productType');
+    const val = input ? input.value : 'Самостоятельное';
+    document.querySelectorAll('.product-type-option').forEach(btn => {
+        btn.classList.toggle('product-type-active', btn.getAttribute('data-value') === val);
+    });
+}
+
 function updateProductTypeUI() {
+    syncProductTypeSwitcherUI();
     const type = document.getElementById('productType').value;
     const groups = { 
         parent: document.getElementById('productParentGroup'), 
@@ -5831,6 +5840,17 @@ function setupEventListeners() {
     document.getElementById('showProductChildren')?.addEventListener('change', () => { saveFiltersToStorage(); filterProducts(); });
     // Modal
     document.getElementById('productType')?.addEventListener('change', updateProductTypeUI);
+    document.querySelectorAll('.product-type-option').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const input = document.getElementById('productType');
+            if (!input) return;
+            const val = btn.getAttribute('data-value');
+            if (input.value === val) return;
+            input.value = val;
+            syncProductTypeSwitcherUI();
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+    });
     document.getElementById('productParent')?.addEventListener('change', onParentProductChange);
     document.getElementById('btnGotoComposite')?.addEventListener('click', () => {
         const parentId = document.getElementById('productParent')?.value;
