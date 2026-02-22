@@ -26,12 +26,15 @@
 	<div id="toastContainer" class="toast-container" aria-live="polite"></div>
 
 	<!-- Экран авторизации / Регистрации / Сброса -->
-	<div id="loginOverlay" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #1e293b; z-index: 99999; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white;">
-        
-        <div id="authContainer" style="background: white; padding: 30px; border-radius: 12px; width: 340px; color: #333; box-shadow: 0 10px 25px rgba(0,0,0,0.5); position: relative;">
+	<div id="loginOverlay" class="login-overlay">
+		<div class="login-overlay-bg"></div>
+        <div id="authContainer" class="auth-container">
+			<div class="auth-welcome">Добро пожаловать!</div>
+			<div class="auth-value-prop">Учёт филамента, расчёт себестоимости и финансовые отчёты в одном месте</div>
             
             <!-- 1. Форма ВХОДА -->
             <form id="loginForm" onsubmit="event.preventDefault();">
+                <div class="auth-app-name">3D Print: Filament & Products Manager</div>
                 <h2 style="margin-top: 0; color: #1e40af; text-align: center; margin-bottom: 20px;">Вход</h2>
                 <div style="margin-bottom: 15px;">
                     <label style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 5px;">Email</label>
@@ -40,6 +43,9 @@
                 <div style="margin-bottom: 10px;">
                     <label style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 5px;">Пароль</label>
                     <input type="password" id="passwordInput" class="auth-input" required autocomplete="current-password">
+                </div>
+                <div style="margin-bottom: 12px;">
+                    <label class="auth-remember-label"><input type="checkbox" id="authRememberMe" checked> Запомнить меня</label>
                 </div>
                 <div style="text-align: right; margin-bottom: 20px;">
                     <a href="#" onclick="showAuthForm('reset')" style="font-size: 12px; color: #1e40af; text-decoration: none;">Забыли пароль?</a>
@@ -52,7 +58,12 @@
 
             <!-- 2. Форма РЕГИСТРАЦИИ -->
             <form id="registerForm" onsubmit="event.preventDefault();" class="hidden">
+                <div class="auth-app-name">3D Print: Filament & Products Manager</div>
                 <h2 style="margin-top: 0; color: #15803d; text-align: center; margin-bottom: 20px;">Регистрация</h2>
+                <div class="auth-trial-banner">
+                    <strong>90 дней бесплатно</strong><br>
+                    Без привязки карты и автосписаний
+                </div>
                 <div style="margin-bottom: 15px;">
                     <label style="font-size: 12px; font-weight: bold; display: block; margin-bottom: 5px;">Email</label>
                     <input type="email" id="regEmailInput" class="auth-input" required autocomplete="username">
@@ -70,6 +81,7 @@
 
             <!-- 3. Форма СБРОСА ПАРОЛЯ -->
             <form id="resetForm" onsubmit="event.preventDefault();" class="hidden">
+                <div class="auth-app-name">3D Print: Filament & Products Manager</div>
                 <h2 style="margin-top: 0; color: #ea580c; text-align: center; margin-bottom: 10px;">Сброс пароля</h2>
                 <p style="font-size: 12px; color: #666; margin-bottom: 20px; text-align: center;">Введите email, указанный при регистрации. Мы отправим ссылку для сброса.</p>
                 <div style="margin-bottom: 20px;">
@@ -86,7 +98,7 @@
         </div>
 
         <!-- Экран ожидания подтверждения Email -->
-        <div id="verificationWait" style="background: white; padding: 30px; border-radius: 12px; width: 340px; color: #333; text-align: center; display: none;">
+        <div id="verificationWait" class="auth-container" style="text-align: center; display: none;">
             <h2 style="color: #1e40af; margin-top: 0;">Подтвердите Email</h2>
             <p style="margin: 20px 0; font-size: 14px; line-height: 1.5;">
                 На вашу почту <strong id="verifyEmailSpan"></strong> отправлено письмо со ссылкой.
@@ -98,8 +110,6 @@
                 <a href="#" onclick="firebase.auth().signOut().then(()=>window.location.reload())" style="font-size: 12px; color: #64748b;">Выйти / Сменить аккаунт</a>
             </div>
         </div>
-
-		<p style="margin-top: 20px; font-size: 12px; color: #94a3b8;">3D Filament Manager — Multi-User</p>
 	</div>
 
 

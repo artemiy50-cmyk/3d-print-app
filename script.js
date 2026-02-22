@@ -223,6 +223,7 @@ document.getElementById('loginBtn')?.addEventListener('click', () => {
     const pass = document.getElementById('passwordInput').value;
     const msg = document.getElementById('authMessage');
     const btn = document.getElementById('loginBtn');
+    const rememberMe = document.getElementById('authRememberMe')?.checked !== false;
 
     if(!email || !pass) return;
 
@@ -230,13 +231,15 @@ document.getElementById('loginBtn')?.addEventListener('click', () => {
     btn.disabled = true;
     msg.style.display = 'none';
 
-    firebase.auth().signInWithEmailAndPassword(email, pass)
-        .catch((error) => {
-            btn.textContent = "Войти";
-            btn.disabled = false;
-            msg.textContent = "Ошибка: " + error.message;
-            msg.style.display = 'block';
-        });
+    const persistence = rememberMe ? firebase.auth.Auth.Persistence.LOCAL : firebase.auth.Auth.Persistence.SESSION;
+    firebase.auth().setPersistence(persistence).then(() =>
+        firebase.auth().signInWithEmailAndPassword(email, pass)
+    ).catch((error) => {
+        btn.textContent = "Войти";
+        btn.disabled = false;
+        msg.textContent = "Ошибка: " + error.message;
+        msg.style.display = 'block';
+    });
 });
 
 // 2. РЕГИСТРАЦИЯ
@@ -379,7 +382,7 @@ window.addEventListener('DOMContentLoaded', () => {
             });
 
             setupUserSidebar(user);
-            showToast(`Добро пожаловать, ${user.email}!`, 'info');
+            showToast(`Добро пожаловать, ${user.email}!`, 'welcome');
             
             // Превращает значение из Firebase (массив или объект с числовыми ключами) в массив. Избегает ошибки .filter is not a function.
             function toArray(v) {
