@@ -261,12 +261,14 @@ document.getElementById('regBtn')?.addEventListener('click', () => {
             const trialEnd = new Date();
             trialEnd.setDate(now.getDate() + APP_CONFIG.trialDays);
             
+            const topVersion = (CHANGELOG_ENTRIES && CHANGELOG_ENTRIES[0]) ? CHANGELOG_ENTRIES[0].version : APP_BASE_VERSION;
             const initData = {
                 subscription: {
                     status: 'trial',
                     startDate: now.toISOString(),
                     expiryDate: trialEnd.toISOString()
                 },
+                settings: { lastSeenChangelogVersion: topVersion },
                 // Пустые структуры данных
                 data: { filaments: [], products: [], writeoffs: [] }
             };
@@ -486,11 +488,16 @@ window.addEventListener('DOMContentLoaded', () => {
                         startOnboardingTour();
                     }, 1500); 
                 }
+                // Changelog: загружаем lastSeen. Новые пользователи уже имеют его в initData при регистрации.
+                const lastSeen = settings.lastSeenChangelogVersion || null;
+                updateChangelogBadgeState(lastSeen);
             });
   
 
         } else { 
             currentUser = null;
+            lastSeenChangelogVersion = null;
+            document.getElementById('versionButton')?.classList.remove('btn-version--has-new');
             if(overlay) overlay.style.display = 'flex';
             authContainer.style.display = 'block';
             verifyContainer.style.display = 'none';
@@ -978,20 +985,42 @@ function updateVersionButton() {
     btn.textContent = getCurrentVersionLabel();
 }
 
+let lastSeenChangelogVersion = null;
+
+function updateChangelogBadgeState(lastSeen) {
+    lastSeenChangelogVersion = lastSeen;
+    const btn = document.getElementById('versionButton');
+    if (!btn) return;
+    const top = getCurrentVersionLabel();
+    const hasNew = !lastSeen || lastSeen !== top;
+    if (hasNew) btn.classList.add('btn-version--has-new');
+    else btn.classList.remove('btn-version--has-new');
+}
+
+function saveLastSeenChangelogVersion() {
+    const uid = firebase.auth().currentUser && firebase.auth().currentUser.uid;
+    if (!uid) return;
+    const top = CHANGELOG_ENTRIES && CHANGELOG_ENTRIES[0] ? CHANGELOG_ENTRIES[0].version : null;
+    if (!top) return;
+    firebase.database().ref('users/' + uid + '/settings').update({ lastSeenChangelogVersion: top });
+    updateChangelogBadgeState(top);
+}
+
 function openChangelogModal() {
     const modal = document.getElementById('changelogModal');
     if (!modal) return;
-    renderChangelogList();
+    renderChangelogList(lastSeenChangelogVersion);
     modal.classList.add('active');
 }
 
 function closeChangelogModal() {
     const modal = document.getElementById('changelogModal');
     if (!modal) return;
+    saveLastSeenChangelogVersion();
     modal.classList.remove('active');
 }
 
-function renderChangelogList() {
+function renderChangelogList(lastSeen) {
     const container = document.getElementById('changelogList');
     if (!container) return;
 
@@ -1000,13 +1029,20 @@ function renderChangelogList() {
         return;
     }
 
-    const html = CHANGELOG_ENTRIES.map(item => {
+    const lastSeenIdx = lastSeen ? CHANGELOG_ENTRIES.findIndex(e => e.version === lastSeen) : -1;
+
+    const html = CHANGELOG_ENTRIES.map((item, idx) => {
         const dateText = item.dateDisplay || item.date || '';
         const desc = item.description || '';
+        const isNew = lastSeenIdx < 0 ? true : idx < lastSeenIdx;
+        const itemClass = isNew ? 'changelog-item changelog-item--new' : 'changelog-item';
+        const versionHtml = isNew
+            ? `<span class="changelog-version-wrap"><span class="changelog-item-version">${escapeHtml(item.version || '')}</span><span class="changelog-item-dot" aria-hidden="true"></span></span>`
+            : `<span class="changelog-item-version">${escapeHtml(item.version || '')}</span>`;
         return `
-            <div class="changelog-item">
+            <div class="${itemClass}">
                 <div class="changelog-item-header">
-                    <span class="changelog-item-version">${escapeHtml(item.version || '')}</span>
+                    ${versionHtml}
                     <span class="changelog-item-date">${escapeHtml(dateText)}</span>
                 </div>
                 <div class="changelog-item-desc">${escapeHtml(desc)}</div>
@@ -5873,6 +5909,14 @@ function setupEventListeners() {
     document.getElementById('serviceSearch')?.addEventListener('input', updateServiceTable);
     document.getElementById('serviceSearch')?.nextElementSibling.addEventListener('click', () => clearSearch('serviceSearch', 'updateServiceTable'));
     document.getElementById('addServiceNameBtn')?.addEventListener('click', addServiceName);
+
+    // Changelog modal: закрытие по клику на оверлей
+    const changelogModal = document.getElementById('changelogModal');
+    if (changelogModal) {
+        changelogModal.addEventListener('click', function(e) {
+            if (e.target === changelogModal) closeChangelogModal();
+        });
+    }
     
     // Обновляем обновление дат, чтобы захватить и serviceDate
     updateAllDates(); 

@@ -46,9 +46,21 @@
         }
         .header-title { font-size: 24px; font-weight: 700; color: var(--color-primary); display: flex; align-items: center; }
         .header-info { font-size: 12px; color: var(--color-text-light); }
-        .btn-version { border: 1px solid var(--color-border); background: #f8fafc; color: #64748b; font-size: 11px; padding: 4px 10px; border-radius: 999px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+        .btn-version { position: relative; overflow: hidden; border: 1px solid var(--color-border); background: #f8fafc; color: #64748b; font-size: 11px; padding: 4px 10px; border-radius: 999px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
         .btn-version::before { content: "Версия"; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
         .btn-version:hover { background: #e5edff; color: #1e40af; border-color: #cbd5e1; }
+        .btn-version--has-new { animation: changelog-shimmer-sweep 6.5s ease-in-out infinite; }
+        .btn-version--has-new::after { content: ''; position: absolute; top: 0; left: -100%; width: 60%; height: 100%; background: linear-gradient(100deg, transparent 15%, rgba(255,255,255,0.85) 50%, transparent 85%); transform: skewX(-20deg); pointer-events: none; z-index: 0; }
+        @keyframes changelog-shimmer-sweep {
+            0%, 77% { box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+            88% { box-shadow: 0 2px 8px rgba(30, 64, 175, 0.25); }
+            100% { box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+        }
+        .btn-version--has-new::after { animation: changelog-shimmer-sweep-beam 6.5s ease-in-out infinite; }
+        @keyframes changelog-shimmer-sweep-beam {
+            0%, 77% { left: -100%; }
+            100% { left: 120%; }
+        }
 
         /* Main Layout */
         .container { display: flex; flex: 1; overflow: hidden; }
@@ -510,8 +522,12 @@
 
         /* Changelog styles */
         .changelog-list { display: flex; flex-direction: column; gap: 12px; font-size: 13px; color: #1e293b; }
-        .changelog-item { padding: 10px 12px; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; }
-        .changelog-item-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+        .changelog-item { padding: 10px 12px; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; transition: box-shadow 0.2s ease; }
+        .changelog-item:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .changelog-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; gap: 8px; }
+        .changelog-version-wrap { display: inline-flex; align-items: center; gap: 6px; }
+        .changelog-item-dot { flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%; background: #22c55e; transition: opacity 0.2s ease; }
+        .changelog-item--new:hover .changelog-item-dot { opacity: 0; }
         .changelog-item-version { font-weight: 600; color: #1e40af; }
         .changelog-item-date { font-size: 11px; color: #64748b; }
         .changelog-item-desc { font-size: 13px; color: #334155; }
