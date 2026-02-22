@@ -180,6 +180,7 @@ const db = {
 	serviceNames: [],
 	colors: [ { id: 1, name: 'Белый', hex: '#ffffff' }, { id: 2, name: 'Чёрный', hex: '#000000' }, { id: 3, name: 'Красный', hex: '#ff0000' }, { id: 4, name: 'Синий', hex: '#0000ff' }, { id: 5, name: 'Зелёный', hex: '#00ff00' } ],
     plasticTypes: ['PLA - Basic', 'PLA - Silk', 'PLA - Matte', 'PLA +'],
+    layerHeights: ['0.08', '0.12', '0.16', '0.20', '0.24', '0.28'],
     filamentStatuses: ['В наличии', 'Израсходовано'],
     printers: [ { id: 1, model: 'Creality K2 Pro', power: 1.3 } ],
     electricityCosts: [
@@ -298,7 +299,7 @@ document.getElementById('regBtn')?.addEventListener('click', () => {
                 },
                 settings: { lastSeenChangelogVersion: topVersion, displayName: '', profileImageUrl: '' },
                 // Пустые структуры данных
-                data: { filaments: [], products: [], writeoffs: [] }
+                data: { filaments: [], products: [], writeoffs: [], layerHeights: ['0.08', '0.12', '0.16', '0.20', '0.24', '0.28'] }
             };
 
             // Сохраняем начальные данные подписки
@@ -468,6 +469,7 @@ window.addEventListener('DOMContentLoaded', () => {
                     db.brands = toArrayOrDefault(loadedData.brands, db.brands);
                     db.colors = toArrayOrDefault(loadedData.colors, db.colors);
                     db.plasticTypes = toArrayOrDefault(loadedData.plasticTypes, db.plasticTypes);
+                    db.layerHeights = toArrayOrDefault(loadedData.layerHeights, db.layerHeights);
                     db.filamentStatuses = toArrayOrDefault(loadedData.filamentStatuses, db.filamentStatuses);
                     db.printers = toArrayOrDefault(loadedData.printers, db.printers);
                     db.electricityCosts = toArrayOrDefault(loadedData.electricityCosts, db.electricityCosts);
@@ -1403,10 +1405,12 @@ function updateAllSelects() {
     const fs = document.getElementById('filamentStatusFilter'); if(fs) { const v=fs.value; fs.innerHTML = '<option value="">— Все статусы —</option>' + db.filamentStatuses.map(s => `<option value="${s}">${escapeHtml(s)}</option>`).join(''); fs.value=v; }
     document.querySelectorAll('#productPrinter').forEach(s => s.innerHTML = db.printers.map(p => `<option value="${p.id}">${escapeHtml(p.model)}</option>`).join(''));
     
+    updateProductLayerHeightSelect();
     updateProductFilamentSelect(); 
     updateBrandsList(); 
     updateColorsList(); 
     updateFilamentTypeList(); 
+    updateLayerHeightsList();
     //updateFilamentStatusList(); 
     updatePrintersList(); 
     updateElectricityCostList();
@@ -2390,6 +2394,11 @@ function updateProductTypeUI() {
     groups.linkContainer.style.display = 'block';
     if(groups.fileSection) groups.fileSection.classList.remove('hidden');
 
+    const nameGroup = document.getElementById('productNameGroup');
+    const layerGroup = document.getElementById('productLayerHeightGroup');
+    if (nameGroup) nameGroup.classList.toggle('product-name-full', type === 'Составное');
+    if (layerGroup) layerGroup.classList.toggle('hidden', type === 'Составное');
+
     if (type === 'Составное') {
         if(groups.allParts) groups.allParts.style.display = 'flex';
         groups.material.classList.add('hidden');
@@ -2735,6 +2744,12 @@ function editProduct(id) {
         if (el) el.value = field.value;
     });
 
+    const lhSel = document.getElementById('productLayerHeight');
+    if (lhSel) {
+        updateProductLayerHeightSelect();
+        lhSel.value = p.layerHeight || '';
+    }
+
 	const defCb = document.getElementById('productDefective');
 	const draftCb = document.getElementById('productIsDraft');
     
@@ -3053,6 +3068,9 @@ async function saveProduct(andThenWriteOff = false, andThenEditProductId = null)
     // [FIX] Добавляем || null для безопасности транзакции
     const printerObj = db.printers.find(x => x.id == document.getElementById('productPrinter').value);
     
+    const layerHeightSel = document.getElementById('productLayerHeight');
+    const layerHeightVal = layerHeightSel && layerHeightSel.value ? layerHeightSel.value.trim() : '';
+
     const p = { 
         name: document.getElementById('productName').value, 
         systemId: eid ? document.getElementById('productModal').getAttribute('data-system-id') : document.getElementById('productSystemId').textContent, 
@@ -3070,6 +3088,7 @@ async function saveProduct(andThenWriteOff = false, andThenEditProductId = null)
         imageUrl: imgUrl,    
 		imageSize: imgSize,		
         fileUrls: fileUrls,
+        layerHeight: layerHeightVal || null,
     };
     
     // Остаток для черновика всегда 0 (или равен кол-ву, но не участвует в списании). 
@@ -3445,9 +3464,10 @@ function buildProductRow(p, isChild) {
 
     const nameEvents = `onmouseenter="showProductImagePreview(this, ${p.id})" onmousemove="moveProductImagePreview(event)" onmouseleave="hideProductImagePreview(this)"`;
 
+    const layerSuffix = (p.layerHeight && String(p.layerHeight).trim()) ? ` [слой ${escapeHtml(String(p.layerHeight))}]` : '';
     let nameHtml = isChild 
-        ? `<div class="product-name-cell product-child-indent"><div class="product-icon-wrapper">${icon}</div><span ${nameEvents} style="cursor:default">${escapeHtml(p.name)}</span>${note}</div>`
-        : `<div class="product-name-cell"><div class="product-icon-wrapper">${icon}</div><span ${nameEvents} style="cursor:default"><strong>${escapeHtml(p.name)}</strong></span>${note}</div>`;
+        ? `<div class="product-name-cell product-child-indent"><div class="product-icon-wrapper">${icon}</div><span ${nameEvents} style="cursor:default">${escapeHtml(p.name)}${layerSuffix}</span>${note}</div>`
+        : `<div class="product-name-cell"><div class="product-icon-wrapper">${icon}</div><span ${nameEvents} style="cursor:default"><strong>${escapeHtml(p.name)}${layerSuffix}</strong></span>${note}</div>`;
 
     let addPartButtonHtml = '';
 	if (p.type === 'Составное') {
@@ -3492,7 +3512,8 @@ function updateChildrenTable() {
         const colorName = k.filament && k.filament.color ? escapeHtml(k.filament.color.name) : 'Нет цвета';
         const iconChar = k.defective ? '❌' : '↳';
         const iconClass = k.defective ? 'children-part-icon icon-defective' : 'children-part-icon';
-        const nameHtml = `<span class="${iconClass}">${iconChar}</span><a href="#" class="child-part-link" onclick="event.preventDefault(); navigateToPart(${k.id});" title="${escapeHtml(k.name)}">${escapeHtml(k.name)}</a>`;
+        const layerSuffix = (k.layerHeight && String(k.layerHeight).trim()) ? ` [слой ${escapeHtml(String(k.layerHeight))}]` : '';
+        const nameHtml = `<span class="${iconClass}">${iconChar}</span><a href="#" class="child-part-link" onclick="event.preventDefault(); navigateToPart(${k.id});" title="${escapeHtml(k.name)}">${escapeHtml(k.name)}${layerSuffix}</a>`;
         const energyCost = k.energyCost != null ? k.energyCost : (k.printer && k.printer.power && k.date
             ? ((k.printTime || 0) / 60) * k.printer.power * getCostPerKwForDate(k.date) : 0);
         return `<tr>
@@ -3710,6 +3731,14 @@ function updateProductAvailability() {
 }
 
 
+
+function updateProductLayerHeightSelect() {
+    const sel = document.getElementById('productLayerHeight');
+    if (!sel) return;
+    const opts = ['<option value="">- Укажите высоту -</option>'];
+    (db.layerHeights || []).forEach(h => opts.push(`<option value="${escapeHtml(String(h))}">${escapeHtml(String(h))}</option>`));
+    sel.innerHTML = opts.join('');
+}
 
 // Сортировка выпадающего списка филаментов по алфавиту
 function updateProductFilamentSelect() {
@@ -5096,6 +5125,21 @@ function updateFilamentTypeList(){ document.getElementById('filamentTypeList').i
     <div class="action-buttons"><button class="btn-secondary btn-small" onclick="editFilamentType(${i})">✎</button><button class="btn-danger btn-small" onclick="removeFilamentType(${i})">✕</button></div>
 </div>`).join(''); }
 
+function updateLayerHeightsList(){ 
+    const listEl = document.getElementById('layerHeightsList'); 
+    if (!listEl) return; 
+    listEl.innerHTML = (db.layerHeights || []).map((h,i)=>`<div style="display:flex;justify-content:space-between;padding:8px 4px;border-bottom:1px solid #eee;align-items:center;">
+    <div style="display:flex; align-items:center;">
+        <div class="sort-buttons">
+            <button class="btn-sort" onclick="moveReferenceItemUp('layerHeights', ${i})" ${i===0?'disabled':''}>▲</button>
+            <button class="btn-sort" onclick="moveReferenceItemDown('layerHeights', ${i})" ${i===(db.layerHeights.length-1)?'disabled':''}>▼</button>
+        </div>
+        <span>${escapeHtml(String(h))}</span>
+    </div>
+    <div class="action-buttons"><button class="btn-secondary btn-small" onclick="editLayerHeight(${i})">✎</button><button class="btn-danger btn-small" onclick="removeLayerHeight(${i})">✕</button></div>
+</div>`).join(''); 
+}
+
 // function updateFilamentStatusList(){ document.getElementById('filamentStatusList').innerHTML = db.filamentStatuses.map((s,i)=>`<div style="display:flex;justify-content:space-between;padding:8px 4px;border-bottom:1px solid #eee;align-items:center;">
 //     <div style="display:flex; align-items:center;">
 //         <div class="sort-buttons">
@@ -5292,6 +5336,51 @@ async function editFilamentType(i) {
         await dbRef.update(updates);
         updateAllSelects(); 
     } 
+}
+
+// --- LAYER HEIGHTS ---
+async function addLayerHeight() {
+    const v = document.getElementById('newLayerHeight').value.trim();
+    if (!v) return;
+    const normalized = String(parseFloat(v.replace(',', '.')) || v);
+    if (db.layerHeights.includes(normalized)) {
+        showToast('Такое значение уже есть', 'error');
+        return;
+    }
+    db.layerHeights.push(normalized);
+    await dbRef.child('layerHeights').set(db.layerHeights);
+    document.getElementById('newLayerHeight').value = '';
+    updateAllSelects();
+}
+
+async function removeLayerHeight(i) {
+    const val = db.layerHeights[i];
+    if (db.products.some(p => p.layerHeight === val)) {
+        showToast('Нельзя удалить: используется в изделии.', 'error');
+        return;
+    }
+    if (!confirm(`Удалить высоту слоя "${val}"?`)) return;
+    db.layerHeights.splice(i, 1);
+    await dbRef.child('layerHeights').set(db.layerHeights);
+    updateAllSelects();
+}
+
+async function editLayerHeight(i) {
+    const newVal = prompt("Изменить (мм):", db.layerHeights[i]);
+    if (!newVal || !newVal.trim()) return;
+    const cleanedVal = String(parseFloat(newVal.replace(',', '.')) || newVal.trim());
+    const oldVal = db.layerHeights[i];
+    db.layerHeights[i] = cleanedVal;
+    const updates = {};
+    updates[`layerHeights/${i}`] = cleanedVal;
+    db.products.forEach((p, idx) => {
+        if (p.layerHeight === oldVal) {
+            updates[`products/${idx}/layerHeight`] = cleanedVal;
+            p.layerHeight = cleanedVal;
+        }
+    });
+    await dbRef.update(updates);
+    updateAllSelects();
 }
 
 // --- FILAMENT STATUSES закомментировано по причине скрытия справочника из пользовательского интерфейса---
@@ -6046,6 +6135,7 @@ function setupEventListeners() {
     document.getElementById('addBrandBtn')?.addEventListener('click', addBrand);
     document.getElementById('addColorBtn')?.addEventListener('click', addColor);
     document.getElementById('addFilamentTypeBtn')?.addEventListener('click', addFilamentType);
+    document.getElementById('addLayerHeightBtn')?.addEventListener('click', addLayerHeight);
     // document.getElementById('addFilamentStatusBtn')?.addEventListener('click', addFilamentStatus);
     document.getElementById('addPrinterBtn')?.addEventListener('click', addPrinter);
     document.getElementById('addElectricityCostBtn')?.addEventListener('click', addElectricityCost);
