@@ -1280,10 +1280,9 @@ function exportData() {
 
 
 function updateAllSelects() {
-    document.querySelectorAll('#filamentBrand').forEach(s => s.innerHTML = db.brands.map((b, i) => `<option value="${i}">${escapeHtml(b)}</option>`).join(''));
+    document.querySelectorAll('#filamentBrand').forEach(s => s.innerHTML = '<option value="">-- Выберите бренд --</option>' + db.brands.map((b, i) => `<option value="${i}">${escapeHtml(b)}</option>`).join(''));
     document.querySelectorAll('#filamentColor').forEach(s => { const editId = document.getElementById('filamentModal')?.getAttribute('data-edit-id'); let opts = !editId ? [`<option value="">-- Выберите цвет --</option>`] : []; opts.push(...db.colors.map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`)); s.innerHTML = opts.join(''); });
-    document.querySelectorAll('#filamentType').forEach(s => s.innerHTML = db.plasticTypes.map(p => `<option value="${p}">${escapeHtml(p)}</option>`).join(''));
-    document.querySelectorAll('#filamentAvailability').forEach(s => s.innerHTML = db.filamentStatuses.map(s => `<option value="${s}">${escapeHtml(s)}</option>`).join(''));
+    document.querySelectorAll('#filamentType').forEach(s => s.innerHTML = '<option value="">-- Выберите тип пластика --</option>' + db.plasticTypes.map(p => `<option value="${p}">${escapeHtml(p)}</option>`).join(''));
     const fs = document.getElementById('filamentStatusFilter'); if(fs) { const v=fs.value; fs.innerHTML = '<option value="">— Все статусы —</option>' + db.filamentStatuses.map(s => `<option value="${s}">${escapeHtml(s)}</option>`).join(''); fs.value=v; }
     document.querySelectorAll('#productPrinter').forEach(s => s.innerHTML = db.printers.map(p => `<option value="${p.id}">${escapeHtml(p.model)}</option>`).join(''));
     
@@ -1455,9 +1454,10 @@ function closeFilamentModal() {
 
 
 function clearFilamentForm() {
-    document.getElementById('filamentCustomId').value = ''; document.getElementById('filamentName').value = ''; document.getElementById('filamentLink').value = ''; document.getElementById('filamentType').value = 'PLA';
+    document.getElementById('filamentCustomId').value = ''; document.getElementById('filamentName').value = ''; document.getElementById('filamentLink').value = '';
+    document.getElementById('filamentType').value = '';
     document.getElementById('filamentAvgPrice').value = ''; document.getElementById('filamentActualPrice').value = ''; document.getElementById('filamentNote').value = '';
-    document.getElementById('filamentBrand').value = '0'; document.getElementById('filamentColorPreview').style.background = '#ffffff'; document.getElementById('filamentAvailability').value = 'В наличии';
+    document.getElementById('filamentBrand').value = ''; document.getElementById('filamentColorPreview').style.background = '#ffffff'; document.getElementById('filamentAvailability').value = 'В наличии';
     document.getElementById('filamentWeight').value = '1000'; document.getElementById('filamentLength').value = '330'; document.getElementById('filamentDate').value = new Date().toISOString().split('T')[0];
     document.getElementById('filamentValidationMessage').classList.add('hidden'); document.getElementById('filamentUniqueIdMessage').classList.add('hidden');
     document.querySelectorAll('#filamentModal input, #filamentModal select').forEach(el => el.classList.remove('error'));
@@ -1474,14 +1474,15 @@ function clearFilamentForm() {
 
 function validateFilamentForm() {
     let valid = true;
-    const requiredIds = ['filamentCustomId','filamentDate','filamentName','filamentActualPrice','filamentAvgPrice','filamentWeight','filamentLength','filamentColor'];
+    const requiredIds = ['filamentCustomId','filamentDate','filamentName','filamentActualPrice','filamentAvgPrice','filamentWeight','filamentLength','filamentColor','filamentBrand','filamentType'];
     
     requiredIds.forEach(id => {
         const el = document.getElementById(id);
+        if (!el) return;
         const val = parseFloat(el.value);
         
         // Проверка: Пустое, или (если число) меньше или равно нулю
-        let isInvalid = !el.value.trim();
+        let isInvalid = el.value === undefined || el.value === null || String(el.value).trim() === '';
         if (el.type === 'number') {
             isInvalid = isInvalid || isNaN(val) || val <= 0;
         }
@@ -1508,8 +1509,7 @@ function validateFilamentForm() {
     const msg = document.getElementById('filamentValidationMessage');
     if (!valid) {
         if (document.getElementById('filamentUniqueIdMessage').classList.contains('hidden')) {
-            // Уточняем текст ошибки
-            msg.textContent = 'Заполните все поля корректными значениями (числа > 0)';
+            msg.textContent = 'Заполните все обязательные поля (бренд, тип пластика, цвет и др.)';
             msg.classList.remove('hidden');
         }
     } else {
@@ -1640,8 +1640,9 @@ function editFilament(id) {
     const f = db.filaments.find(x => x.id === id); if (!f) return;
     openFilamentModal();
     document.getElementById('filamentCustomId').value = f.customId; 
-    document.getElementById('filamentBrand').value = db.brands.indexOf(f.brand);
-    document.getElementById('filamentType').value = f.type;
+    const brandIdx = db.brands.indexOf(f.brand);
+    document.getElementById('filamentBrand').value = brandIdx >= 0 ? String(brandIdx) : '';
+    document.getElementById('filamentType').value = f.type || '';
     document.getElementById('filamentColor').value = f.color.id;
     updateFilamentColorPreview();
     document.getElementById('filamentDate').value = f.date;
@@ -1668,6 +1669,7 @@ function copyFilament(id) {
     document.getElementById('filamentModal').removeAttribute('data-edit-id'); 
     document.getElementById('filamentCustomId').value += ' (Копия)';
     document.getElementById('filamentAvailability').value = 'В наличии';
+    updateFilamentStatusUI();
     
     document.getElementById('filamentNote').value = ''; // <--- ДОБАВЛЕНО: Очистка комментария
     
@@ -1693,9 +1695,16 @@ async function deleteFilament(id) {
     }
 }
 
+function syncFilamentAvailabilitySwitcherUI() {
+    const input = document.getElementById('filamentAvailability');
+    const val = input ? input.value : 'В наличии';
+    document.querySelectorAll('.filament-availability-option').forEach(btn => {
+        btn.classList.toggle('filament-availability-active', btn.getAttribute('data-value') === val);
+    });
+}
+
 function updateFilamentStatusUI() {
-    const el = document.getElementById('filamentAvailability');
-    el.className = el.value === 'В наличии' ? 'select-status-stock' : 'select-status-used';
+    syncFilamentAvailabilitySwitcherUI();
 }
 
 
@@ -5815,6 +5824,17 @@ function setupEventListeners() {
     document.getElementById('resetFilamentFiltersBtn')?.addEventListener('click', resetFilamentFilters);
     // Modal
     document.getElementById('filamentAvailability')?.addEventListener('change', updateFilamentStatusUI);
+    document.querySelectorAll('.filament-availability-option').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const input = document.getElementById('filamentAvailability');
+            if (!input) return;
+            const val = btn.getAttribute('data-value');
+            if (input.value === val) return;
+            input.value = val;
+            syncFilamentAvailabilitySwitcherUI();
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+    });
     document.getElementById('filamentColor')?.addEventListener('change', updateFilamentColorPreview);
     ['filamentActualPrice', 'filamentAvgPrice', 'filamentWeight', 'filamentLength'].forEach(id => {
         const el = document.getElementById(id);

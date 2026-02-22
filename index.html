@@ -775,7 +775,14 @@
                     <div class="form-section-title">Основная информация</div>
                     <div class="form-row-3">
                         <div class="form-group"><label>Пользовательский ID:</label><input type="text" id="filamentCustomId" placeholder="Белый - 1"></div>
-                        <div class="form-group"><label>Наличие:</label><select id="filamentAvailability"></select></div>
+                        <div class="form-group">
+                            <label>Наличие:</label>
+                            <div class="filament-availability-switcher" role="group" aria-label="Наличие">
+                                <button type="button" class="filament-availability-option" data-value="В наличии">В наличии</button>
+                                <button type="button" class="filament-availability-option" data-value="Израсходовано">Израсходовано</button>
+                            </div>
+                            <input type="hidden" id="filamentAvailability" value="В наличии">
+                        </div>
                         <div class="form-group"><label>Дата покупки:</label><input type="date" id="filamentDate" value=""></div>
                     </div>
                     <div class="form-group"><label>Наименование филамента:</label><input type="text" id="filamentName" placeholder="PLA 1.75mm"></div>

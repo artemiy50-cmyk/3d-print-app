@@ -1254,7 +1254,38 @@
             padding-top: 0;
         }
 
-		/* --- Filament Status Select Styling --- */
+		/* --- Filament Availability Switcher --- */
+        .filament-availability-switcher {
+            display: flex;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            height: 42px;
+        }
+        .filament-availability-option {
+            flex: 1;
+            min-width: 0;
+            padding: 8px 12px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+            border: none;
+            background: #e2e8f0;
+            color: var(--color-text);
+            border-left: 1px solid #cbd5e1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .filament-availability-option:first-child { border-left: none; border-radius: var(--radius) 0 0 var(--radius); }
+        .filament-availability-option:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+        .filament-availability-option:hover { background: #cbd5e1; }
+        .filament-availability-option.filament-availability-active { background: var(--color-success); color: white; font-weight: 700; }
+        .filament-availability-option[data-value="Израсходовано"].filament-availability-active { background: #475569; color: white; font-weight: 600; }
+        .filament-availability-option.filament-availability-active:hover { filter: brightness(1.05); }
+
+		/* --- Filament Status Select Styling (for filter) --- */
         .select-status-stock { 
             background-color: var(--color-light-green-bg) !important; 
             color: var(--color-light-green-text) !important; 
