@@ -4849,7 +4849,7 @@ function calcWriteoffTotal() {
 }
 
 
-async function saveWriteoff() {
+async function saveWriteoff(closeAfter) {
     const systemId = document.getElementById('writeoffSystemId').textContent;
     let date = document.getElementById('writeoffDate').value;
     const type = document.getElementById('writeoffType').value;
@@ -5022,7 +5022,7 @@ async function saveWriteoff() {
         updateDashboard(); 
         updateReports(); 
         updateAllSelects();
-        closeWriteoffModal();
+        if (closeAfter !== false) closeWriteoffModal();
 
     } catch (e) {
         console.error("Ошибка сохранения списания:", e);
@@ -6411,7 +6411,8 @@ function setupEventListeners() {
     // --- WRITEOFFS ---
     document.getElementById('addWriteoffBtn')?.addEventListener('click', () => openWriteoffModal());
     document.getElementById('addProductPageWriteoffBtn')?.addEventListener('click', () => openWriteoffModal());
-    document.getElementById('saveWriteoffBtn')?.addEventListener('click', saveWriteoff);
+    document.getElementById('saveWriteoffBtn')?.addEventListener('click', () => saveWriteoff(false));
+    document.getElementById('saveWriteoffAndCloseBtn')?.addEventListener('click', () => saveWriteoff(true));
     document.getElementById('closeWriteoffModalBtn')?.addEventListener('click', closeWriteoffModal);
     document.getElementById('addWriteoffItemBtn')?.addEventListener('click', () => addWriteoffItemSection());
     setupWriteoffExportXls();
