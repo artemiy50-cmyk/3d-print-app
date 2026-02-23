@@ -1,13 +1,18 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
 // Номер версии ведём в формате xx.xx.xx, например 7.7.7
 const APP_VERSION_NUMBER = '5.8.1';
-console.log('2026-02-23 09-31-29');
+console.log('2026-02-23 10-53-08');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
 
 // === CHANGELOG
 const CHANGELOG_ENTRIES = [
+    { 
+        version: '5.10.1', 
+        dateDisplay: '23.02.2026', 
+        description: 'В Списании добавлена возможность сохранения без закрытия окна.' 
+    },
     { 
         version: '5.10.0', 
         dateDisplay: '23.02.2026', 
