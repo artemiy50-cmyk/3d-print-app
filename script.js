@@ -1,13 +1,18 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
 // Номер версии ведём в формате xx.xx.xx, например 7.7.7
 const APP_VERSION_NUMBER = '5.8.1';
-console.log('2026-02-23 09-31-29');
+console.log('2026-02-23 10-53-08');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
 
 // === CHANGELOG
 const CHANGELOG_ENTRIES = [
+    { 
+        version: '5.10.1', 
+        dateDisplay: '23.02.2026', 
+        description: 'В Списании добавлена возможность сохранения без закрытия окна.' 
+    },
     { 
         version: '5.10.0', 
         dateDisplay: '23.02.2026', 
@@ -4849,7 +4854,7 @@ function calcWriteoffTotal() {
 }
 
 
-async function saveWriteoff() {
+async function saveWriteoff(closeAfter) {
     const systemId = document.getElementById('writeoffSystemId').textContent;
     let date = document.getElementById('writeoffDate').value;
     const type = document.getElementById('writeoffType').value;
@@ -5022,7 +5027,7 @@ async function saveWriteoff() {
         updateDashboard(); 
         updateReports(); 
         updateAllSelects();
-        closeWriteoffModal();
+        if (closeAfter !== false) closeWriteoffModal();
 
     } catch (e) {
         console.error("Ошибка сохранения списания:", e);
@@ -6411,7 +6416,8 @@ function setupEventListeners() {
     // --- WRITEOFFS ---
     document.getElementById('addWriteoffBtn')?.addEventListener('click', () => openWriteoffModal());
     document.getElementById('addProductPageWriteoffBtn')?.addEventListener('click', () => openWriteoffModal());
-    document.getElementById('saveWriteoffBtn')?.addEventListener('click', saveWriteoff);
+    document.getElementById('saveWriteoffBtn')?.addEventListener('click', () => saveWriteoff(false));
+    document.getElementById('saveWriteoffAndCloseBtn')?.addEventListener('click', () => saveWriteoff(true));
     document.getElementById('closeWriteoffModalBtn')?.addEventListener('click', closeWriteoffModal);
     document.getElementById('addWriteoffItemBtn')?.addEventListener('click', () => addWriteoffItemSection());
     setupWriteoffExportXls();
