@@ -1866,6 +1866,16 @@ td:nth-last-child(2) {
 }
 
 /* --- Отступы колонки Дата (как в Отчётах: padding-left 12px) --- */
+/* Цветовая индикация групп документов в таблице списаний */
+#writeoffTable thead { box-shadow: 0 2px 2px -1px rgba(0,0,0,0.08), -4px 0 0 0 var(--color-bg), 4px 0 0 0 var(--color-bg), 0 4px 0 0 var(--color-bg); }
+#writeoffTable tbody tr[data-doc-group="0"] td:first-child { border-left: 3px solid #d4c4b0; }
+#writeoffTable tbody tr[data-doc-group="0"] td:last-child { border-right: 3px solid #d4c4b0; }
+#writeoffTable tbody tr[data-doc-group="1"] td:first-child { border-left: 3px solid #94a3b8; }
+#writeoffTable tbody tr[data-doc-group="1"] td:last-child { border-right: 3px solid #94a3b8; }
+.writeoff-doc-badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 12px; }
+.writeoff-doc-badge--0 { background: #f5f0e8; color: #6b5b4f; }
+.writeoff-doc-badge--1 { background: #f1f5f9; color: #475569; }
+
 #writeoffTable th:first-child,
 #writeoffTable td:first-child { padding-left: 12px; }
 #serviceTable th:first-child,

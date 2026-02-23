@@ -5129,6 +5129,17 @@ function updateWriteoffTable() {
         return 0;
     });
 
+    // Цветовая индикация групп документов: два цвета чередуются по systemId
+    const systemIdToColor = {};
+    let colorIdx = 0;
+    list.forEach(w => {
+        const sid = w.systemId || '';
+        if (!(sid in systemIdToColor)) {
+            systemIdToColor[sid] = colorIdx % 2;
+            colorIdx++;
+        }
+    });
+
     tbody.innerHTML = list.map(w => {
         let statusBadge = 'badge-secondary';
         if (w.type === 'Продажа') statusBadge = 'badge-success';
@@ -5139,13 +5150,14 @@ function updateWriteoffTable() {
         const product = db.products.find(p => p.id === w.productId);
         const actualCost = product ? (product.costPer1Actual || 0).toFixed(2) : '0.00';
 
+        const docColor = systemIdToColor[w.systemId || ''] ?? 0;
+
         // --- ИЗМЕНЕНИЕ: Добавлены обработчики событий для превью картинки ---
-        // Использованы те же функции showProductImagePreview, что и в таблице изделий
         const nameEvents = w.productId ? `onmouseenter="showProductImagePreview(this, ${w.productId})" onmousemove="moveProductImagePreview(event)" onmouseleave="hideProductImagePreview(this)"` : '';
 
-        return `<tr>
-            <td>${w.date}</td>
-            <td><small>${escapeHtml(w.systemId)}</small></td>
+        return `<tr data-doc-group="${docColor}">
+            <td><span class="writeoff-doc-badge writeoff-doc-badge--${docColor}">${escapeHtml(w.date)}</span></td>
+            <td><span class="writeoff-doc-badge writeoff-doc-badge--${docColor}">${escapeHtml(w.systemId)}</span></td>
             <td ${nameEvents} style="cursor:default"><strong>${escapeHtml(w.productName)}</strong></td>
             <td><span class="badge ${statusBadge}">${escapeHtml(w.type)}</span></td>
             <td>${actualCost} ₽</td>
