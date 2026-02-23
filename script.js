@@ -4103,7 +4103,8 @@ function buildActSheet(XLSXLib, rows, date) {
     var dateStr = formatDateForAct(date);
 
     data.push([
-        styleCell('АКТ ПЕРЕДАЧИ', { bold: true, sz: 14 }),
+        styleCell('АКТ ПЕРЕДАЧИ', { bold: true, sz: 16 }),
+        styleCell('', { sz: 12, alignment: vc }),
         styleCell('', { sz: 12, alignment: vc }),
         styleCell('', { sz: 12, alignment: vc }),
         styleCell('', { sz: 12, alignment: vc }),
@@ -4114,11 +4115,13 @@ function buildActSheet(XLSXLib, rows, date) {
         styleCell('', { sz: 12, alignment: vc }),
         styleCell('', { sz: 12, alignment: vc }),
         styleCell('', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12, alignment: vc }),
         styleCell('', { sz: 12, alignment: vc })
     ]);
-    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
+    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
 
     var headerRow = [
+        styleCell('№', Object.assign({}, headerCenterStyle, { border: _borderThin })),
         styleCell('Наименование', Object.assign({}, headerStyle, { border: _borderThin })),
         styleCell('Цена, за 1 шт.', Object.assign({}, headerCenterStyle, { border: _borderThin })),
         styleCell('Кол-во', Object.assign({}, headerCenterStyle, { border: _borderThin })),
@@ -4129,8 +4132,9 @@ function buildActSheet(XLSXLib, rows, date) {
 
     var totalQty = 0;
     var dataRowCount = 0;
-    rows.forEach(function(r) {
+    rows.forEach(function(r, idx) {
         data.push([
+            cellStyle(idx + 1, { alignment: { horizontal: 'center', vertical: 'center' } }),
             cellStyle(r.productName, { bold: true, alignment: { vertical: 'center', wrapText: true } }),
             cellStyle(r.price),
             cellStyle(r.qty),
@@ -4143,6 +4147,7 @@ function buildActSheet(XLSXLib, rows, date) {
         if (r.enrichmentNames.length > 0) {
             var compText = 'включая комплектующие: ' + r.enrichmentNames.join('; ');
             data.push([
+                cellStyle(''),
                 styleCell(compText, Object.assign({ sz: 10, bold: false, alignment: { vertical: 'center', wrapText: true } }, cellBorder)),
                 cellStyle(''),
                 cellStyle(''),
@@ -4153,20 +4158,22 @@ function buildActSheet(XLSXLib, rows, date) {
         }
     });
 
-    var totalRowStyle = Object.assign({}, cellBorder, { bold: true, fill: _fillGray, alignment: { horizontal: 'right', vertical: 'center' } });
+    var totalRowStyle = Object.assign({}, cellBorder, { bold: true, fill: _fillGray, sz: 14, alignment: { horizontal: 'right', vertical: 'center' } });
     var totalRow = [
+        styleCell('', totalRowStyle),
         styleCell('ИТОГО', totalRowStyle),
-        styleCell('', Object.assign({}, totalRowStyle)),
+        styleCell('', totalRowStyle),
         styleCell(totalQty, totalRowStyle),
         styleCell('', totalRowStyle),
         styleCell('', totalRowStyle)
     ];
     data.push(totalRow);
 
-    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
-    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
+    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
+    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
     data.push([
         styleCell('Передал:', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12 }),
         styleCell('', { sz: 12 }),
         styleCell('', { sz: 12 }),
         styleCell('', { sz: 12 }),
@@ -4174,21 +4181,24 @@ function buildActSheet(XLSXLib, rows, date) {
     ]);
     data.push([
         styleCell('', { sz: 12, border: _borderBottomOnly }),
+        styleCell('', { sz: 12, border: _borderBottomOnly }),
         styleCell('', { sz: 12 }),
         styleCell('', { sz: 12 }),
         styleCell('', { sz: 12 }),
         styleCell('', { sz: 12 })
     ]);
-    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
-    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
+    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
+    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
     data.push([
         styleCell('Принял:', { sz: 12, alignment: vc }),
         styleCell('', { sz: 12 }),
         styleCell('', { sz: 12 }),
         styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
         styleCell('', { sz: 12 })
     ]);
     data.push([
+        styleCell('', { sz: 12, border: _borderBottomOnly }),
         styleCell('', { sz: 12, border: _borderBottomOnly }),
         styleCell('', { sz: 12 }),
         styleCell('', { sz: 12 }),
@@ -4197,7 +4207,16 @@ function buildActSheet(XLSXLib, rows, date) {
     ]);
 
     var ws = XLSXLib.utils.aoa_to_sheet(data);
-    ws['!cols'] = [{ wch: 45 }, { wch: 14 }, { wch: 8 }, { wch: 14 }, { wch: 28 }];
+    ws['!cols'] = [{ wch: 12 }, { wch: 45 }, { wch: 14 }, { wch: 8 }, { wch: 14 }, { wch: 28 }];
+    var merges = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } },
+        { s: { r: 7 + dataRowCount, c: 0 }, e: { r: 7 + dataRowCount, c: 1 } },
+        { s: { r: 8 + dataRowCount, c: 0 }, e: { r: 8 + dataRowCount, c: 1 } },
+        { s: { r: 11 + dataRowCount, c: 0 }, e: { r: 11 + dataRowCount, c: 1 } },
+        { s: { r: 12 + dataRowCount, c: 0 }, e: { r: 12 + dataRowCount, c: 1 } }
+    ];
+    ws['!merges'] = merges;
     return ws;
 }
 
@@ -4215,14 +4234,16 @@ function buildSaleSheet(XLSXLib, rows, date) {
     var dateStr = formatDateForAct(date);
 
     data.push([
-        styleCell('ПРОДАЖА', { bold: true, sz: 14 }),
+        styleCell('ПРОДАЖА', { bold: true, sz: 16 }),
+        styleCell('', { sz: 12, alignment: vc }),
         styleCell('', { sz: 12, alignment: vc }),
         styleCell('', { sz: 12, alignment: vc }),
         styleCell('Дата: ' + dateStr, { bold: true, sz: 12, alignment: { horizontal: 'right', vertical: 'center' } })
     ]);
-    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
+    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
 
     var headerRow = [
+        styleCell('№', Object.assign({}, headerCenterStyle, { border: _borderThin })),
         styleCell('Наименование', Object.assign({}, headerStyle, { border: _borderThin })),
         styleCell('Цена, за 1 шт.', Object.assign({}, headerCenterStyle, { border: _borderThin })),
         styleCell('Кол-во', Object.assign({}, headerCenterStyle, { border: _borderThin })),
@@ -4232,8 +4253,9 @@ function buildSaleSheet(XLSXLib, rows, date) {
 
     var totalQty = 0;
     var totalCost = 0;
-    rows.forEach(function(r) {
+    rows.forEach(function(r, idx) {
         data.push([
+            cellStyle(idx + 1, { alignment: { horizontal: 'center', vertical: 'center' } }),
             cellStyle(r.productName, { bold: true, alignment: { vertical: 'center', wrapText: true } }),
             cellStyle(r.price),
             cellStyle(r.qty),
@@ -4245,6 +4267,7 @@ function buildSaleSheet(XLSXLib, rows, date) {
         if (r.enrichmentNames.length > 0) {
             var compText = 'включая комплектующие: ' + r.enrichmentNames.join('; ');
             data.push([
+                cellStyle(''),
                 styleCell(compText, Object.assign({ sz: 10, bold: false, alignment: { vertical: 'center', wrapText: true } }, cellBorder)),
                 cellStyle(''),
                 cellStyle(''),
@@ -4253,8 +4276,9 @@ function buildSaleSheet(XLSXLib, rows, date) {
         }
     });
 
-    var totalRowStyle = Object.assign({}, cellBorder, { bold: true, fill: _fillGray, alignment: { horizontal: 'right', vertical: 'center' } });
+    var totalRowStyle = Object.assign({}, cellBorder, { bold: true, fill: _fillGray, sz: 14, alignment: { horizontal: 'right', vertical: 'center' } });
     var totalRow = [
+        styleCell('', totalRowStyle),
         styleCell('ИТОГО', totalRowStyle),
         styleCell('', totalRowStyle),
         styleCell(totalQty, totalRowStyle),
@@ -4263,7 +4287,11 @@ function buildSaleSheet(XLSXLib, rows, date) {
     data.push(totalRow);
 
     var ws = XLSXLib.utils.aoa_to_sheet(data);
-    ws['!cols'] = [{ wch: 54 }, { wch: 14 }, { wch: 8 }, { wch: 14 }];
+    ws['!cols'] = [{ wch: 12 }, { wch: 54 }, { wch: 14 }, { wch: 8 }, { wch: 20 }];
+    ws['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 1 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } }
+    ];
     return ws;
 }
 
@@ -5100,7 +5128,7 @@ function openWriteoffModalForProduct(pid) {
 function editWriteoff(systemId) { openWriteoffModal(systemId); }
 
 function updateWriteoffTable() {
-    const tbody = document.querySelector('#writeoffTable tbody');
+    const tbody = document.querySelector('#writeoffTableBody tbody');
     const filterType = document.getElementById('writeoffTypeFilter').value;
     const search = document.getElementById('writeoffSearch').value.toLowerCase();
     const sortBy = document.getElementById('writeoffSortBy').value;
@@ -5129,6 +5157,17 @@ function updateWriteoffTable() {
         return 0;
     });
 
+    // Цветовая индикация групп документов: два цвета чередуются по systemId
+    const systemIdToColor = {};
+    let colorIdx = 0;
+    list.forEach(w => {
+        const sid = w.systemId || '';
+        if (!(sid in systemIdToColor)) {
+            systemIdToColor[sid] = colorIdx % 2;
+            colorIdx++;
+        }
+    });
+
     tbody.innerHTML = list.map(w => {
         let statusBadge = 'badge-secondary';
         if (w.type === 'Продажа') statusBadge = 'badge-success';
@@ -5139,13 +5178,14 @@ function updateWriteoffTable() {
         const product = db.products.find(p => p.id === w.productId);
         const actualCost = product ? (product.costPer1Actual || 0).toFixed(2) : '0.00';
 
+        const docColor = systemIdToColor[w.systemId || ''] ?? 0;
+
         // --- ИЗМЕНЕНИЕ: Добавлены обработчики событий для превью картинки ---
-        // Использованы те же функции showProductImagePreview, что и в таблице изделий
         const nameEvents = w.productId ? `onmouseenter="showProductImagePreview(this, ${w.productId})" onmousemove="moveProductImagePreview(event)" onmouseleave="hideProductImagePreview(this)"` : '';
 
-        return `<tr>
-            <td>${w.date}</td>
-            <td><small>${escapeHtml(w.systemId)}</small></td>
+        return `<tr data-doc-group="${docColor}">
+            <td><span class="writeoff-doc-badge writeoff-doc-badge--${docColor}">${escapeHtml(w.date)}</span></td>
+            <td><span class="writeoff-doc-badge writeoff-doc-badge--${docColor}">${escapeHtml(w.systemId)}</span></td>
             <td ${nameEvents} style="cursor:default"><strong>${escapeHtml(w.productName)}</strong></td>
             <td><span class="badge ${statusBadge}">${escapeHtml(w.type)}</span></td>
             <td>${actualCost} ₽</td>
@@ -5162,9 +5202,8 @@ function updateWriteoffTable() {
             </td>
         </tr>`;
     }).join('');
+
 }
-
-
 
 function copyWriteoffItem(rowId) {
     const item = db.writeoffs.find(w => w.id === rowId); 

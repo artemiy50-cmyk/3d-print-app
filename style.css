@@ -215,15 +215,27 @@
             margin-bottom: var(--spacing);
         }
 
-        /* Контейнер таблицы внутри растянутой карточки тоже растягивается */
+        /* Контейнер таблицы внутри растянутой карточки */
         #filament.page > .card:last-of-type .table-container,
         #products.page > .card:last-of-type .table-container,
-        #writeoff.page > .card:last-of-type .table-container {
+        #service.page > .card:last-of-type .table-container {
             flex: 1;
-            overflow-y: auto; /* Скролл только здесь */
+            overflow-y: auto;
+            overflow-x: auto;
             max-height: none;
             border-bottom: none;
             border-radius: var(--radius) var(--radius) 0 0;
+            min-height: 0;
+        }
+        #writeoff.page > .card:last-of-type .table-container.writeoff-table-container {
+            flex: 1;
+            overflow: visible;
+            max-height: none;
+            border-bottom: none;
+            border-radius: var(--radius) var(--radius) 0 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
         }
 
         /* Фиксация шапки таблицы */
@@ -1865,20 +1877,64 @@ td:nth-last-child(2) {
     min-width: 80px;
 }
 
+/* --- Таблица списаний: скролл только в теле, без горизонтального --- */
+.writeoff-table-container { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.writeoff-table-header { flex-shrink: 0; overflow: hidden; padding-right: 17px; box-sizing: border-box; }
+.writeoff-table-body-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
+.writeoff-table-header table,
+.writeoff-table-body-scroll table { table-layout: fixed; width: 100%; }
+.writeoff-table-header thead { background: var(--color-bg); border-bottom: 2px solid var(--color-border); }
+
+/* Единые отступы заголовков и ячеек — ключ к выравниванию */
+#writeoffTableHead th,
+#writeoffTableBody td { padding: 8px; text-align: left; box-sizing: border-box; }
+#writeoffTableBody td { max-width: none; }
+#writeoffTableHead th:first-child,
+#writeoffTableBody td:first-child { padding-left: 12px; padding-right: 6px; }
+#writeoffTableHead th.text-center { text-align: center; }
+#writeoffTableBody td:nth-child(6) { text-align: left; }
+#writeoffTableHead th.text-right { text-align: right; }
+#writeoffTableBody td:nth-child(8) { text-align: left; }
+#writeoffTableBody td:nth-child(7) { text-align: left; }
+#writeoffTableBody td:nth-child(5) { text-align: left; }
+
+/* Кол-во, Цена продажи — сдвиг влево на 40px */
+#writeoffTableHead th:nth-child(6),
+#writeoffTableHead th:nth-child(7),
+#writeoffTableBody td:nth-child(6),
+#writeoffTableBody td:nth-child(7) { padding-left: 0; transform: translateX(-40px); }
+/* Сумма — сдвиг влево на 40px */
+#writeoffTableHead th:nth-child(8),
+#writeoffTableBody td:nth-child(8) { padding-left: 0; transform: translateX(-40px); }
+/* Примечание — сдвиг влево на 60px */
+#writeoffTableHead th:nth-child(9),
+#writeoffTableBody td:nth-child(9) { padding-left: 0; transform: translateX(-60px); }
+#writeoffTableHead th.th-sebest { text-align: left; white-space: normal; line-height: 1.25; }
+#writeoffTableBody td:last-child { padding: 8px; text-align: right; width: auto !important; min-width: 0; overflow: visible !important; }
+
 /* --- Отступы колонки Дата (как в Отчётах: padding-left 12px) --- */
-#writeoffTable th:first-child,
-#writeoffTable td:first-child { padding-left: 12px; }
+/* Цветовая индикация групп документов в таблице списаний */
+#writeoffTableBody tbody tr[data-doc-group="0"] td:first-child { border-left: 3px solid #d4c4b0; }
+#writeoffTableBody tbody tr[data-doc-group="0"] td:last-child { border-right: 3px solid #d4c4b0; }
+#writeoffTableBody tbody tr[data-doc-group="1"] td:first-child { border-left: 3px solid #94a3b8; }
+#writeoffTableBody tbody tr[data-doc-group="1"] td:last-child { border-right: 3px solid #94a3b8; }
+.writeoff-doc-badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 12px; }
+.writeoff-doc-badge--0 { background: #f5f0e8; color: #6b5b4f; }
+.writeoff-doc-badge--1 { background: #f1f5f9; color: #475569; }
+
+#writeoffTableBody td:last-child .action-buttons { justify-content: flex-end; }
 #serviceTable th:first-child,
 #serviceTable td:first-child { padding-left: 12px; }
 
 /* --- Фикс для таблицы Списаний --- */
-/* Возвращаем примечанию выравнивание влево (перебиваем глобальное центрирование предпоследней колонки) */
-#writeoffTable td:nth-last-child(2) {
+#writeoffTableBody td:nth-last-child(2) {
     text-align: left !important;
-    padding-left: 6px;
-    min-width: 200px; /* Дадим примечанию чуть больше места */
-    white-space: normal !important; /* <--- ЭТО ВКЛЮЧАЕТ ПЕРЕНОС ТЕКСТА */
-    line-height: 1.4;       /* Чуть больше высоты строки для читаемости */
+    padding: 8px !important;
+    white-space: normal !important;
+    line-height: 1.4;
+    overflow: hidden;
+    overflow-wrap: break-word;
+    word-break: break-word;
 }
 
 /* === ГЛОБАЛЬНОЕ РАЗРЕШЕНИЕ ПЕРЕНОСА ТЕКСТА === */
@@ -1893,10 +1949,8 @@ td:nth-last-child(2) {
 }
 
 /* 2. Таблица Списаний (3-я колонка - Название изделия) */
-#writeoffTable td:nth-child(3) {
+#writeoffTableBody td:nth-child(3) {
     white-space: normal !important;
-    min-width: 140px;
-    max-width: 250px;
     line-height: 1.3;
 }
 
@@ -1919,7 +1973,7 @@ td:nth-last-child(2) {
 /* Общая подстраховка: выравниваем текст по центру, если строка стала высокой */
 /* Выравнивание по центру для всех таблиц */
 #productsTable td, 
-#writeoffTable td, 
+#writeoffTableBody td, 
 #filamentsTable td, 
 #serviceTable td, 
 .dashboard-table-card td {
@@ -1927,7 +1981,7 @@ td:nth-last-child(2) {
 }
 
 /* Кнопки действий оставляем по центру по вертикали */
-#productsTable td:last-child, #writeoffTable td:last-child, #filamentsTable td:last-child {
+#productsTable td:last-child, #writeoffTableBody td:last-child, #filamentsTable td:last-child {
     vertical-align: middle;
 }
 
