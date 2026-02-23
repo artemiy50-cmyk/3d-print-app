@@ -588,7 +588,7 @@
         .changelog-item--new:hover .changelog-item-dot { opacity: 0; }
         .changelog-item-version { font-weight: 600; color: #1e40af; }
         .changelog-item-date { font-size: 11px; color: #64748b; }
-        .changelog-item-desc { font-size: 13px; color: #334155; }
+        .changelog-item-desc { font-size: 13px; color: #334155; white-space: pre-line; }
         .changelog-date-display { font-size: 13px; color: #111827; padding: 6px 8px; background: #f9fafb; border-radius: 6px; border: 1px dashed #e5e7eb; }
 		
 		/* Dashboard New Layout */
