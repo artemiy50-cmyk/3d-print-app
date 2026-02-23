@@ -18,7 +18,12 @@
     <!-- Driver.js 1.3.0 (Онбординг) — рабочий вариант без предупреждения в консоли -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/driver.js/1.3.0/driver.min.css"/>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/driver.js/1.3.0/driver.min.js.iife.js"></script>
-    
+    <!-- xlsx-js-style для экспорта в XLS с оформлением (заголовки, границы, фон). Fallback: SheetJS -->
+    <script id="xlsx-script" src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.min.js"
+        onerror="(function(){var s=document.createElement('script');s.src='https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';s.onload=function(){if(typeof window.__xlsxReady==='function')window.__xlsxReady();};document.head.appendChild(s);})();"></script>
+    <script>
+    (function(){var x=window.XLSX||(typeof XLSX!=="undefined"?XLSX:null);if(x){window.XLSX=x;window.__xlsxReady=function(){return !!window.XLSX;};}})();
+    </script>
 	
 </head>
 <body>
@@ -668,8 +673,8 @@
                 <div class="page-title">Справочники</div>
                 
                 <!-- НОВАЯ КОМПОНОВКА: 2 колонки -->
-                <!-- Слева: Бренды и Типы. Справа: Цвета (высокий) -->
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+                <!-- Слева: Бренды, Типы, Высота слоя. Справа: Цвета (высота = трём блокам слева) -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; align-items: start;">
                     
                     <!-- Левая колонка -->
                     <div style="display: flex; flex-direction: column; gap: 16px;">
@@ -692,9 +697,19 @@
                             </div>
                             <div id="filamentTypeList" style="max-height: 300px; overflow-y: auto;"></div>
                         </div>
+
+                        <!-- Высота слоя -->
+                        <div class="card" style="margin-bottom: 0;">
+                            <div class="card-header">Высота слоя</div>
+                            <div style="margin-bottom: var(--spacing);">
+                                <input type="text" id="newLayerHeight" placeholder="Новое значение (мм)..." style="margin-bottom: 8px;">
+                                <button id="addLayerHeightBtn" class="btn-primary" style="width: 100%;">Добавить</button>
+                            </div>
+                            <div id="layerHeightsList" style="max-height: 300px; overflow-y: auto;"></div>
+                        </div>
                     </div>
 
-                    <!-- Правая колонка: Цвета (Увеличенная высота) -->
+                    <!-- Правая колонка: Цвета (высота = три блока слева) -->
                     <div class="card" style="margin-bottom: 0; display: flex; flex-direction: column;">
                         <div class="card-header">Цвета</div>
                         <div style="margin-bottom: var(--spacing);">
@@ -702,8 +717,8 @@
                             <input type="color" id="newColorCode" value="#ffffff" style="width: 100%; height: 40px; border: 1px solid var(--color-border); cursor: pointer; margin-bottom: 8px;">
                             <button id="addColorBtn" class="btn-primary" style="width: 100%;">Добавить</button>
                         </div>
-                        <!-- Увеличили max-height до ~700px, чтобы занять место двух блоков -->
-                        <div id="colorsList" style="flex: 1; overflow-y: auto; max-height: 740px; min-height: 600px;"></div>
+                        <!-- Высота равна трём блокам слева (Бренды, Типы, Высота слоя) -->
+                        <div id="colorsList" style="flex: 1; overflow-y: auto; min-height: 640px;"></div>
                     </div>
 
                 </div>
@@ -754,6 +769,48 @@
 							</div>
                         <button id="addServiceNameBtn" class="btn-primary" style="width: 100%; margin-bottom: var(--spacing);">Добавить</button>
                         <div id="serviceNamesList" style="max-height: 300px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="profile" class="page">
+                <div class="page-title">Личный кабинет</div>
+                <div class="card profile-cabinet-card" style="max-width: 560px;">
+                    <div class="profile-cabinet-avatar-row">
+                        <div class="profile-avatar-wrap">
+                            <img id="profileAvatarImg" src="" alt="" class="profile-avatar-img" style="display: none;">
+                            <div id="profileAvatarPlaceholder" class="profile-avatar-placeholder">👤</div>
+                            <label class="profile-avatar-upload" title="Загрузить фото">
+                                <input type="file" id="profileImageInput" accept="image/*" style="display: none;">
+                                <span class="profile-avatar-edit">✎</span>
+                            </label>
+                        </div>
+                        <div class="profile-cabinet-name-block">
+                            <label class="profile-field-label">Имя (необязательно)</label>
+                            <input type="text" id="profileDisplayName" placeholder="Как к вам обращаться?" class="profile-name-input">
+                        </div>
+                    </div>
+                    <div class="profile-cabinet-info-card">
+                        <div class="profile-info-row">
+                            <span class="profile-info-label">Email</span>
+                            <span id="profileEmail" class="profile-info-value">—</span>
+                        </div>
+                        <div class="profile-info-row">
+                            <span class="profile-info-label">ID пользователя</span>
+                            <span id="profileUserId" class="profile-info-value profile-info-monospace" title="Нажмите, чтобы скопировать">—</span>
+                        </div>
+                        <div class="profile-info-row">
+                            <span class="profile-info-label">Дата регистрации</span>
+                            <span id="profileRegDate" class="profile-info-value">—</span>
+                        </div>
+                        <div class="profile-info-row">
+                            <span class="profile-info-label">Подписка</span>
+                            <span id="profileSubStatus" class="profile-info-value profile-info-sub">—</span>
+                        </div>
+                    </div>
+                    <div class="profile-cabinet-actions">
+                        <button type="button" class="btn-secondary" onclick="window.open('https://t.me/LuckArtS', '_blank')">💬 Связаться</button>
+                        <button type="button" class="btn-primary" id="profileSaveBtn" onclick="saveProfileSettings()">Сохранить</button>
                     </div>
                 </div>
             </div>
@@ -887,7 +944,8 @@
                             <div class="calc-field" id="productAvailabilityField">В наличии полностью</div>
                         </div>
 
-                        <div class="form-group">
+                        <!-- Строка: Свитчер 1/2, Кол-во 1/4, Остаток 1/4 -->
+                        <div class="form-group product-type-col">
                             <label>Тип изделия:</label>
                             <div class="product-type-switcher" role="group" aria-label="Тип изделия">
                                 <button type="button" class="product-type-option" data-value="Самостоятельное">Само-<br>стоятельное</button>
@@ -896,15 +954,12 @@
                             </div>
                             <input type="hidden" id="productType" value="Самостоятельное">
                         </div>
-                        <div class="form-group">
-                            <div style="display: flex; gap: 10px; width: 100%;">
-                                <div style="flex: 1;"><label>Кол-во (шт):</label><input type="number" id="productQuantity" value="1" min="1"></div>
-                                <div style="flex: 1;"><label>Остаток (шт):</label><div class="calc-field" id="productStockCalc">1</div></div>
-                            </div>
-                        </div>
-                        <div class="form-group" style="grid-column: span 2;"><label id="labelProductName">Наименование изделия:</label><input type="text" id="productName" placeholder="Кубик для тестирования"></div>
-                        <div id="productParentGroup" class="form-group hidden" style="grid-column: span 2;"><label>Составное изделие, для которого изготовлена данная часть изделия:</label><div class="parent-select-row"><select id="productParent" class="parent-select-narrow"></select><button type="button" class="btn-secondary btn-small btn-goto-composite" id="btnGotoComposite" title="Перейти к составному изделию">Перейти к составному</button></div></div>
-                        <div class="form-group" id="productLinkFieldContainer" style="grid-column: span 2;"><label for="productLink">Ссылка на модель:</label><input type="text" id="productLink" placeholder="https://"></div>
+                        <div class="form-group product-qty-col"><label>Кол-во (шт):</label><input type="number" id="productQuantity" value="1" min="1"></div>
+                        <div class="form-group product-stock-col"><label>Остаток (шт):</label><div class="calc-field" id="productStockCalc">1</div></div>
+                        <div id="productNameGroup" class="form-group product-name-col"><label id="labelProductName">Наименование изделия:</label><input type="text" id="productName" placeholder="Кубик для тестирования"></div>
+                        <div id="productLayerHeightGroup" class="form-group product-layer-col"><label>Высота слоя, мм</label><select id="productLayerHeight" class="product-layer-height-select"></select></div>
+                        <div id="productParentGroup" class="form-group product-parent-full hidden"><label>Составное изделие, для которого изготовлена данная часть изделия:</label><div class="parent-select-row"><select id="productParent" class="parent-select-narrow"></select><button type="button" class="btn-secondary btn-small btn-goto-composite" id="btnGotoComposite" title="Перейти к составному изделию">Перейти к составному</button></div></div>
+                        <div class="form-group" id="productLinkFieldContainer" style="grid-column: 1 / -1;"><label for="productLink">Ссылка на модель:</label><input type="text" id="productLink" placeholder="https://"></div>
                     </div>
 
                 </div>
@@ -1015,9 +1070,24 @@
                 <div class="form-section"><div class="form-group"><label>Примечание:</label><textarea id="writeoffNote" style="min-height: 60px;" placeholder="Дополнительная информация..."></textarea></div></div>
             </div>
 
-            <div class="modal-footer">
-                <button id="closeWriteoffModalBtn" class="btn-secondary">Отмена</button>
-                <button id="saveWriteoffBtn" class="btn-primary">Сохранить и закрыть</button>
+            <div class="modal-footer writeoff-modal-footer">
+                <div id="writeoffFooterLeft" class="writeoff-footer-left">
+                <div id="writeoffExportXlsWrap" class="writeoff-export-wrap hidden">
+                    <div class="writeoff-export-dropdown">
+                        <button type="button" id="writeoffExportXlsBtn" class="btn-export-xls" title="Сохранить в Excel">
+                            <span class="btn-export-icon">📥</span> Сохранить в XLS
+                        </button>
+                        <div id="writeoffExportDropdown" class="writeoff-export-menu hidden">
+                            <button type="button" class="writeoff-export-option" data-form="sale">Продажа</button>
+                            <button type="button" class="writeoff-export-option" data-form="act">Акт передачи</button>
+                        </div>
+                    </div>
+                </div>
+                </div>
+                <div class="writeoff-footer-buttons">
+                    <button id="closeWriteoffModalBtn" class="btn-secondary">Отмена</button>
+                    <button id="saveWriteoffBtn" class="btn-primary">Сохранить и закрыть</button>
+                </div>
             </div>
         </div>
     </div>
@@ -1249,7 +1319,31 @@
 
 
 
-    <!-- Подключаем ваш скрипт -->
+    <!-- Инициализация XLSX: объединить экспорты и убедиться в доступности -->
+    <script>
+    (function() {
+        function ensureXLSX() {
+            var lib = (typeof window !== 'undefined' && window.XLSX && window.XLSX.utils) ? window.XLSX
+                : (typeof XLSX !== 'undefined' && XLSX.utils) ? XLSX
+                : (typeof xlsx !== 'undefined' && xlsx.utils) ? xlsx : null;
+            if (lib) { window.XLSX = lib; return true; }
+            return false;
+        }
+        function loadFallback() {
+            var s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.min.js';
+            s.crossOrigin = 'anonymous';
+            s.onload = function() { ensureXLSX(); };
+            document.head.appendChild(s);
+        }
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                if (!ensureXLSX()) loadFallback();
+            });
+        } else if (!ensureXLSX()) loadFallback();
+        window.__xlsxReady = ensureXLSX;
+    })();
+    </script>
     <script src="script.js?v=1"></script>
 
 </body>

@@ -1,13 +1,18 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
 // Номер версии ведём в формате xx.xx.xx, например 7.7.7
 const APP_VERSION_NUMBER = '5.8.1';
-console.log('2026-02-22 12-50-04');
+console.log('2026-02-23 09-31-29');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
 
 // === CHANGELOG
 const CHANGELOG_ENTRIES = [
+    { 
+        version: '5.10.0', 
+        dateDisplay: '23.02.2026', 
+        description: 'Новая версия сразу с несколькими новыми возможностями:\n• Добавлен раздел "Личный кабинет" с возможностью загрузки аватара, редактирования имени и отображения информации о пользователе. \n• Добавлены новый справочник и поле в форме изделия для указания высоты слоя. \n• Добавлен экспорт Списаний с типом "Продажа" и "Подготовлено" в две xls-формы: продажа, акт передачи (под реализацию)' 
+    },    
     { 
         version: '5.9.5', 
         dateDisplay: '22.02.2026', 
@@ -180,6 +185,7 @@ const db = {
 	serviceNames: [],
 	colors: [ { id: 1, name: 'Белый', hex: '#ffffff' }, { id: 2, name: 'Чёрный', hex: '#000000' }, { id: 3, name: 'Красный', hex: '#ff0000' }, { id: 4, name: 'Синий', hex: '#0000ff' }, { id: 5, name: 'Зелёный', hex: '#00ff00' } ],
     plasticTypes: ['PLA - Basic', 'PLA - Silk', 'PLA - Matte', 'PLA +'],
+    layerHeights: ['0.08', '0.12', '0.16', '0.20', '0.24', '0.28'],
     filamentStatuses: ['В наличии', 'Израсходовано'],
     printers: [ { id: 1, model: 'Creality K2 Pro', power: 1.3 } ],
     electricityCosts: [
@@ -296,9 +302,9 @@ document.getElementById('regBtn')?.addEventListener('click', () => {
                     startDate: now.toISOString(),
                     expiryDate: trialEnd.toISOString()
                 },
-                settings: { lastSeenChangelogVersion: topVersion },
+                settings: { lastSeenChangelogVersion: topVersion, displayName: '', profileImageUrl: '' },
                 // Пустые структуры данных
-                data: { filaments: [], products: [], writeoffs: [] }
+                data: { filaments: [], products: [], writeoffs: [], layerHeights: ['0.08', '0.12', '0.16', '0.20', '0.24', '0.28'] }
             };
 
             // Сохраняем начальные данные подписки
@@ -407,7 +413,14 @@ window.addEventListener('DOMContentLoaded', () => {
             });
 
             setupUserSidebar(user);
-            showToast(`Добро пожаловать, ${user.email}!`, 'welcome');
+            initProfileCabinetHandlers();
+            userRootRef.child('settings').once('value').then((snap) => {
+                const s = snap.val() || {};
+                const name = (s.displayName && String(s.displayName).trim()) || '';
+                showToast(`Добро пожаловать, ${name || user.email}!`, 'welcome');
+            }).catch(() => {
+                showToast(`Добро пожаловать, ${user.email}!`, 'welcome');
+            });
             
             // Превращает значение из Firebase (массив или объект с числовыми ключами) в массив. Избегает ошибки .filter is not a function.
             function toArray(v) {
@@ -461,6 +474,7 @@ window.addEventListener('DOMContentLoaded', () => {
                     db.brands = toArrayOrDefault(loadedData.brands, db.brands);
                     db.colors = toArrayOrDefault(loadedData.colors, db.colors);
                     db.plasticTypes = toArrayOrDefault(loadedData.plasticTypes, db.plasticTypes);
+                    db.layerHeights = toArrayOrDefault(loadedData.layerHeights, db.layerHeights);
                     db.filamentStatuses = toArrayOrDefault(loadedData.filamentStatuses, db.filamentStatuses);
                     db.printers = toArrayOrDefault(loadedData.printers, db.printers);
                     db.electricityCosts = toArrayOrDefault(loadedData.electricityCosts, db.electricityCosts);
@@ -576,9 +590,8 @@ function setupUserSidebar(user) {
     const controlsContainer = document.getElementById('sidebarControls');
     const userContainer = document.getElementById('sidebarUserInfo');
 
-    // === ГРУППА 1: Инструкции и Выход ===
+    // === ГРУППА 1: Инструкция и Профиль (клик — Личный кабинет) ===
     
-    // 1. Инструкция
     const helpBtn = document.createElement('button');
     helpBtn.className = 'menu-item';
     helpBtn.innerHTML = `
@@ -588,72 +601,43 @@ function setupUserSidebar(user) {
     helpBtn.onclick = () => document.getElementById('helpModal').classList.add('active');
     controlsContainer.appendChild(helpBtn);
 
-    // 2. Выход
+    const userDiv = document.createElement('div');
+    userDiv.className = 'user-profile-info menu-item';
+    userDiv.style.borderTop = 'none';
+    userDiv.style.marginTop = '0';
+    userDiv.style.paddingTop = '8px';
+    userDiv.style.cursor = 'pointer';
+    userDiv.title = 'Личный кабинет';
+    userDiv.innerHTML = `
+        <span class="user-profile-icon menu-icon">👤</span>
+        <span class="menu-text user-profile-label" style="overflow:hidden;text-overflow:ellipsis;">${escapeHtml(user.email)}</span>
+    `;
+    userDiv.onclick = () => showPage('profile');
+    controlsContainer.appendChild(userDiv);
+
+    const settingsRef = firebase.database().ref('users/' + user.uid + '/settings');
+    settingsRef.on('value', (snap) => {
+        const s = snap.val();
+        const label = userDiv.querySelector('.user-profile-label');
+        if (label) {
+            const dn = (s && s.displayName && String(s.displayName).trim()) || '';
+            label.textContent = dn || user.email;
+        }
+    });
+
+    // === ГРУППА 2: Выход и Поддержка (прижато к низу) ===
+
     const logoutBtn = document.createElement('button');
     logoutBtn.className = 'menu-item';
     logoutBtn.id = 'logoutBtn';
     logoutBtn.innerHTML = `<span class="menu-icon">🚪</span><span class="menu-text">Выйти</span>`;
     logoutBtn.onclick = () => { if(confirm('Выйти из аккаунта?')) firebase.auth().signOut().then(() => window.location.reload()); };
-    controlsContainer.appendChild(logoutBtn);
+    userContainer.appendChild(logoutBtn);
 
-
-    // === ГРУППА 2: Профиль (Прижато к низу) ===
-
-    // 3. Email
-    const userDiv = document.createElement('div');
-    userDiv.className = 'user-profile-info menu-item';
-    userDiv.style.borderTop = 'none'; // Убираем старую границу
-    userDiv.style.marginTop = '0';
-    userDiv.style.paddingTop = '8px';
-    userDiv.style.cursor = 'default';
-    userDiv.title = user.email;
-    userDiv.innerHTML = `
-        <span class="user-profile-icon menu-icon">👤</span>
-        <span class="menu-text" style="overflow:hidden;text-overflow:ellipsis;">${escapeHtml(user.email)}</span>
-    `;
-    userContainer.appendChild(userDiv);
-
-    // 4. ID
-    const uidDiv = document.createElement('div');
-    uidDiv.className = 'menu-item';
-    uidDiv.style.fontSize = '11px';
-    uidDiv.style.color = '#64748b';
-    uidDiv.title = 'Нажмите, чтобы скопировать ID';
-    const shortUid = user.uid.substring(0, 8) + '...';
-    
-    uidDiv.innerHTML = `
-        <span class="menu-icon" style="font-size:14px">🆔</span>
-        <span class="menu-text">ID: <span style="font-family:monospace;">${shortUid}</span></span>
-    `;
-    uidDiv.onclick = function() {
-        navigator.clipboard.writeText(user.uid).then(() => {
-            const textSpan = uidDiv.querySelector('.menu-text');
-            if(textSpan) {
-                const oldText = textSpan.innerHTML;
-                textSpan.textContent = 'Скопировано!';
-                setTimeout(() => textSpan.innerHTML = oldText, 1500);
-            }
-        });
-    };
-    userContainer.appendChild(uidDiv);
-
-    // 5. Статус подписки
-    const subDiv = document.createElement('div');
-    subDiv.id = 'sidebarSubStatus';
-    subDiv.className = 'menu-item';
-    subDiv.style.fontSize = '11px';
-    subDiv.innerHTML = `
-        <span class="menu-icon">⏳</span>
-        <span class="menu-text">Загрузка...</span>
-    `;
-    userContainer.appendChild(subDiv);
-
-    // 6. Разделитель
     const divider = document.createElement('div');
     divider.className = 'sidebar-divider';
     userContainer.appendChild(divider);
 
-    // 7. Поддержка (Последний пункт)
     const supportDiv = document.createElement('div');
     supportDiv.className = 'menu-item';
     supportDiv.innerHTML = `
@@ -664,6 +648,117 @@ function setupUserSidebar(user) {
     supportDiv.addEventListener('mouseenter', () => { if(link) link.style.color = '#fff'; });
     supportDiv.addEventListener('mouseleave', () => { if(link) link.style.color = '#94a3b8'; });
     userContainer.appendChild(supportDiv);
+}
+
+
+function fillProfilePage() {
+    const user = firebase.auth().currentUser;
+    if (!user) return;
+
+    const emailEl = document.getElementById('profileEmail');
+    const uidEl = document.getElementById('profileUserId');
+    const regEl = document.getElementById('profileRegDate');
+    const subEl = document.getElementById('profileSubStatus');
+    const nameInput = document.getElementById('profileDisplayName');
+    const avatarImg = document.getElementById('profileAvatarImg');
+    const avatarPlaceholder = document.getElementById('profileAvatarPlaceholder');
+
+    if (emailEl) emailEl.textContent = user.email || '—';
+    if (uidEl) {
+        uidEl.textContent = user.uid;
+        uidEl.title = 'Нажмите, чтобы скопировать';
+        uidEl.style.cursor = 'pointer';
+        uidEl.onclick = () => {
+            navigator.clipboard.writeText(user.uid).then(() => showToast('ID скопирован', 'success'));
+        };
+    }
+
+    const creationTime = user.metadata && user.metadata.creationTime;
+    if (regEl) regEl.textContent = creationTime ? new Date(creationTime).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
+
+    if (subEl && lastSubscriptionData) {
+        const expiry = new Date(lastSubscriptionData.expiryDate);
+        const now = new Date();
+        const diffDays = Math.ceil((expiry - now) / (1000 * 60 * 60 * 24));
+        const dateStr = expiry.toLocaleDateString('ru-RU');
+        if (diffDays <= 0) {
+            subEl.textContent = 'Истекла';
+            subEl.style.color = '#dc2626';
+        } else if (diffDays <= 5) {
+            subEl.textContent = `Активно до ${dateStr} (осталось ${diffDays} дн.)`;
+            subEl.style.color = '#ea580c';
+        } else {
+            subEl.textContent = `Активно до ${dateStr}`;
+            subEl.style.color = '#16a34a';
+        }
+    } else if (subEl) {
+        subEl.textContent = 'Загрузка...';
+        subEl.style.color = '';
+    }
+
+    firebase.database().ref('users/' + user.uid + '/settings').once('value').then((snap) => {
+        const s = snap.val() || {};
+        if (nameInput) nameInput.value = s.displayName || '';
+        const url = s.profileImageUrl;
+        if (url && avatarImg && avatarPlaceholder) {
+            avatarImg.src = url;
+            avatarImg.style.display = '';
+            avatarPlaceholder.style.display = 'none';
+        } else if (avatarImg && avatarPlaceholder) {
+            avatarImg.style.display = 'none';
+            avatarPlaceholder.style.display = '';
+        }
+    });
+}
+
+
+async function saveProfileSettings() {
+    const user = firebase.auth().currentUser;
+    if (!user) return;
+
+    const nameInput = document.getElementById('profileDisplayName');
+    const displayName = nameInput ? String(nameInput.value || '').trim() : '';
+    const settingsRef = firebase.database().ref('users/' + user.uid + '/settings');
+
+    try {
+        await settingsRef.update({ displayName });
+        showToast('Настройки сохранены', 'success');
+    } catch (e) {
+        showToast('Ошибка: ' + e.message, 'error');
+    }
+}
+
+
+function initProfileCabinetHandlers() {
+    const input = document.getElementById('profileImageInput');
+    const saveBtn = document.getElementById('profileSaveBtn');
+    if (!input || !saveBtn) return;
+
+    input.addEventListener('change', async function() {
+        const file = this.files && this.files[0];
+        if (!file || !file.type.startsWith('image/')) return;
+
+        const user = firebase.auth().currentUser;
+        if (!user) return;
+
+        const result = await uploadFileToCloud(file);
+        if (!result || !result.url) return;
+
+        const settingsRef = firebase.database().ref('users/' + user.uid + '/settings');
+        await settingsRef.update({ profileImageUrl: result.url });
+
+        const avatarImg = document.getElementById('profileAvatarImg');
+        const avatarPlaceholder = document.getElementById('profileAvatarPlaceholder');
+        if (avatarImg && avatarPlaceholder) {
+            avatarImg.src = result.url;
+            avatarImg.style.display = '';
+            avatarPlaceholder.style.display = 'none';
+        }
+
+        // Обновить sidebar, если там показывается аватар (сейчас нет, только имя)
+        showToast('Фото загружено', 'success');
+        this.value = '';
+    });
 }
 
 
@@ -767,8 +862,11 @@ function saveToLocalStorage() { saveData(); }
 
 // ==================== HELPERS ====================
 
+let lastSubscriptionData = null;
+
 function checkSubscription(subData) {
     if (!subData) return;
+    lastSubscriptionData = subData;
 
     const now = new Date();
     const expiry = new Date(subData.expiryDate);
@@ -985,7 +1083,7 @@ function updateAllDates() {
 
 
 
-const VALID_PAGE_IDS = ['dashboard', 'products', 'writeoff', 'filament', 'service', 'reports', 'references'];
+const VALID_PAGE_IDS = ['dashboard', 'products', 'writeoff', 'filament', 'service', 'reports', 'references', 'profile'];
 
 function showPage(id) {
     if (!id || !VALID_PAGE_IDS.includes(id)) return;
@@ -997,6 +1095,7 @@ function showPage(id) {
     document.querySelectorAll('.sidebar .menu-item').forEach(btn => {
         if(btn.dataset.page === id) btn.classList.add('active');
     });
+    if (id === 'profile') fillProfilePage();
     try { localStorage.setItem('appLastPage', id); } catch (e) {}
 }
 
@@ -1311,10 +1410,12 @@ function updateAllSelects() {
     const fs = document.getElementById('filamentStatusFilter'); if(fs) { const v=fs.value; fs.innerHTML = '<option value="">— Все статусы —</option>' + db.filamentStatuses.map(s => `<option value="${s}">${escapeHtml(s)}</option>`).join(''); fs.value=v; }
     document.querySelectorAll('#productPrinter').forEach(s => s.innerHTML = db.printers.map(p => `<option value="${p.id}">${escapeHtml(p.model)}</option>`).join(''));
     
+    updateProductLayerHeightSelect();
     updateProductFilamentSelect(); 
     updateBrandsList(); 
     updateColorsList(); 
     updateFilamentTypeList(); 
+    updateLayerHeightsList();
     //updateFilamentStatusList(); 
     updatePrintersList(); 
     updateElectricityCostList();
@@ -2298,6 +2399,11 @@ function updateProductTypeUI() {
     groups.linkContainer.style.display = 'block';
     if(groups.fileSection) groups.fileSection.classList.remove('hidden');
 
+    const nameGroup = document.getElementById('productNameGroup');
+    const layerGroup = document.getElementById('productLayerHeightGroup');
+    if (nameGroup) nameGroup.classList.toggle('product-name-full', type === 'Составное');
+    if (layerGroup) layerGroup.classList.toggle('hidden', type === 'Составное');
+
     if (type === 'Составное') {
         if(groups.allParts) groups.allParts.style.display = 'flex';
         groups.material.classList.add('hidden');
@@ -2643,6 +2749,12 @@ function editProduct(id) {
         if (el) el.value = field.value;
     });
 
+    const lhSel = document.getElementById('productLayerHeight');
+    if (lhSel) {
+        updateProductLayerHeightSelect();
+        lhSel.value = p.layerHeight || '';
+    }
+
 	const defCb = document.getElementById('productDefective');
 	const draftCb = document.getElementById('productIsDraft');
     
@@ -2961,6 +3073,9 @@ async function saveProduct(andThenWriteOff = false, andThenEditProductId = null)
     // [FIX] Добавляем || null для безопасности транзакции
     const printerObj = db.printers.find(x => x.id == document.getElementById('productPrinter').value);
     
+    const layerHeightSel = document.getElementById('productLayerHeight');
+    const layerHeightVal = layerHeightSel && layerHeightSel.value ? layerHeightSel.value.trim() : '';
+
     const p = { 
         name: document.getElementById('productName').value, 
         systemId: eid ? document.getElementById('productModal').getAttribute('data-system-id') : document.getElementById('productSystemId').textContent, 
@@ -2978,6 +3093,7 @@ async function saveProduct(andThenWriteOff = false, andThenEditProductId = null)
         imageUrl: imgUrl,    
 		imageSize: imgSize,		
         fileUrls: fileUrls,
+        layerHeight: layerHeightVal || null,
     };
     
     // Остаток для черновика всегда 0 (или равен кол-ву, но не участвует в списании). 
@@ -3353,9 +3469,10 @@ function buildProductRow(p, isChild) {
 
     const nameEvents = `onmouseenter="showProductImagePreview(this, ${p.id})" onmousemove="moveProductImagePreview(event)" onmouseleave="hideProductImagePreview(this)"`;
 
+    const layerSuffix = (p.layerHeight && String(p.layerHeight).trim()) ? ` [слой ${escapeHtml(String(p.layerHeight))}]` : '';
     let nameHtml = isChild 
-        ? `<div class="product-name-cell product-child-indent"><div class="product-icon-wrapper">${icon}</div><span ${nameEvents} style="cursor:default">${escapeHtml(p.name)}</span>${note}</div>`
-        : `<div class="product-name-cell"><div class="product-icon-wrapper">${icon}</div><span ${nameEvents} style="cursor:default"><strong>${escapeHtml(p.name)}</strong></span>${note}</div>`;
+        ? `<div class="product-name-cell product-child-indent"><div class="product-icon-wrapper">${icon}</div><span ${nameEvents} style="cursor:default">${escapeHtml(p.name)}${layerSuffix}</span>${note}</div>`
+        : `<div class="product-name-cell"><div class="product-icon-wrapper">${icon}</div><span ${nameEvents} style="cursor:default"><strong>${escapeHtml(p.name)}${layerSuffix}</strong></span>${note}</div>`;
 
     let addPartButtonHtml = '';
 	if (p.type === 'Составное') {
@@ -3400,7 +3517,8 @@ function updateChildrenTable() {
         const colorName = k.filament && k.filament.color ? escapeHtml(k.filament.color.name) : 'Нет цвета';
         const iconChar = k.defective ? '❌' : '↳';
         const iconClass = k.defective ? 'children-part-icon icon-defective' : 'children-part-icon';
-        const nameHtml = `<span class="${iconClass}">${iconChar}</span><a href="#" class="child-part-link" onclick="event.preventDefault(); navigateToPart(${k.id});" title="${escapeHtml(k.name)}">${escapeHtml(k.name)}</a>`;
+        const layerSuffix = (k.layerHeight && String(k.layerHeight).trim()) ? ` [слой ${escapeHtml(String(k.layerHeight))}]` : '';
+        const nameHtml = `<span class="${iconClass}">${iconChar}</span><a href="#" class="child-part-link" onclick="event.preventDefault(); navigateToPart(${k.id});" title="${escapeHtml(k.name)}">${escapeHtml(k.name)}${layerSuffix}</a>`;
         const energyCost = k.energyCost != null ? k.energyCost : (k.printer && k.printer.power && k.date
             ? ((k.printTime || 0) / 60) * k.printer.power * getCostPerKwForDate(k.date) : 0);
         return `<tr>
@@ -3619,6 +3737,14 @@ function updateProductAvailability() {
 
 
 
+function updateProductLayerHeightSelect() {
+    const sel = document.getElementById('productLayerHeight');
+    if (!sel) return;
+    const opts = ['<option value="">- Укажите высоту -</option>'];
+    (db.layerHeights || []).forEach(h => opts.push(`<option value="${escapeHtml(String(h))}">${escapeHtml(String(h))}</option>`));
+    sel.innerHTML = opts.join('');
+}
+
 // Сортировка выпадающего списка филаментов по алфавиту
 function updateProductFilamentSelect() {
     const productModal = document.getElementById('productModal');
@@ -3819,6 +3945,7 @@ function updateRemoveButtons() {
 
 function openWriteoffModal(systemId = null) {
 	isModalOpen = true;
+    if (!getXLSXLib()) loadXLSXLib(function() {}); // предзагрузка для экспорта в XLS
     document.getElementById('writeoffModal').classList.add('active');
     document.getElementById('writeoffValidationMessage').classList.add('hidden');
     const isEdit = !!systemId;
@@ -3891,8 +4018,329 @@ function closeWriteoffModal() {
     if(dbRef && dbRef.parent) dbRef.parent.once('value').then(window.updateAppFromSnapshot);
 
 	document.getElementById('writeoffModal').classList.remove('active'); 
+	document.getElementById('writeoffExportDropdown')?.classList.add('hidden');
 }
 
+
+function collectWriteoffRowsForExport() {
+    const sections = document.querySelectorAll('.writeoff-item-section');
+    const rows = [];
+    for (const sec of sections) {
+        const pid = sec.querySelector('.writeoff-product-select')?.value;
+        const qty = parseInt(sec.querySelector('.section-qty')?.value) || 0;
+        const price = parseFloat(sec.querySelector('.section-price')?.value) || 0;
+        if (!pid || qty <= 0) continue;
+        const product = db.products.find(p => p.id == parseInt(pid));
+        const productName = product ? product.name : '—';
+        const enrichmentNames = [];
+        sec.querySelectorAll('.enrichment-row').forEach(row => {
+            const name = row.querySelector('.enrichment-name')?.value?.trim();
+            if (name) enrichmentNames.push(name);
+        });
+        rows.push({ productName, enrichmentNames, price, qty, total: qty * price });
+    }
+    return rows;
+}
+
+var _font11 = { name: 'Calibri', sz: 11 };
+var _font11Bold = { name: 'Calibri', sz: 11, bold: true };
+var _font12 = { name: 'Calibri', sz: 12 };
+var _font12Bold = { name: 'Calibri', sz: 12, bold: true };
+var _font10 = { name: 'Calibri', sz: 10 };
+var _fillGray = { patternType: 'solid', fgColor: { rgb: 'D9D9D9' } };
+var _borderThin = {
+    top: { style: 'thin', color: { rgb: '000000' } },
+    bottom: { style: 'thin', color: { rgb: '000000' } },
+    left: { style: 'thin', color: { rgb: '000000' } },
+    right: { style: 'thin', color: { rgb: '000000' } }
+};
+var _borderBottomOnly = { bottom: { style: 'thin', color: { rgb: '000000' } } };
+var _alignVertCenter = { vertical: 'center' };
+
+function styleCell(v, opts) {
+    var sz = (opts && opts.sz) ? opts.sz : 11;
+    var font = { name: 'Calibri', sz: sz, bold: !!(opts && opts.bold) };
+    var s = { font: font };
+    if (opts && opts.fill) s.fill = opts.fill;
+    if (opts && opts.border) s.border = opts.border;
+    if (opts && opts.alignment) s.alignment = opts.alignment;
+    return { v: v, t: typeof v === 'number' ? 'n' : 's', s: s };
+}
+
+function getXLSXLib() {
+    try {
+        if (typeof window !== 'undefined' && window.__xlsxReady) window.__xlsxReady();
+        var lib = (typeof window !== 'undefined' && window.XLSX && window.XLSX.utils) ? window.XLSX
+            : (typeof XLSX !== 'undefined' && XLSX.utils) ? XLSX
+            : (typeof xlsx !== 'undefined' && xlsx.utils) ? xlsx : null;
+        if (lib) return lib;
+    } catch (e) {}
+    return null;
+}
+
+function formatDateForAct(isoDate) {
+    var parts = isoDate.split('-');
+    if (parts.length !== 3) return isoDate;
+    return parts[2] + '.' + parts[1] + '.' + parts[0];
+}
+
+function buildActSheet(XLSXLib, rows, date) {
+    var vc = _alignVertCenter;
+    var headerStyle = { bold: true, fill: _fillGray, border: _borderThin, sz: 12, alignment: Object.assign({}, vc) };
+    var headerCenterStyle = { bold: true, fill: _fillGray, border: _borderThin, sz: 12, alignment: { vertical: 'center', horizontal: 'center', wrapText: true } };
+    var cellBorder = { border: _borderThin };
+    var cellStyle = function(v, extra) {
+        var a = Object.assign({ sz: 12, alignment: vc }, cellBorder, extra || {});
+        return styleCell(v, a);
+    };
+
+    var data = [];
+    var dateStr = formatDateForAct(date);
+
+    data.push([
+        styleCell('АКТ ПЕРЕДАЧИ', { bold: true, sz: 14 }),
+        styleCell('', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12, alignment: vc }),
+        styleCell('Дата: ' + dateStr, { bold: true, sz: 12, alignment: { horizontal: 'right', vertical: 'center' } })
+    ]);
+    data.push([
+        styleCell('изделий под реализацию', { bold: true, sz: 12, alignment: vc }),
+        styleCell('', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12, alignment: vc })
+    ]);
+    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
+
+    var headerRow = [
+        styleCell('Наименование', Object.assign({}, headerStyle, { border: _borderThin })),
+        styleCell('Цена, за 1 шт.', Object.assign({}, headerCenterStyle, { border: _borderThin })),
+        styleCell('Кол-во', Object.assign({}, headerCenterStyle, { border: _borderThin })),
+        styleCell('Стоимость', Object.assign({}, headerCenterStyle, { border: _borderThin })),
+        styleCell('Рекомендуемая цена продажи, 1 шт.', Object.assign({}, headerCenterStyle, { border: _borderThin }))
+    ];
+    data.push(headerRow);
+
+    var totalQty = 0;
+    var dataRowCount = 0;
+    rows.forEach(function(r) {
+        data.push([
+            cellStyle(r.productName, { bold: true, alignment: { vertical: 'center', wrapText: true } }),
+            cellStyle(r.price),
+            cellStyle(r.qty),
+            cellStyle(r.total),
+            cellStyle('')
+        ]);
+        dataRowCount++;
+        totalQty += r.qty;
+
+        if (r.enrichmentNames.length > 0) {
+            var compText = 'включая комплектующие: ' + r.enrichmentNames.join('; ');
+            data.push([
+                styleCell(compText, Object.assign({ sz: 10, bold: false, alignment: { vertical: 'center', wrapText: true } }, cellBorder)),
+                cellStyle(''),
+                cellStyle(''),
+                cellStyle(''),
+                cellStyle('')
+            ]);
+            dataRowCount++;
+        }
+    });
+
+    var totalRowStyle = Object.assign({}, cellBorder, { bold: true, fill: _fillGray, alignment: { horizontal: 'right', vertical: 'center' } });
+    var totalRow = [
+        styleCell('ИТОГО', totalRowStyle),
+        styleCell('', Object.assign({}, totalRowStyle)),
+        styleCell(totalQty, totalRowStyle),
+        styleCell('', totalRowStyle),
+        styleCell('', totalRowStyle)
+    ];
+    data.push(totalRow);
+
+    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
+    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
+    data.push([
+        styleCell('Передал:', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 })
+    ]);
+    data.push([
+        styleCell('', { sz: 12, border: _borderBottomOnly }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 })
+    ]);
+    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
+    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
+    data.push([
+        styleCell('Принял:', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 })
+    ]);
+    data.push([
+        styleCell('', { sz: 12, border: _borderBottomOnly }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 })
+    ]);
+
+    var ws = XLSXLib.utils.aoa_to_sheet(data);
+    ws['!cols'] = [{ wch: 45 }, { wch: 14 }, { wch: 8 }, { wch: 14 }, { wch: 28 }];
+    return ws;
+}
+
+function buildSaleSheet(XLSXLib, rows, date) {
+    var vc = _alignVertCenter;
+    var headerStyle = { bold: true, fill: _fillGray, border: _borderThin, sz: 12, alignment: Object.assign({}, vc) };
+    var headerCenterStyle = { bold: true, fill: _fillGray, border: _borderThin, sz: 12, alignment: { vertical: 'center', horizontal: 'center', wrapText: true } };
+    var cellBorder = { border: _borderThin };
+    var cellStyle = function(v, extra) {
+        var a = Object.assign({ sz: 12, alignment: vc }, cellBorder, extra || {});
+        return styleCell(v, a);
+    };
+
+    var data = [];
+    var dateStr = formatDateForAct(date);
+
+    data.push([
+        styleCell('ПРОДАЖА', { bold: true, sz: 14 }),
+        styleCell('', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12, alignment: vc }),
+        styleCell('Дата: ' + dateStr, { bold: true, sz: 12, alignment: { horizontal: 'right', vertical: 'center' } })
+    ]);
+    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
+
+    var headerRow = [
+        styleCell('Наименование', Object.assign({}, headerStyle, { border: _borderThin })),
+        styleCell('Цена, за 1 шт.', Object.assign({}, headerCenterStyle, { border: _borderThin })),
+        styleCell('Кол-во', Object.assign({}, headerCenterStyle, { border: _borderThin })),
+        styleCell('Стоимость', Object.assign({}, headerCenterStyle, { border: _borderThin }))
+    ];
+    data.push(headerRow);
+
+    var totalQty = 0;
+    var totalCost = 0;
+    rows.forEach(function(r) {
+        data.push([
+            cellStyle(r.productName, { bold: true, alignment: { vertical: 'center', wrapText: true } }),
+            cellStyle(r.price),
+            cellStyle(r.qty),
+            cellStyle(r.total)
+        ]);
+        totalQty += r.qty;
+        totalCost += r.total;
+
+        if (r.enrichmentNames.length > 0) {
+            var compText = 'включая комплектующие: ' + r.enrichmentNames.join('; ');
+            data.push([
+                styleCell(compText, Object.assign({ sz: 10, bold: false, alignment: { vertical: 'center', wrapText: true } }, cellBorder)),
+                cellStyle(''),
+                cellStyle(''),
+                cellStyle('')
+            ]);
+        }
+    });
+
+    var totalRowStyle = Object.assign({}, cellBorder, { bold: true, fill: _fillGray, alignment: { horizontal: 'right', vertical: 'center' } });
+    var totalRow = [
+        styleCell('ИТОГО', totalRowStyle),
+        styleCell('', totalRowStyle),
+        styleCell(totalQty, totalRowStyle),
+        styleCell(totalCost, totalRowStyle)
+    ];
+    data.push(totalRow);
+
+    var ws = XLSXLib.utils.aoa_to_sheet(data);
+    ws['!cols'] = [{ wch: 54 }, { wch: 14 }, { wch: 8 }, { wch: 14 }];
+    return ws;
+}
+
+function loadXLSXLib(callback) {
+    var urls = [
+        'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.min.js',
+        'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js',
+        'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
+        'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js'
+    ];
+    var idx = 0;
+    function tryNext() {
+        if (idx >= urls.length) {
+            callback(null);
+            return;
+        }
+        var s = document.createElement('script');
+        s.src = urls[idx++];
+        s.crossOrigin = 'anonymous';
+        s.onload = function() { if (window.__xlsxReady) window.__xlsxReady(); callback(getXLSXLib()); };
+        s.onerror = tryNext;
+        document.head.appendChild(s);
+    }
+    tryNext();
+}
+
+function exportWriteoffToXls(formType) {
+    var XLSXLib = getXLSXLib();
+    if (!XLSXLib || !XLSXLib.utils || !XLSXLib.utils.aoa_to_sheet) {
+        showToast('Загрузка библиотеки Excel...', 'info');
+        loadXLSXLib(function(lib) {
+            if (lib && lib.utils) exportWriteoffToXls(formType);
+            else showToast('Библиотека Excel не загружена. Обновите страницу.', 'error');
+        });
+        return;
+    }
+    const rows = collectWriteoffRowsForExport();
+    if (rows.length === 0) {
+        showToast('Нет данных для экспорта. Добавьте изделия с количеством и ценой.', 'error');
+        return;
+    }
+    const date = document.getElementById('writeoffDate')?.value || new Date().toISOString().slice(0, 10);
+    const isAct = formType === 'act';
+
+    var ws;
+    if (isAct) {
+        ws = buildActSheet(XLSXLib, rows, date);
+    } else {
+        ws = buildSaleSheet(XLSXLib, rows, date);
+    }
+    const wb = XLSXLib.utils.book_new();
+    const sheetName = isAct ? 'Акт передачи' : 'Продажа';
+    XLSXLib.utils.book_append_sheet(wb, ws, sheetName);
+    const fileName = isAct ? 'Акт_передачи_' + date + '.xlsx' : 'Продажа_' + date + '.xlsx';
+    try {
+        XLSXLib.writeFile(wb, fileName, { cellStyles: true });
+    } catch (e) {
+        XLSXLib.writeFile(wb, fileName);
+    }
+    document.getElementById('writeoffExportDropdown')?.classList.add('hidden');
+    showToast('Файл сохранён', 'success');
+}
+
+function setupWriteoffExportXls() {
+    const btn = document.getElementById('writeoffExportXlsBtn');
+    const menu = document.getElementById('writeoffExportDropdown');
+    const options = document.querySelectorAll('.writeoff-export-option');
+    if (!btn || !menu) return;
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.classList.toggle('hidden');
+    });
+    options.forEach(opt => {
+        opt.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const form = opt.getAttribute('data-form');
+            if (form === 'sale') exportWriteoffToXls('sale');
+            else if (form === 'act') exportWriteoffToXls('act');
+        });
+    });
+    document.addEventListener('click', () => menu?.classList.add('hidden'));
+}
 
 
 function syncWriteoffTypeSwitcherUI() {
@@ -3910,7 +4358,9 @@ function updateWriteoffTypeUI() {
     const isPrepared = type === 'Подготовлено к продаже';
     
     document.getElementById('writeoffTotalSummary').classList.toggle('hidden', !(isSale || isPrepared));
-    
+    document.getElementById('writeoffExportXlsWrap')?.classList.toggle('hidden', !(isSale || isPrepared));
+    document.querySelector('.writeoff-modal-footer')?.classList.toggle('writeoff-footer-compact', !(isSale || isPrepared));
+
     document.querySelectorAll('.writeoff-item-section').forEach(sec => {
         const idx = sec.id.split('_')[1];
         updateWriteoffSection(idx);
@@ -5004,6 +5454,21 @@ function updateFilamentTypeList(){ document.getElementById('filamentTypeList').i
     <div class="action-buttons"><button class="btn-secondary btn-small" onclick="editFilamentType(${i})">✎</button><button class="btn-danger btn-small" onclick="removeFilamentType(${i})">✕</button></div>
 </div>`).join(''); }
 
+function updateLayerHeightsList(){ 
+    const listEl = document.getElementById('layerHeightsList'); 
+    if (!listEl) return; 
+    listEl.innerHTML = (db.layerHeights || []).map((h,i)=>`<div style="display:flex;justify-content:space-between;padding:8px 4px;border-bottom:1px solid #eee;align-items:center;">
+    <div style="display:flex; align-items:center;">
+        <div class="sort-buttons">
+            <button class="btn-sort" onclick="moveReferenceItemUp('layerHeights', ${i})" ${i===0?'disabled':''}>▲</button>
+            <button class="btn-sort" onclick="moveReferenceItemDown('layerHeights', ${i})" ${i===(db.layerHeights.length-1)?'disabled':''}>▼</button>
+        </div>
+        <span>${escapeHtml(String(h))}</span>
+    </div>
+    <div class="action-buttons"><button class="btn-secondary btn-small" onclick="editLayerHeight(${i})">✎</button><button class="btn-danger btn-small" onclick="removeLayerHeight(${i})">✕</button></div>
+</div>`).join(''); 
+}
+
 // function updateFilamentStatusList(){ document.getElementById('filamentStatusList').innerHTML = db.filamentStatuses.map((s,i)=>`<div style="display:flex;justify-content:space-between;padding:8px 4px;border-bottom:1px solid #eee;align-items:center;">
 //     <div style="display:flex; align-items:center;">
 //         <div class="sort-buttons">
@@ -5200,6 +5665,51 @@ async function editFilamentType(i) {
         await dbRef.update(updates);
         updateAllSelects(); 
     } 
+}
+
+// --- LAYER HEIGHTS ---
+async function addLayerHeight() {
+    const v = document.getElementById('newLayerHeight').value.trim();
+    if (!v) return;
+    const normalized = String(parseFloat(v.replace(',', '.')) || v);
+    if (db.layerHeights.includes(normalized)) {
+        showToast('Такое значение уже есть', 'error');
+        return;
+    }
+    db.layerHeights.push(normalized);
+    await dbRef.child('layerHeights').set(db.layerHeights);
+    document.getElementById('newLayerHeight').value = '';
+    updateAllSelects();
+}
+
+async function removeLayerHeight(i) {
+    const val = db.layerHeights[i];
+    if (db.products.some(p => p.layerHeight === val)) {
+        showToast('Нельзя удалить: используется в изделии.', 'error');
+        return;
+    }
+    if (!confirm(`Удалить высоту слоя "${val}"?`)) return;
+    db.layerHeights.splice(i, 1);
+    await dbRef.child('layerHeights').set(db.layerHeights);
+    updateAllSelects();
+}
+
+async function editLayerHeight(i) {
+    const newVal = prompt("Изменить (мм):", db.layerHeights[i]);
+    if (!newVal || !newVal.trim()) return;
+    const cleanedVal = String(parseFloat(newVal.replace(',', '.')) || newVal.trim());
+    const oldVal = db.layerHeights[i];
+    db.layerHeights[i] = cleanedVal;
+    const updates = {};
+    updates[`layerHeights/${i}`] = cleanedVal;
+    db.products.forEach((p, idx) => {
+        if (p.layerHeight === oldVal) {
+            updates[`products/${idx}/layerHeight`] = cleanedVal;
+            p.layerHeight = cleanedVal;
+        }
+    });
+    await dbRef.update(updates);
+    updateAllSelects();
 }
 
 // --- FILAMENT STATUSES закомментировано по причине скрытия справочника из пользовательского интерфейса---
@@ -5904,6 +6414,7 @@ function setupEventListeners() {
     document.getElementById('saveWriteoffBtn')?.addEventListener('click', saveWriteoff);
     document.getElementById('closeWriteoffModalBtn')?.addEventListener('click', closeWriteoffModal);
     document.getElementById('addWriteoffItemBtn')?.addEventListener('click', () => addWriteoffItemSection());
+    setupWriteoffExportXls();
     document.getElementById('writeoffType')?.addEventListener('change', updateWriteoffTypeUI);
     document.querySelectorAll('.writeoff-type-option').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -5954,6 +6465,7 @@ function setupEventListeners() {
     document.getElementById('addBrandBtn')?.addEventListener('click', addBrand);
     document.getElementById('addColorBtn')?.addEventListener('click', addColor);
     document.getElementById('addFilamentTypeBtn')?.addEventListener('click', addFilamentType);
+    document.getElementById('addLayerHeightBtn')?.addEventListener('click', addLayerHeight);
     // document.getElementById('addFilamentStatusBtn')?.addEventListener('click', addFilamentStatus);
     document.getElementById('addPrinterBtn')?.addEventListener('click', addPrinter);
     document.getElementById('addElectricityCostBtn')?.addEventListener('click', addElectricityCost);
