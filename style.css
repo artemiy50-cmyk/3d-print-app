@@ -227,7 +227,8 @@
             border-radius: var(--radius) var(--radius) 0 0;
             min-height: 0;
         }
-        #writeoff.page > .card:last-of-type .table-container.writeoff-table-container {
+        #writeoff.page > .card:last-of-type .table-container.writeoff-table-container,
+        #filament.page > .card:last-of-type .table-container.filament-table-container {
             flex: 1;
             overflow: visible;
             max-height: none;
@@ -1889,11 +1890,40 @@ td:nth-last-child(2) {
 
 /* --- Таблица списаний: скролл только в теле, без горизонтального --- */
 .writeoff-table-container { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-.writeoff-table-header { flex-shrink: 0; overflow: hidden; padding-right: 17px; box-sizing: border-box; }
+.writeoff-table-header { flex-shrink: 0; overflow: hidden; padding-right: 17px; box-sizing: border-box; background: var(--color-bg); border-bottom: 2px solid var(--color-border); }
 .writeoff-table-body-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
 .writeoff-table-header table,
 .writeoff-table-body-scroll table { table-layout: fixed; width: 100%; }
-.writeoff-table-header thead { background: var(--color-bg); border-bottom: 2px solid var(--color-border); }
+.writeoff-table-header thead { background: var(--color-bg); border-bottom: none; }
+
+/* --- Таблица филамента: скролл только в теле, без горизонтального --- */
+.filament-table-container { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.filament-table-header { flex-shrink: 0; overflow: hidden; padding-right: 17px; box-sizing: border-box; background: var(--color-bg); border-bottom: 2px solid var(--color-border); }
+.filament-table-body-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
+.filament-table-header table,
+.filament-table-body-scroll table { table-layout: fixed; width: 100%; }
+.filament-table-header thead { background: var(--color-bg); border-bottom: none; }
+
+#filamentsTableHead th,
+#filamentsTable td { padding: 8px; text-align: left; box-sizing: border-box; }
+#filamentsTable td { max-width: none; }
+#filamentsTableHead th:first-child,
+#filamentsTable td:first-child { padding-left: 12px; padding-right: 6px; }
+/* Цвет — сдвиг вправо (освобождает место для Наличия) */
+#filamentsTableHead th:nth-child(4), #filamentsTable td:nth-child(4) { padding-left: 25px; }
+/* Бренд — сдвиг вправо */
+#filamentsTableHead th:nth-child(5), #filamentsTable td:nth-child(5) { padding-left: 29px; }
+/* Тип пластика — сдвиг вправо */
+#filamentsTableHead th:nth-child(6), #filamentsTable td:nth-child(6) { padding-left: 24px; }
+/* Длина, Остаток, Израсх. (м), Израсх. (г) — компактнее, заголовки в одну строку */
+#filamentsTableHead th:nth-child(7), #filamentsTableHead th:nth-child(8), #filamentsTableHead th:nth-child(9), #filamentsTableHead th:nth-child(10) { white-space: nowrap; padding-left: 6px; padding-right: 6px; }
+#filamentsTable td:nth-child(7), #filamentsTable td:nth-child(8), #filamentsTable td:nth-child(9), #filamentsTable td:nth-child(10) { padding-left: 6px; padding-right: 6px; }
+/* Длина, Остаток, Израсх. (м), Израсх. (г), Цена, Рынок — выравнивание по левому краю (default left) */
+#filamentsTableHead th:nth-child(13),
+#filamentsTable td:nth-child(13) { padding-left: 1px; text-align: left; }
+#filamentsTable td:nth-child(13) { transform: translateX(-5px); } /* Товар — ещё левее на 5px */
+#filamentsTable td:last-child { padding-right: 4px; text-align: right; }
+#filamentsTable td:last-child .action-buttons { display: inline-flex; justify-content: flex-end; gap: 4px; margin-left: auto; transform: translateX(-6px); }
 
 /* Единые отступы заголовков и ячеек — ключ к выравниванию */
 #writeoffTableHead th,
