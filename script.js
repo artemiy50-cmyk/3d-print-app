@@ -5100,7 +5100,7 @@ function openWriteoffModalForProduct(pid) {
 function editWriteoff(systemId) { openWriteoffModal(systemId); }
 
 function updateWriteoffTable() {
-    const tbody = document.querySelector('#writeoffTable tbody');
+    const tbody = document.querySelector('#writeoffTableBody tbody');
     const filterType = document.getElementById('writeoffTypeFilter').value;
     const search = document.getElementById('writeoffSearch').value.toLowerCase();
     const sortBy = document.getElementById('writeoffSortBy').value;
@@ -5174,9 +5174,8 @@ function updateWriteoffTable() {
             </td>
         </tr>`;
     }).join('');
+
 }
-
-
 
 function copyWriteoffItem(rowId) {
     const item = db.writeoffs.find(w => w.id === rowId); 
