@@ -1928,6 +1928,9 @@ td:nth-last-child(2) {
 #writeoffTableBody tbody tr[data-doc-group="0"] td:last-child { border-right: 3px solid #d4c4b0; }
 #writeoffTableBody tbody tr[data-doc-group="1"] td:first-child { border-left: 3px solid #94a3b8; }
 #writeoffTableBody tbody tr[data-doc-group="1"] td:last-child { border-right: 3px solid #94a3b8; }
+#writeoffTableBody td.writeoff-id-cell { cursor: pointer !important; }
+#writeoffTableBody td.writeoff-id-cell .writeoff-doc-badge { cursor: pointer; }
+#writeoffTableBody td.writeoff-id-cell:hover .writeoff-doc-badge { text-decoration: underline; }
 .writeoff-doc-badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 12px; }
 .writeoff-doc-badge--0 { background: #f5f0e8; color: #6b5b4f; }
 .writeoff-doc-badge--1 { background: #f1f5f9; color: #475569; }

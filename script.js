@@ -5221,7 +5221,7 @@ function updateWriteoffTable() {
 
         return `<tr data-doc-group="${docColor}">
             <td><span class="writeoff-doc-badge writeoff-doc-badge--${docColor}">${escapeHtml(w.date)}</span></td>
-            <td><span class="writeoff-doc-badge writeoff-doc-badge--${docColor}">${escapeHtml(w.systemId)}</span></td>
+            <td class="writeoff-id-cell" data-system-id="${escapeHtml(String(w.systemId || ''))}" onclick="editWriteoff(this.getAttribute('data-system-id'))" title="Открыть в режиме редактирования"><span class="writeoff-doc-badge writeoff-doc-badge--${docColor}">${escapeHtml(w.systemId)}</span></td>
             <td ${nameEvents} style="cursor:default"><strong>${escapeHtml(w.productName)}</strong></td>
             <td><span class="badge ${statusBadge}">${escapeHtml(w.type)}</span></td>
             <td>${actualCost} ₽</td>
