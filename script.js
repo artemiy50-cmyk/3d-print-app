@@ -1,13 +1,38 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
 // Номер версии ведём в формате xx.xx.xx, например 7.7.7
-const APP_VERSION_NUMBER = '5.8.1';
-console.log('2026-02-23 10-53-08');
+const APP_VERSION_NUMBER = '5.10.0';
+console.log('2026-02-23 14-07-15');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
 
 // === CHANGELOG
 const CHANGELOG_ENTRIES = [
+    { 
+        version: '5.10.6', 
+        dateDisplay: '23.02.2026', 
+        description: 'Обновлены стили форм аутентификации и регистрации' 
+    },
+    { 
+        version: '5.10.5', 
+        dateDisplay: '23.02.2026', 
+        description: 'Добавлены новые функции для обновления значков секций списаний и улучшены стили для визуального отображения типов списаний.' 
+    },
+    { 
+        version: '5.10.4', 
+        dateDisplay: '23.02.2026', 
+        description: 'Сделаны улучшения в печатных формах Акта передачи и Продажи' 
+    },
+    { 
+        version: '5.10.3', 
+        dateDisplay: '23.02.2026', 
+        description: 'Рефакторинг таблицы списаний: разделение на заголовок и тело, улучшение стилей и добавление прокрутки для тела таблицы.' 
+    },
+    { 
+        version: '5.10.2', 
+        dateDisplay: '23.02.2026', 
+        description: 'Добавлена цветовая индикация групп документов в таблице списаний.' 
+    },
     { 
         version: '5.10.1', 
         dateDisplay: '23.02.2026', 
@@ -4384,8 +4409,18 @@ function syncWriteoffTypeSwitcherUI() {
     });
 }
 
+function updateWriteoffSectionBadges() {
+    const type = document.getElementById('writeoffType')?.value || 'Продажа';
+    const map = { 'Продажа': 'sale', 'Подготовлено к продаже': 'prepared', 'Использовано': 'used', 'Брак': 'defect' };
+    const mod = map[type] || 'sale';
+    document.querySelectorAll('#writeoffModal .writeoff-section-badge').forEach(el => {
+        el.classList.remove('writeoff-section-badge--sale', 'writeoff-section-badge--prepared', 'writeoff-section-badge--used', 'writeoff-section-badge--defect');
+        el.classList.add('writeoff-section-badge--' + mod);
+    });
+}
 function updateWriteoffTypeUI() {
     syncWriteoffTypeSwitcherUI();
+    updateWriteoffSectionBadges();
     const type = document.getElementById('writeoffType').value;
     const isSale = type === 'Продажа';
     const isPrepared = type === 'Подготовлено к продаже';
@@ -4414,7 +4449,7 @@ function addWriteoffItemSection(data = null) {
     
     div.innerHTML = `
         <div class="writeoff-item-header">
-            <span class="section-title">ИЗДЕЛИЕ ${index}</span>
+            <span class="section-title writeoff-section-badge">ИЗДЕЛИЕ ${index}</span>
             <button class="btn-remove-section" onclick="removeWriteoffSection(${index})">✕</button>
         </div>
         <div class="form-group">
@@ -4545,7 +4580,8 @@ function addWriteoffItemSection(data = null) {
     }
     
     updateRemoveButtons();
-    updateWriteoffSection(index); 
+    updateWriteoffSection(index);
+    updateWriteoffSectionBadges();
 }
 
 
