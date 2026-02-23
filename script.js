@@ -4384,8 +4384,18 @@ function syncWriteoffTypeSwitcherUI() {
     });
 }
 
+function updateWriteoffSectionBadges() {
+    const type = document.getElementById('writeoffType')?.value || 'Продажа';
+    const map = { 'Продажа': 'sale', 'Подготовлено к продаже': 'prepared', 'Использовано': 'used', 'Брак': 'defect' };
+    const mod = map[type] || 'sale';
+    document.querySelectorAll('#writeoffModal .writeoff-section-badge').forEach(el => {
+        el.classList.remove('writeoff-section-badge--sale', 'writeoff-section-badge--prepared', 'writeoff-section-badge--used', 'writeoff-section-badge--defect');
+        el.classList.add('writeoff-section-badge--' + mod);
+    });
+}
 function updateWriteoffTypeUI() {
     syncWriteoffTypeSwitcherUI();
+    updateWriteoffSectionBadges();
     const type = document.getElementById('writeoffType').value;
     const isSale = type === 'Продажа';
     const isPrepared = type === 'Подготовлено к продаже';
@@ -4414,7 +4424,7 @@ function addWriteoffItemSection(data = null) {
     
     div.innerHTML = `
         <div class="writeoff-item-header">
-            <span class="section-title">ИЗДЕЛИЕ ${index}</span>
+            <span class="section-title writeoff-section-badge">ИЗДЕЛИЕ ${index}</span>
             <button class="btn-remove-section" onclick="removeWriteoffSection(${index})">✕</button>
         </div>
         <div class="form-group">
@@ -4545,7 +4555,8 @@ function addWriteoffItemSection(data = null) {
     }
     
     updateRemoveButtons();
-    updateWriteoffSection(index); 
+    updateWriteoffSection(index);
+    updateWriteoffSectionBadges();
 }
 
 

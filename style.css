@@ -537,9 +537,14 @@
         /* Writeoff Styles */
         #writeoffModal .modal-content { background: #f1f5f9; }
         #writeoffModal .modal-body { background: #f1f5f9; }
-        .writeoff-item-section { border: 1px solid #cbd5e1; border-radius: var(--radius); padding: var(--spacing); margin-bottom: var(--spacing); background: #ffffff; position: relative; box-shadow: 0 1px 3px rgba(15,23,42,0.08); }
+        .writeoff-item-section { border: 2px solid #94a3b8; border-radius: var(--radius); padding: var(--spacing); margin-bottom: var(--spacing); background: #ffffff; position: relative; box-shadow: 0 2px 6px rgba(15,23,42,0.12); }
         .writeoff-item-section:nth-of-type(even) { background: #fcfcfc; }
         .writeoff-item-header { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--color-text); text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 1px solid var(--color-border); }
+        .writeoff-section-badge { display: inline-block; padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: 700; }
+        .writeoff-section-badge--sale { background: var(--color-success); color: white; }
+        .writeoff-section-badge--prepared { background: #475569; color: white; }
+        .writeoff-section-badge--used { background: var(--color-purple); color: white; }
+        .writeoff-section-badge--defect { background: var(--color-danger); color: white; }
         .writeoff-sale-summary { background: var(--color-bg); border-bottom: 1px solid var(--color-border); padding: 12px calc(var(--spacing) * 1.5); font-size: 14px; font-weight: 500; color: var(--color-text); }
         .btn-add-section { width: 100%; justify-content: center; border: 1px dashed var(--color-border); background: #fff; color: var(--color-text-light); padding: 12px; border-radius: var(--radius); cursor: pointer; font-size: 14px; font-weight: 500; display: flex; align-items: center; transition: all 0.2s; }
         .btn-add-section:hover { border-color: var(--color-primary); color: var(--color-primary); background: #f0fdf4; }
