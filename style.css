@@ -553,11 +553,30 @@
         .writeoff-product-label { grid-column: 1 / 2; font-weight: 500; font-size: 12px; color: var(--color-text); }
         .writeoff-sort-row { grid-column: 2 / 4; display: flex; align-items: center; gap: 16px; }
         .writeoff-product-search-wrapper { grid-column: 1 / 2; position: relative; }
-        .writeoff-product-select { grid-column: 2 / 4; width: 100%; }
+        .writeoff-product-select { grid-column: 2 / 4; width: 100%; border: 2px solid #2563eb; font-weight: 600; }
+        .writeoff-product-select option { font-weight: normal; }
         .writeoff-product-search { width: 100%; padding: 10px 28px 10px 10px; font-size: 14px; border-radius: var(--radius); border: 1px solid var(--color-border); }
         .writeoff-product-search:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1); }
         .writeoff-product-clear { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); font-size: 14px; color: #94a3b8; cursor: pointer; user-select: none; visibility: hidden; }
         .writeoff-product-clear:hover { color: #64748b; }
+
+        /* Сохранить в XLS — кнопка и выпадающее меню */
+        #writeoffModal .modal-footer { justify-content: space-between; align-items: center; overflow: visible; }
+        .writeoff-footer-left { min-width: 180px; overflow: visible; }
+        .writeoff-modal-footer.writeoff-footer-compact .writeoff-footer-left { min-width: 0; width: 0; padding: 0; overflow: hidden; }
+        .writeoff-modal-footer.writeoff-footer-compact { justify-content: flex-end; }
+        .writeoff-export-wrap { margin-right: auto; }
+        .writeoff-footer-buttons { display: flex; gap: var(--spacing); margin-left: auto; }
+        .writeoff-export-wrap.hidden { display: none !important; }
+        .writeoff-export-dropdown { position: relative; overflow: visible; display: flex; flex-direction: column-reverse; align-items: flex-start; }
+        .btn-export-xls { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: var(--radius); border: 1px solid #0d9488; background: linear-gradient(180deg, #14b8a6 0%, #0d9488 100%); color: #fff; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 0.2s, box-shadow 0.2s; }
+        .btn-export-xls:hover { background: linear-gradient(180deg, #2dd4bf 0%, #14b8a6 100%); box-shadow: 0 2px 8px rgba(13, 148, 136, 0.35); }
+        .btn-export-xls:focus { outline: none; box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.3); }
+        .btn-export-icon { font-size: 14px; }
+        .writeoff-export-menu { position: absolute; left: 0; bottom: 100%; top: auto !important; margin-top: 0; margin-bottom: 6px; min-width: 220px; background: #fff; border: 1px solid var(--color-border); border-radius: var(--radius); box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100000; overflow: visible; transform: translateY(0); }
+        .writeoff-export-menu.hidden { display: none !important; }
+        .writeoff-export-option { display: block; width: 100%; padding: 10px 14px; border: none; background: none; text-align: left; font-size: 13px; color: var(--color-text); cursor: pointer; transition: background 0.15s; }
+        .writeoff-export-option:hover { background: var(--color-bg); }
 
         /* Changelog styles */
         .changelog-list { display: flex; flex-direction: column; gap: 12px; font-size: 13px; color: #1e293b; }

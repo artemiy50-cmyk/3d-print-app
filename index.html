@@ -18,7 +18,12 @@
     <!-- Driver.js 1.3.0 (Онбординг) — рабочий вариант без предупреждения в консоли -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/driver.js/1.3.0/driver.min.css"/>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/driver.js/1.3.0/driver.min.js.iife.js"></script>
-    
+    <!-- xlsx-js-style для экспорта в XLS с оформлением (заголовки, границы, фон). Fallback: SheetJS -->
+    <script id="xlsx-script" src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.min.js"
+        onerror="(function(){var s=document.createElement('script');s.src='https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';s.onload=function(){if(typeof window.__xlsxReady==='function')window.__xlsxReady();};document.head.appendChild(s);})();"></script>
+    <script>
+    (function(){var x=window.XLSX||(typeof XLSX!=="undefined"?XLSX:null);if(x){window.XLSX=x;window.__xlsxReady=function(){return !!window.XLSX;};}})();
+    </script>
 	
 </head>
 <body>
@@ -1065,9 +1070,24 @@
                 <div class="form-section"><div class="form-group"><label>Примечание:</label><textarea id="writeoffNote" style="min-height: 60px;" placeholder="Дополнительная информация..."></textarea></div></div>
             </div>
 
-            <div class="modal-footer">
-                <button id="closeWriteoffModalBtn" class="btn-secondary">Отмена</button>
-                <button id="saveWriteoffBtn" class="btn-primary">Сохранить и закрыть</button>
+            <div class="modal-footer writeoff-modal-footer">
+                <div id="writeoffFooterLeft" class="writeoff-footer-left">
+                <div id="writeoffExportXlsWrap" class="writeoff-export-wrap hidden">
+                    <div class="writeoff-export-dropdown">
+                        <button type="button" id="writeoffExportXlsBtn" class="btn-export-xls" title="Сохранить в Excel">
+                            <span class="btn-export-icon">📥</span> Сохранить в XLS
+                        </button>
+                        <div id="writeoffExportDropdown" class="writeoff-export-menu hidden">
+                            <button type="button" class="writeoff-export-option" data-form="sale">Продажа</button>
+                            <button type="button" class="writeoff-export-option" data-form="act">Акт передачи</button>
+                        </div>
+                    </div>
+                </div>
+                </div>
+                <div class="writeoff-footer-buttons">
+                    <button id="closeWriteoffModalBtn" class="btn-secondary">Отмена</button>
+                    <button id="saveWriteoffBtn" class="btn-primary">Сохранить и закрыть</button>
+                </div>
             </div>
         </div>
     </div>
@@ -1299,7 +1319,31 @@
 
 
 
-    <!-- Подключаем ваш скрипт -->
+    <!-- Инициализация XLSX: объединить экспорты и убедиться в доступности -->
+    <script>
+    (function() {
+        function ensureXLSX() {
+            var lib = (typeof window !== 'undefined' && window.XLSX && window.XLSX.utils) ? window.XLSX
+                : (typeof XLSX !== 'undefined' && XLSX.utils) ? XLSX
+                : (typeof xlsx !== 'undefined' && xlsx.utils) ? xlsx : null;
+            if (lib) { window.XLSX = lib; return true; }
+            return false;
+        }
+        function loadFallback() {
+            var s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.min.js';
+            s.crossOrigin = 'anonymous';
+            s.onload = function() { ensureXLSX(); };
+            document.head.appendChild(s);
+        }
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                if (!ensureXLSX()) loadFallback();
+            });
+        } else if (!ensureXLSX()) loadFallback();
+        window.__xlsxReady = ensureXLSX;
+    })();
+    </script>
     <script src="script.js?v=1"></script>
 
 </body>

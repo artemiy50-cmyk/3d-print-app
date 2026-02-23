@@ -3940,6 +3940,7 @@ function updateRemoveButtons() {
 
 function openWriteoffModal(systemId = null) {
 	isModalOpen = true;
+    if (!getXLSXLib()) loadXLSXLib(function() {}); // предзагрузка для экспорта в XLS
     document.getElementById('writeoffModal').classList.add('active');
     document.getElementById('writeoffValidationMessage').classList.add('hidden');
     const isEdit = !!systemId;
@@ -4012,8 +4013,329 @@ function closeWriteoffModal() {
     if(dbRef && dbRef.parent) dbRef.parent.once('value').then(window.updateAppFromSnapshot);
 
 	document.getElementById('writeoffModal').classList.remove('active'); 
+	document.getElementById('writeoffExportDropdown')?.classList.add('hidden');
 }
 
+
+function collectWriteoffRowsForExport() {
+    const sections = document.querySelectorAll('.writeoff-item-section');
+    const rows = [];
+    for (const sec of sections) {
+        const pid = sec.querySelector('.writeoff-product-select')?.value;
+        const qty = parseInt(sec.querySelector('.section-qty')?.value) || 0;
+        const price = parseFloat(sec.querySelector('.section-price')?.value) || 0;
+        if (!pid || qty <= 0) continue;
+        const product = db.products.find(p => p.id == parseInt(pid));
+        const productName = product ? product.name : '—';
+        const enrichmentNames = [];
+        sec.querySelectorAll('.enrichment-row').forEach(row => {
+            const name = row.querySelector('.enrichment-name')?.value?.trim();
+            if (name) enrichmentNames.push(name);
+        });
+        rows.push({ productName, enrichmentNames, price, qty, total: qty * price });
+    }
+    return rows;
+}
+
+var _font11 = { name: 'Calibri', sz: 11 };
+var _font11Bold = { name: 'Calibri', sz: 11, bold: true };
+var _font12 = { name: 'Calibri', sz: 12 };
+var _font12Bold = { name: 'Calibri', sz: 12, bold: true };
+var _font10 = { name: 'Calibri', sz: 10 };
+var _fillGray = { patternType: 'solid', fgColor: { rgb: 'D9D9D9' } };
+var _borderThin = {
+    top: { style: 'thin', color: { rgb: '000000' } },
+    bottom: { style: 'thin', color: { rgb: '000000' } },
+    left: { style: 'thin', color: { rgb: '000000' } },
+    right: { style: 'thin', color: { rgb: '000000' } }
+};
+var _borderBottomOnly = { bottom: { style: 'thin', color: { rgb: '000000' } } };
+var _alignVertCenter = { vertical: 'center' };
+
+function styleCell(v, opts) {
+    var sz = (opts && opts.sz) ? opts.sz : 11;
+    var font = { name: 'Calibri', sz: sz, bold: !!(opts && opts.bold) };
+    var s = { font: font };
+    if (opts && opts.fill) s.fill = opts.fill;
+    if (opts && opts.border) s.border = opts.border;
+    if (opts && opts.alignment) s.alignment = opts.alignment;
+    return { v: v, t: typeof v === 'number' ? 'n' : 's', s: s };
+}
+
+function getXLSXLib() {
+    try {
+        if (typeof window !== 'undefined' && window.__xlsxReady) window.__xlsxReady();
+        var lib = (typeof window !== 'undefined' && window.XLSX && window.XLSX.utils) ? window.XLSX
+            : (typeof XLSX !== 'undefined' && XLSX.utils) ? XLSX
+            : (typeof xlsx !== 'undefined' && xlsx.utils) ? xlsx : null;
+        if (lib) return lib;
+    } catch (e) {}
+    return null;
+}
+
+function formatDateForAct(isoDate) {
+    var parts = isoDate.split('-');
+    if (parts.length !== 3) return isoDate;
+    return parts[2] + '.' + parts[1] + '.' + parts[0];
+}
+
+function buildActSheet(XLSXLib, rows, date) {
+    var vc = _alignVertCenter;
+    var headerStyle = { bold: true, fill: _fillGray, border: _borderThin, sz: 12, alignment: Object.assign({}, vc) };
+    var headerCenterStyle = { bold: true, fill: _fillGray, border: _borderThin, sz: 12, alignment: { vertical: 'center', horizontal: 'center', wrapText: true } };
+    var cellBorder = { border: _borderThin };
+    var cellStyle = function(v, extra) {
+        var a = Object.assign({ sz: 12, alignment: vc }, cellBorder, extra || {});
+        return styleCell(v, a);
+    };
+
+    var data = [];
+    var dateStr = formatDateForAct(date);
+
+    data.push([
+        styleCell('АКТ ПЕРЕДАЧИ', { bold: true, sz: 14 }),
+        styleCell('', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12, alignment: vc }),
+        styleCell('Дата: ' + dateStr, { bold: true, sz: 12, alignment: { horizontal: 'right', vertical: 'center' } })
+    ]);
+    data.push([
+        styleCell('изделий под реализацию', { bold: true, sz: 12, alignment: vc }),
+        styleCell('', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12, alignment: vc })
+    ]);
+    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
+
+    var headerRow = [
+        styleCell('Наименование', Object.assign({}, headerStyle, { border: _borderThin })),
+        styleCell('Цена, за 1 шт.', Object.assign({}, headerCenterStyle, { border: _borderThin })),
+        styleCell('Кол-во', Object.assign({}, headerCenterStyle, { border: _borderThin })),
+        styleCell('Стоимость', Object.assign({}, headerCenterStyle, { border: _borderThin })),
+        styleCell('Рекомендуемая цена продажи, 1 шт.', Object.assign({}, headerCenterStyle, { border: _borderThin }))
+    ];
+    data.push(headerRow);
+
+    var totalQty = 0;
+    var dataRowCount = 0;
+    rows.forEach(function(r) {
+        data.push([
+            cellStyle(r.productName, { bold: true, alignment: { vertical: 'center', wrapText: true } }),
+            cellStyle(r.price),
+            cellStyle(r.qty),
+            cellStyle(r.total),
+            cellStyle('')
+        ]);
+        dataRowCount++;
+        totalQty += r.qty;
+
+        if (r.enrichmentNames.length > 0) {
+            var compText = 'включая комплектующие: ' + r.enrichmentNames.join('; ');
+            data.push([
+                styleCell(compText, Object.assign({ sz: 10, bold: false, alignment: { vertical: 'center', wrapText: true } }, cellBorder)),
+                cellStyle(''),
+                cellStyle(''),
+                cellStyle(''),
+                cellStyle('')
+            ]);
+            dataRowCount++;
+        }
+    });
+
+    var totalRowStyle = Object.assign({}, cellBorder, { bold: true, fill: _fillGray, alignment: { horizontal: 'right', vertical: 'center' } });
+    var totalRow = [
+        styleCell('ИТОГО', totalRowStyle),
+        styleCell('', Object.assign({}, totalRowStyle)),
+        styleCell(totalQty, totalRowStyle),
+        styleCell('', totalRowStyle),
+        styleCell('', totalRowStyle)
+    ];
+    data.push(totalRow);
+
+    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
+    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
+    data.push([
+        styleCell('Передал:', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 })
+    ]);
+    data.push([
+        styleCell('', { sz: 12, border: _borderBottomOnly }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 })
+    ]);
+    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
+    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
+    data.push([
+        styleCell('Принял:', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 })
+    ]);
+    data.push([
+        styleCell('', { sz: 12, border: _borderBottomOnly }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 })
+    ]);
+
+    var ws = XLSXLib.utils.aoa_to_sheet(data);
+    ws['!cols'] = [{ wch: 45 }, { wch: 14 }, { wch: 8 }, { wch: 14 }, { wch: 28 }];
+    return ws;
+}
+
+function buildSaleSheet(XLSXLib, rows, date) {
+    var vc = _alignVertCenter;
+    var headerStyle = { bold: true, fill: _fillGray, border: _borderThin, sz: 12, alignment: Object.assign({}, vc) };
+    var headerCenterStyle = { bold: true, fill: _fillGray, border: _borderThin, sz: 12, alignment: { vertical: 'center', horizontal: 'center', wrapText: true } };
+    var cellBorder = { border: _borderThin };
+    var cellStyle = function(v, extra) {
+        var a = Object.assign({ sz: 12, alignment: vc }, cellBorder, extra || {});
+        return styleCell(v, a);
+    };
+
+    var data = [];
+    var dateStr = formatDateForAct(date);
+
+    data.push([
+        styleCell('ПРОДАЖА', { bold: true, sz: 14 }),
+        styleCell('', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12, alignment: vc }),
+        styleCell('Дата: ' + dateStr, { bold: true, sz: 12, alignment: { horizontal: 'right', vertical: 'center' } })
+    ]);
+    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
+
+    var headerRow = [
+        styleCell('Наименование', Object.assign({}, headerStyle, { border: _borderThin })),
+        styleCell('Цена, за 1 шт.', Object.assign({}, headerCenterStyle, { border: _borderThin })),
+        styleCell('Кол-во', Object.assign({}, headerCenterStyle, { border: _borderThin })),
+        styleCell('Стоимость', Object.assign({}, headerCenterStyle, { border: _borderThin }))
+    ];
+    data.push(headerRow);
+
+    var totalQty = 0;
+    var totalCost = 0;
+    rows.forEach(function(r) {
+        data.push([
+            cellStyle(r.productName, { bold: true, alignment: { vertical: 'center', wrapText: true } }),
+            cellStyle(r.price),
+            cellStyle(r.qty),
+            cellStyle(r.total)
+        ]);
+        totalQty += r.qty;
+        totalCost += r.total;
+
+        if (r.enrichmentNames.length > 0) {
+            var compText = 'включая комплектующие: ' + r.enrichmentNames.join('; ');
+            data.push([
+                styleCell(compText, Object.assign({ sz: 10, bold: false, alignment: { vertical: 'center', wrapText: true } }, cellBorder)),
+                cellStyle(''),
+                cellStyle(''),
+                cellStyle('')
+            ]);
+        }
+    });
+
+    var totalRowStyle = Object.assign({}, cellBorder, { bold: true, fill: _fillGray, alignment: { horizontal: 'right', vertical: 'center' } });
+    var totalRow = [
+        styleCell('ИТОГО', totalRowStyle),
+        styleCell('', totalRowStyle),
+        styleCell(totalQty, totalRowStyle),
+        styleCell(totalCost, totalRowStyle)
+    ];
+    data.push(totalRow);
+
+    var ws = XLSXLib.utils.aoa_to_sheet(data);
+    ws['!cols'] = [{ wch: 54 }, { wch: 14 }, { wch: 8 }, { wch: 14 }];
+    return ws;
+}
+
+function loadXLSXLib(callback) {
+    var urls = [
+        'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.min.js',
+        'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js',
+        'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
+        'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js'
+    ];
+    var idx = 0;
+    function tryNext() {
+        if (idx >= urls.length) {
+            callback(null);
+            return;
+        }
+        var s = document.createElement('script');
+        s.src = urls[idx++];
+        s.crossOrigin = 'anonymous';
+        s.onload = function() { if (window.__xlsxReady) window.__xlsxReady(); callback(getXLSXLib()); };
+        s.onerror = tryNext;
+        document.head.appendChild(s);
+    }
+    tryNext();
+}
+
+function exportWriteoffToXls(formType) {
+    var XLSXLib = getXLSXLib();
+    if (!XLSXLib || !XLSXLib.utils || !XLSXLib.utils.aoa_to_sheet) {
+        showToast('Загрузка библиотеки Excel...', 'info');
+        loadXLSXLib(function(lib) {
+            if (lib && lib.utils) exportWriteoffToXls(formType);
+            else showToast('Библиотека Excel не загружена. Обновите страницу.', 'error');
+        });
+        return;
+    }
+    const rows = collectWriteoffRowsForExport();
+    if (rows.length === 0) {
+        showToast('Нет данных для экспорта. Добавьте изделия с количеством и ценой.', 'error');
+        return;
+    }
+    const date = document.getElementById('writeoffDate')?.value || new Date().toISOString().slice(0, 10);
+    const isAct = formType === 'act';
+
+    var ws;
+    if (isAct) {
+        ws = buildActSheet(XLSXLib, rows, date);
+    } else {
+        ws = buildSaleSheet(XLSXLib, rows, date);
+    }
+    const wb = XLSXLib.utils.book_new();
+    const sheetName = isAct ? 'Акт передачи' : 'Продажа';
+    XLSXLib.utils.book_append_sheet(wb, ws, sheetName);
+    const fileName = isAct ? 'Акт_передачи_' + date + '.xlsx' : 'Продажа_' + date + '.xlsx';
+    try {
+        XLSXLib.writeFile(wb, fileName, { cellStyles: true });
+    } catch (e) {
+        XLSXLib.writeFile(wb, fileName);
+    }
+    document.getElementById('writeoffExportDropdown')?.classList.add('hidden');
+    showToast('Файл сохранён', 'success');
+}
+
+function setupWriteoffExportXls() {
+    const btn = document.getElementById('writeoffExportXlsBtn');
+    const menu = document.getElementById('writeoffExportDropdown');
+    const options = document.querySelectorAll('.writeoff-export-option');
+    if (!btn || !menu) return;
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menu.classList.toggle('hidden');
+    });
+    options.forEach(opt => {
+        opt.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const form = opt.getAttribute('data-form');
+            if (form === 'sale') exportWriteoffToXls('sale');
+            else if (form === 'act') exportWriteoffToXls('act');
+        });
+    });
+    document.addEventListener('click', () => menu?.classList.add('hidden'));
+}
 
 
 function syncWriteoffTypeSwitcherUI() {
@@ -4031,7 +4353,9 @@ function updateWriteoffTypeUI() {
     const isPrepared = type === 'Подготовлено к продаже';
     
     document.getElementById('writeoffTotalSummary').classList.toggle('hidden', !(isSale || isPrepared));
-    
+    document.getElementById('writeoffExportXlsWrap')?.classList.toggle('hidden', !(isSale || isPrepared));
+    document.querySelector('.writeoff-modal-footer')?.classList.toggle('writeoff-footer-compact', !(isSale || isPrepared));
+
     document.querySelectorAll('.writeoff-item-section').forEach(sec => {
         const idx = sec.id.split('_')[1];
         updateWriteoffSection(idx);
@@ -6085,6 +6409,7 @@ function setupEventListeners() {
     document.getElementById('saveWriteoffBtn')?.addEventListener('click', saveWriteoff);
     document.getElementById('closeWriteoffModalBtn')?.addEventListener('click', closeWriteoffModal);
     document.getElementById('addWriteoffItemBtn')?.addEventListener('click', () => addWriteoffItemSection());
+    setupWriteoffExportXls();
     document.getElementById('writeoffType')?.addEventListener('change', updateWriteoffTypeUI);
     document.querySelectorAll('.writeoff-type-option').forEach(btn => {
         btn.addEventListener('click', () => {
