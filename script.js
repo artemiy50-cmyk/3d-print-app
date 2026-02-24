@@ -1427,7 +1427,10 @@ function exportData() {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db));
     const dl = document.createElement('a');
     dl.setAttribute("href", dataStr);
-    dl.setAttribute("download", `3d_filament_backup_${new Date().toISOString().split('T')[0]}.json`);
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const ts = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}`;
+    dl.setAttribute("download", `3d_filament_backup_${ts}.json`);
     document.body.appendChild(dl); dl.click(); dl.remove();
 }
 
@@ -3572,6 +3575,23 @@ function updateProductsTable() {
     const sortBy = document.getElementById('productSortBy').value;
     const showChildren = document.getElementById('showProductChildren').checked;
 
+    const getFilamentCustomId = (p) => {
+        if (!p || !p.filament) return '';
+        const f = typeof p.filament === 'object' ? p.filament : db.filaments.find(fil => fil.id == p.filament);
+        return (f && f.customId) ? f.customId : '';
+    };
+
+    const applyFilters = (p) => {
+        if (term && !p.name.toLowerCase().includes(term)) return false;
+        if (availFilter) {
+            if (availFilter === 'Брак') { if (!p.defective) return false; }
+            else if (availFilter === 'Draft') { if (!p.isDraft) return false; }
+            else if (availFilter === 'InStock') { if ((p.inStock || 0) <= 0 || p.isDraft) return false; }
+            else if (p.status !== availFilter) return false;
+        }
+        return true;
+    };
+
     const sortFn = (a, b) => {
         if (sortBy === 'systemId-desc') return (b.systemId||'').localeCompare(a.systemId||'');
         if (sortBy === 'systemId-asc') return (a.systemId||'').localeCompare(b.systemId||'');
@@ -3584,30 +3604,60 @@ function updateProductsTable() {
         return 0;
     };
 
-    let rootProducts = db.products.filter(p => {
-        if (p.type === 'Часть составного') return false; 
-        if (term && !p.name.toLowerCase().includes(term)) return false;
-        
-        if (availFilter) {
-            if (availFilter === 'Брак') { if (!p.defective) return false; }
-            else if (availFilter === 'Draft') { if (!p.isDraft) return false; } // Фильтр черновиков
-            else if (availFilter === 'InStock') { if ((p.inStock || 0) <= 0 || p.isDraft) return false; } // Черновики не "В наличии"
-            else if (p.status !== availFilter) return false;
-        }
-        return true;
-    });
-    
-    rootProducts.sort(sortFn);
+    const filamentSortFn = (a, b) => {
+        const fa = getFilamentCustomId(a), fb = getFilamentCustomId(b);
+        if (!fa && fb) return 1;
+        if (fa && !fb) return -1;
+        if (!fa && !fb) return (b.length||0) - (a.length||0);
+        if (fa !== fb) return fa.localeCompare(fb);
+        return (b.length||0) - (a.length||0);
+    };
+
+    const partsFlatSortFn = (a, b) => {
+        if (sortBy === 'length-parts') return (b.length||0) - (a.length||0);
+        if (sortBy === 'weight-parts') return (b.weight||0) - (a.weight||0);
+        return 0;
+    };
+
+    const childrenSortFn = (a, b) => {
+        if (sortBy === 'filament') return filamentSortFn(a, b);
+        if (sortBy === 'length-parts') return (b.length||0) - (a.length||0);
+        if (sortBy === 'weight-parts') return (b.weight||0) - (a.weight||0);
+        return (a.systemId || '').localeCompare(b.systemId || '');
+    };
+
+    const isPartsFlatMode = sortBy === 'filament' || sortBy === 'length-parts' || sortBy === 'weight-parts';
 
     let html = '';
-    rootProducts.forEach(root => {
-        html += buildProductRow(root, false);
-        if (root.type === 'Составное' && showChildren) {
-            const children = db.products.filter(k => k.parentId === root.id);
-            children.sort((a, b) => (a.systemId || '').localeCompare(b.systemId || ''));
-            children.forEach(child => html += buildProductRow(child, true));
-        }
-    });
+    if (isPartsFlatMode) {
+        const standalone = db.products.filter(p => {
+            if (p.type === 'Составное' || p.type === 'Часть составного') return false;
+            return applyFilters(p);
+        });
+        const parts = db.products.filter(p => {
+            if (p.type !== 'Часть составного') return false;
+            return applyFilters(p);
+        });
+        const flatList = [...standalone, ...parts];
+        flatList.sort(sortBy === 'filament' ? filamentSortFn : partsFlatSortFn);
+        flatList.forEach(p => {
+            html += buildProductRow(p, p.type === 'Часть составного');
+        });
+    } else {
+        let rootProducts = db.products.filter(p => {
+            if (p.type === 'Часть составного') return false;
+            return applyFilters(p);
+        });
+        rootProducts.sort(sortFn);
+        rootProducts.forEach(root => {
+            html += buildProductRow(root, false);
+            if (root.type === 'Составное' && showChildren) {
+                const children = db.products.filter(k => k.parentId === root.id);
+                children.sort(childrenSortFn);
+                children.forEach(child => html += buildProductRow(child, true));
+            }
+        });
+    }
     tbody.innerHTML = html;
 }
 
