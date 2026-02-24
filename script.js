@@ -3895,8 +3895,8 @@ function updateFilamentsTable() {
         let rowClass = '';
         if (f.availability === 'Израсходовано') rowClass = 'row-bg-gray';
         
-        // === ИСПРАВЛЕНИЕ: Считаем остаток на лету ===
-        const realRemaining = Math.max(0, (f.length || 0) - (f.usedLength || 0));
+        // Остаток: допускаем отрицательное значение при перерасходе
+        const realRemaining = (f.length || 0) - (f.usedLength || 0);
         let remainingHtml = realRemaining.toFixed(1);
         
         if (f.availability === 'В наличии' && realRemaining < 50) {
@@ -4803,7 +4803,7 @@ function updateWriteoffSection(index) {
     section.querySelector('.section-stock').textContent = currentStock + ' шт.';
     
     const qty = parseInt(qtyInput.value) || 0;
-    const remaining = Math.max(0, currentStock - qty); 
+    const remaining = currentStock - qty;
     section.querySelector('.section-remaining').textContent = remaining + ' шт.';
 
     let totalEnrichmentCost = 0;
