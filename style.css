@@ -405,8 +405,8 @@
         tr.product-child-row { background-color: rgba(0,0,0,0.02); }
         #productsTableHead th.th-name-align,
         #productsTable th.th-name-align { padding-left: 40px; } /* Выравнивание по левому краю названий (12+24+4) */
-        .product-name-cell { display: flex; align-items: center; }
-        .product-icon-wrapper { width: 24px; display: flex; justify-content: center; align-items: center; margin-right: 4px; flex-shrink: 0; }
+.product-name-cell { display: flex; align-items: center; }
+.product-icon-wrapper { width: 24px; display: flex; justify-content: center; align-items: center; margin-right: 6px; flex-shrink: 0; }
         .product-icon-static { font-size: 14px; line-height: 1; font-weight: 500; color: var(--color-text); }
         .product-icon-static.icon-defective, #childrenTable .children-part-icon.icon-defective { font-size: 11px; }
         .child-part-link { color: var(--color-primary); text-decoration: underline; cursor: pointer; }
@@ -1944,9 +1944,9 @@ td:nth-last-child(2) {
 /* Центр: Model (13), Действия (14) */
 #productsTableHead th:nth-child(13), #productsTableHead th:nth-child(14),
 #productsTable td:nth-child(13), #productsTable td:nth-child(14) { text-align: center; }
-/* Скрепка (колонка 2): выравнивание по левому краю + чуть шире */
+/* Скрепка (колонка 2): выравнивание по левому краю + ещё на 2px шире */
 #productsTableHead th:nth-child(2),
-#productsTable td:nth-child(2) { text-align: left; min-width: 26px; }
+#productsTable td:nth-child(2) { text-align: left; min-width: 28px; }
 /* Статус: базовый вид — без обрезания в полноэкранном режиме */
 #productsTableHead th:nth-child(12),
 #productsTable td:nth-child(12) {
@@ -2089,7 +2089,7 @@ td:nth-last-child(2) {
 #writeoffTableBody tbody tr[data-doc-group="1"] td:last-child { border-right: 3px solid #94a3b8; }
 #writeoffTableBody td.writeoff-id-cell { cursor: pointer !important; }
 #writeoffTableBody td.writeoff-id-cell .writeoff-doc-badge { cursor: pointer; }
-#writeoffTableBody td.writeoff-id-cell:hover .writeoff-doc-badge { text-decoration: underline; }
+#writeoffTableBody td.writeoff-id-cell:hover .writeoff-doc-badge { text-decoration: none; }
 .writeoff-doc-badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 12px; }
 .writeoff-doc-badge--0 { background: #f5f0e8; color: #6b5b4f; }
 .writeoff-doc-badge--1 { background: #f1f5f9; color: #475569; }

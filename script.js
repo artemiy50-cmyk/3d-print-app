@@ -3460,7 +3460,7 @@ function buildProductRow(p, isChild) {
     if (isChild) {
         let statusTextStyle = 'status-text-purple';
         if (p.status === 'Брак') statusTextStyle = 'status-text-danger';
-        statusHtml = `<span class="${statusTextStyle}">${escapeHtml(p.status)}</span>`;
+        statusHtml = `<span class="${statusTextStyle}" style="cursor:pointer;" onclick="editProduct(${p.id})">${escapeHtml(p.status)}</span>`;
     } else {
         const productWriteoffs = db.writeoffs.filter(w => w.productId === p.id);
         if (productWriteoffs.length > 0) {
@@ -3479,11 +3479,11 @@ function buildProductRow(p, isChild) {
                 }).join('');
 
             statusHtml = `<div class="tooltip-container">
-                            <span class="badge ${statusClass}" style="cursor:pointer;">${escapeHtml(p.status)}</span>
+                            <span class="badge ${statusClass}" style="cursor:pointer;" onclick="editProduct(${p.id})">${escapeHtml(p.status)}</span>
                             <span class="tooltip-text tooltip-top-right tooltip-writeoffs" style="text-align: left; width: auto; white-space: normal;">${linksHtml}</span>
                          </div>`;
         } else {
-            statusHtml = `<span class="badge ${statusClass}">${escapeHtml(p.status)}</span>`;
+            statusHtml = `<span class="badge ${statusClass}" style="cursor:pointer;" onclick="editProduct(${p.id})">${escapeHtml(p.status)}</span>`;
         }
     }
     
@@ -3498,12 +3498,12 @@ function buildProductRow(p, isChild) {
     
     const linkHtml = p.link ? `<a href="${escapeHtml(p.link)}" target="_blank" style="color:#1e40af;text-decoration:underline;">Модель</a>` : '';
 
-    const nameEvents = `onmouseenter="showProductImagePreview(this, ${p.id})" onmousemove="moveProductImagePreview(event)" onmouseleave="hideProductImagePreview(this)"`;
+    const nameEvents = `onmouseenter="showProductImagePreview(this, ${p.id})" onmousemove="moveProductImagePreview(event)" onmouseleave="hideProductImagePreview(this)" onclick="editProduct(${p.id})"`;
 
     const layerSuffix = (p.layerHeight && String(p.layerHeight).trim()) ? ` [слой ${escapeHtml(String(p.layerHeight))}]` : '';
     let nameHtml = isChild 
-        ? `<div class="product-name-cell product-child-indent"><div class="product-icon-wrapper">${icon}</div><span ${nameEvents} style="cursor:default">${escapeHtml(p.name)}${layerSuffix}</span>${note}</div>`
-        : `<div class="product-name-cell"><div class="product-icon-wrapper">${icon}</div><span ${nameEvents} style="cursor:default"><strong>${escapeHtml(p.name)}${layerSuffix}</strong></span>${note}</div>`;
+        ? `<div class="product-name-cell product-child-indent"><div class="product-icon-wrapper">${icon}</div><span ${nameEvents} style="cursor:pointer">${escapeHtml(p.name)}${layerSuffix}</span>${note}</div>`
+        : `<div class="product-name-cell"><div class="product-icon-wrapper">${icon}</div><span ${nameEvents} style="cursor:pointer"><strong>${escapeHtml(p.name)}${layerSuffix}</strong></span>${note}</div>`;
 
     let addPartButtonHtml = '';
 	if (p.type === 'Составное') {
@@ -3903,7 +3903,7 @@ function updateFilamentsTable() {
         }
 
         return `<tr class="${rowClass}">
-            <td>${iconHtml}<strong>${escapeHtml(f.customId)}</strong></td>
+            <td style="cursor:pointer" onclick="editFilament(${f.id})">${iconHtml}<strong>${escapeHtml(f.customId)}</strong></td>
             <td>${f.date}</td>
             <td><span class="badge ${badge}">${escapeHtml(f.availability)}</span></td>
             <td><span class="color-swatch" style="background:${f.color ? f.color.hex : '#eee'}"></span>${f.color ? escapeHtml(f.color.name) : '-'}</td>
@@ -5265,12 +5265,12 @@ function updateWriteoffTable() {
         const docColor = systemIdToColor[w.systemId || ''] ?? 0;
 
         // --- ИЗМЕНЕНИЕ: Добавлены обработчики событий для превью картинки ---
-        const nameEvents = w.productId ? `onmouseenter="showProductImagePreview(this, ${w.productId})" onmousemove="moveProductImagePreview(event)" onmouseleave="hideProductImagePreview(this)"` : '';
+        const nameEvents = w.productId ? `onmouseenter="showProductImagePreview(this, ${w.productId})" onmousemove="moveProductImagePreview(event)" onmouseleave="hideProductImagePreview(this)" onclick="editWriteoff('${escapeHtml(String(w.systemId || ''))}')"` : `onclick="editWriteoff('${escapeHtml(String(w.systemId || ''))}')"`;
 
         return `<tr data-doc-group="${docColor}">
             <td><span class="writeoff-doc-badge writeoff-doc-badge--${docColor}">${escapeHtml(w.date)}</span></td>
             <td class="writeoff-id-cell" data-system-id="${escapeHtml(String(w.systemId || ''))}" onclick="editWriteoff(this.getAttribute('data-system-id'))" title="Открыть в режиме редактирования"><span class="writeoff-doc-badge writeoff-doc-badge--${docColor}">${escapeHtml(w.systemId)}</span></td>
-            <td ${nameEvents} style="cursor:default"><strong>${escapeHtml(w.productName)}</strong></td>
+            <td ${nameEvents} style="cursor:pointer"><strong>${escapeHtml(w.productName)}</strong></td>
             <td><span class="badge ${statusBadge}">${escapeHtml(w.type)}</span></td>
             <td>${actualCost} ₽</td>
             <td>${w.qty}</td>
