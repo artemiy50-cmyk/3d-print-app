@@ -194,11 +194,12 @@
         
         .page.active { display: block; }
 
-        /* Fixed Layout Pages (Filament, Products, Writeoff) - Internal Table Scroll */
+        /* Fixed Layout Pages (Filament, Products, Writeoff, Service) - Internal Table Scroll */
         /* Эти страницы становятся Flex-контейнерами на всю высоту */
         #filament.page.active, 
         #products.page.active, 
-        #writeoff.page.active {
+        #writeoff.page.active,
+        #service.page.active {
             display: flex;
             flex-direction: column;
             overflow: hidden; /* Запрещаем скролл страницы */
@@ -207,7 +208,8 @@
         /* На этих страницах последняя карточка (с таблицей) растягивается */
         #filament.page > .card:last-of-type,
         #products.page > .card:last-of-type,
-        #writeoff.page > .card:last-of-type {
+        #writeoff.page > .card:last-of-type,
+        #service.page > .card:last-of-type {
             flex: 1;
             display: flex;
             flex-direction: column;
@@ -227,9 +229,13 @@
             border-radius: var(--radius) var(--radius) 0 0;
             min-height: 0;
         }
-        #writeoff.page > .card:last-of-type .table-container.writeoff-table-container {
+        #writeoff.page > .card:last-of-type .table-container.writeoff-table-container,
+        #filament.page > .card:last-of-type .table-container.filament-table-container,
+        #products.page > .card:last-of-type .table-container.products-table-container,
+        #service.page > .card:last-of-type .table-container.service-table-container {
             flex: 1;
-            overflow: visible;
+            overflow-x: auto;
+            overflow-y: hidden;
             max-height: none;
             border-bottom: none;
             border-radius: var(--radius) var(--radius) 0 0;
@@ -400,9 +406,10 @@
         tbody tr:hover { background: rgba(30, 64, 175, 0.02); }
         
         tr.product-child-row { background-color: rgba(0,0,0,0.02); }
+        #productsTableHead th.th-name-align,
         #productsTable th.th-name-align { padding-left: 40px; } /* Выравнивание по левому краю названий (12+24+4) */
-        .product-name-cell { display: flex; align-items: center; }
-        .product-icon-wrapper { width: 24px; display: flex; justify-content: center; align-items: center; margin-right: 4px; flex-shrink: 0; }
+.product-name-cell { display: flex; align-items: center; }
+.product-icon-wrapper { width: 24px; display: flex; justify-content: center; align-items: center; margin-right: 6px; flex-shrink: 0; }
         .product-icon-static { font-size: 14px; line-height: 1; font-weight: 500; color: var(--color-text); }
         .product-icon-static.icon-defective, #childrenTable .children-part-icon.icon-defective { font-size: 11px; }
         .child-part-link { color: var(--color-primary); text-decoration: underline; cursor: pointer; }
@@ -453,6 +460,8 @@
         }
         .tooltip-text.tooltip-writeoffs .writeoff-tooltip-row { display: block; margin-bottom: 8px; }
         .tooltip-text.tooltip-writeoffs .writeoff-tooltip-row:last-child { margin-bottom: 0; }
+        /* Убираем стрелку/точку под бейджем статуса */
+        .tooltip-text.tooltip-writeoffs::after { content: none !important; display: none !important; }
  
         .color-swatch { display: inline-block; width: 20px; height: 20px; border-radius: 4px; border: 1px solid var(--color-border); vertical-align: middle; margin-right: 8px; }
         .form-group { margin-bottom: var(--spacing); }
@@ -1887,13 +1896,180 @@ td:nth-last-child(2) {
     min-width: 80px;
 }
 
-/* --- Таблица списаний: скролл только в теле, без горизонтального --- */
-.writeoff-table-container { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-.writeoff-table-header { flex-shrink: 0; overflow: hidden; padding-right: 17px; box-sizing: border-box; }
+/* --- Таблица списаний: скролл только в теле, горизонтальный при узком окне --- */
+.writeoff-table-container { display: flex; flex-direction: column; min-height: 0; overflow-x: auto; overflow-y: hidden; }
+.writeoff-table-inner { display: flex; flex-direction: column; min-height: 0; min-width: 1100px; flex: 1; }
+.writeoff-table-header { flex-shrink: 0; overflow: hidden; padding-right: 17px; box-sizing: border-box; background: var(--color-bg); border-bottom: 2px solid var(--color-border); }
 .writeoff-table-body-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
 .writeoff-table-header table,
 .writeoff-table-body-scroll table { table-layout: fixed; width: 100%; }
-.writeoff-table-header thead { background: var(--color-bg); border-bottom: 2px solid var(--color-border); }
+.writeoff-table-header thead { background: var(--color-bg); border-bottom: none; }
+
+/* --- Таблица сервиса: скролл в теле, горизонтальный при узком окне --- */
+.service-table-container { display: flex; flex-direction: column; min-height: 0; overflow-x: auto; overflow-y: hidden; }
+.service-table-inner { display: flex; flex-direction: column; min-height: 0; min-width: 900px; flex: 1; }
+.service-table-header { flex-shrink: 0; overflow: hidden; padding-right: 17px; box-sizing: border-box; background: var(--color-bg); border-bottom: 2px solid var(--color-border); }
+.service-table-body-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
+.service-table-header table,
+.service-table-body-scroll table { table-layout: fixed; width: 100%; }
+.service-table-header thead { background: var(--color-bg); border-bottom: none; }
+/* Все колонки сервиса по левому краю */
+#serviceTableHead th,
+#serviceTable td { text-align: left; }
+#serviceTableHead th:first-child,
+#serviceTable td:first-child { padding-left: 12px; }
+
+/* --- Таблица филамента: скролл только в теле, горизонтальный при узком окне --- */
+.filament-table-container { display: flex; flex-direction: column; min-height: 0; overflow-x: auto; overflow-y: hidden; }
+.filament-table-inner { display: flex; flex-direction: column; min-height: 0; min-width: 1200px; flex: 1; }
+.filament-table-header { flex-shrink: 0; overflow: hidden; padding-right: 17px; box-sizing: border-box; background: var(--color-bg); border-bottom: 2px solid var(--color-border); }
+.filament-table-body-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
+.filament-table-header table,
+.filament-table-body-scroll table { table-layout: fixed; width: 100%; }
+.filament-table-header thead { background: var(--color-bg); border-bottom: none; }
+
+/* --- Таблица изделий: скролл только в теле, горизонтальный при узком окне --- */
+.products-table-container { display: flex; flex-direction: column; min-height: 0; overflow-x: auto; overflow-y: hidden; }
+.products-table-inner { display: flex; flex-direction: column; min-height: 0; min-width: 1200px; flex: 1; }
+.products-table-header { flex-shrink: 0; overflow: hidden; padding-right: 17px; box-sizing: border-box; background: var(--color-bg); border-bottom: 2px solid var(--color-border); }
+.products-table-body-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
+.products-table-header table,
+.products-table-body-scroll table { table-layout: fixed; width: 100%; }
+.products-table-header thead { background: var(--color-bg); border-bottom: none; }
+
+#productsTableHead th,
+#productsTable td { padding: 10px 6px; box-sizing: border-box; }
+#productsTable td { max-width: none; }
+/* Не даём содержимому наслаиваться на соседние колонки при сужении */
+#productsTableHead th { overflow: hidden; }
+#productsTable td { overflow: hidden; }
+#productsTable td:nth-child(10),
+#productsTable td:nth-child(11) { min-width: 66px; white-space: nowrap; }
+#productsTable td:nth-child(14) { min-width: 96px; padding-left: 6px; }
+#productsTableHead th:nth-child(10),
+#productsTableHead th:nth-child(11) { min-width: 66px; }
+#productsTableHead th:nth-child(10) small,
+#productsTableHead th:nth-child(11) small {
+    white-space: nowrap;
+    font-size: inherit;   /* размер как у основного текста заголовка */
+    line-height: inherit;
+}
+#productsTableHead th:nth-child(14) { min-width: 96px; }
+/* По левому краю: колонки 3-11 (Дата, Филамент, Время, Вес, Длина, Кол-во, Остаток, Себест. рынок, Себест. точная) */
+#productsTableHead th:nth-child(3), #productsTableHead th:nth-child(4), #productsTableHead th:nth-child(5), #productsTableHead th:nth-child(6), #productsTableHead th:nth-child(7), #productsTableHead th:nth-child(8), #productsTableHead th:nth-child(9), #productsTableHead th:nth-child(10), #productsTableHead th:nth-child(11),
+#productsTable td:nth-child(3), #productsTable td:nth-child(4), #productsTable td:nth-child(5), #productsTable td:nth-child(6), #productsTable td:nth-child(7), #productsTable td:nth-child(8), #productsTable td:nth-child(9), #productsTable td:nth-child(10), #productsTable td:nth-child(11) { text-align: left; }
+/* Центр: Model (13), Действия (14) */
+#productsTableHead th:nth-child(13), #productsTableHead th:nth-child(14),
+#productsTable td:nth-child(13), #productsTable td:nth-child(14) { text-align: center; }
+/* Скрепка (колонка 2): выравнивание по левому краю + ещё на 2px шире */
+#productsTableHead th:nth-child(2),
+#productsTable td:nth-child(2) { text-align: left; min-width: 28px; }
+/* Статус: базовый вид — без обрезания в полноэкранном режиме */
+#productsTableHead th:nth-child(12),
+#productsTable td:nth-child(12) {
+    white-space: nowrap;
+    padding-right: 17px; /* +5px к предыдущему значению */
+}
+/* Адаптив: скрываем колонку Модель (13) при ширине окна ≤1800px */
+@media (max-width: 1800px) {
+    #productsTableHead colgroup col:nth-child(13),
+    #productsTable colgroup col:nth-child(13) {
+        width: 0 !important;
+        min-width: 0 !important;
+    }
+    #productsTableHead th:nth-child(13),
+    #productsTable td:nth-child(13) {
+        width: 0 !important;
+        min-width: 0 !important;
+        max-width: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        overflow: hidden !important;
+        line-height: 0 !important;
+        font-size: 0 !important;
+        white-space: nowrap !important;
+    }
+    #products.page .products-table-inner { min-width: 1100px; }
+}
+
+/* При ширине ≤1600px дополнительно скрываем колонку Дата (3) */
+@media (max-width: 1600px) {
+    #productsTableHead colgroup col:nth-child(3),
+    #productsTable colgroup col:nth-child(3) {
+        width: 0 !important;
+        min-width: 0 !important;
+    }
+    #productsTableHead th:nth-child(3),
+    #productsTable td:nth-child(3) {
+        width: 0 !important;
+        min-width: 0 !important;
+        max-width: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        overflow: hidden !important;
+        line-height: 0 !important;
+        font-size: 0 !important;
+        white-space: nowrap !important;
+    }
+    #products.page .products-table-inner { min-width: 950px; }
+
+    /* В этом же диапазоне просто ограничиваем Статус по ширине, без троеточий */
+    #productsTableHead th:nth-child(12),
+    #productsTable td:nth-child(12) {
+        overflow: hidden;
+        white-space: nowrap;
+        max-width: 100%;
+    }
+    #productsTable td:nth-child(12) .badge {
+        display: inline-block;
+        max-width: 100%;
+        overflow: hidden;
+        white-space: nowrap;
+    }
+}
+
+/* При ширине ≤1400px дополнительно скрываем колонку Статус (12) */
+@media (max-width: 1400px) {
+    #productsTableHead colgroup col:nth-child(12),
+    #productsTable colgroup col:nth-child(12) {
+        width: 0 !important;
+        min-width: 0 !important;
+    }
+    #productsTableHead th:nth-child(12),
+    #productsTable td:nth-child(12) {
+        width: 0 !important;
+        min-width: 0 !important;
+        max-width: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        overflow: hidden !important;
+        line-height: 0 !important;
+        font-size: 0 !important;
+        white-space: nowrap !important;
+    }
+    #products.page .products-table-inner { min-width: 900px; }
+}
+
+#filamentsTableHead th,
+#filamentsTable td { padding: 8px; text-align: left; box-sizing: border-box; }
+#filamentsTable td { max-width: none; }
+#filamentsTableHead th:first-child,
+#filamentsTable td:first-child { padding-left: 12px; padding-right: 6px; }
+/* Цвет — сдвиг вправо (освобождает место для Наличия) */
+#filamentsTableHead th:nth-child(4), #filamentsTable td:nth-child(4) { padding-left: 25px; }
+/* Бренд — сдвиг вправо */
+#filamentsTableHead th:nth-child(5), #filamentsTable td:nth-child(5) { padding-left: 29px; }
+/* Тип пластика — сдвиг вправо */
+#filamentsTableHead th:nth-child(6), #filamentsTable td:nth-child(6) { padding-left: 24px; }
+/* Длина, Остаток, Израсх. (м), Израсх. (г) — компактнее, заголовки в одну строку */
+#filamentsTableHead th:nth-child(7), #filamentsTableHead th:nth-child(8), #filamentsTableHead th:nth-child(9), #filamentsTableHead th:nth-child(10) { white-space: nowrap; padding-left: 6px; padding-right: 6px; }
+#filamentsTable td:nth-child(7), #filamentsTable td:nth-child(8), #filamentsTable td:nth-child(9), #filamentsTable td:nth-child(10) { padding-left: 6px; padding-right: 6px; }
+/* Длина, Остаток, Израсх. (м), Израсх. (г), Цена, Рынок — выравнивание по левому краю (default left) */
+#filamentsTableHead th:nth-child(13),
+#filamentsTable td:nth-child(13) { padding-left: 1px; text-align: left; }
+#filamentsTable td:nth-child(13) { transform: translateX(-5px); } /* Товар — ещё левее на 5px */
+#filamentsTable td:last-child { padding-right: 4px; text-align: right; }
+#filamentsTable td:last-child .action-buttons { display: inline-flex; justify-content: flex-end; gap: 4px; margin-left: auto; transform: translateX(-6px); }
 
 /* Единые отступы заголовков и ячеек — ключ к выравниванию */
 #writeoffTableHead th,
@@ -1928,12 +2104,14 @@ td:nth-last-child(2) {
 #writeoffTableBody tbody tr[data-doc-group="0"] td:last-child { border-right: 3px solid #d4c4b0; }
 #writeoffTableBody tbody tr[data-doc-group="1"] td:first-child { border-left: 3px solid #94a3b8; }
 #writeoffTableBody tbody tr[data-doc-group="1"] td:last-child { border-right: 3px solid #94a3b8; }
+#writeoffTableBody td.writeoff-id-cell { cursor: pointer !important; }
+#writeoffTableBody td.writeoff-id-cell .writeoff-doc-badge { cursor: pointer; }
+#writeoffTableBody td.writeoff-id-cell:hover .writeoff-doc-badge { text-decoration: none; }
 .writeoff-doc-badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 12px; }
 .writeoff-doc-badge--0 { background: #f5f0e8; color: #6b5b4f; }
 .writeoff-doc-badge--1 { background: #f1f5f9; color: #475569; }
 
 #writeoffTableBody td:last-child .action-buttons { justify-content: flex-end; }
-#serviceTable th:first-child,
 #serviceTable td:first-child { padding-left: 12px; }
 
 /* --- Фикс для таблицы Списаний --- */
@@ -1991,7 +2169,7 @@ td:nth-last-child(2) {
 }
 
 /* Кнопки действий оставляем по центру по вертикали */
-#productsTable td:last-child, #writeoffTableBody td:last-child, #filamentsTable td:last-child {
+#productsTable td:last-child, #writeoffTableBody td:last-child, #filamentsTable td:last-child, #serviceTable td:last-child {
     vertical-align: middle;
 }
 

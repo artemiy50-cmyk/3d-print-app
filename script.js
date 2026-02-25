@@ -1,42 +1,22 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
 // Номер версии ведём в формате xx.xx.xx, например 7.7.7
-const APP_VERSION_NUMBER = '5.10.0';
-console.log('2026-02-23 14-07-15');
+const APP_VERSION_NUMBER = '5.10.2';
+console.log('2026-02-25 21-27-04');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
 
 // === CHANGELOG
-const CHANGELOG_ENTRIES = [
-    { 
-        version: '5.10.6', 
-        dateDisplay: '23.02.2026', 
-        description: 'Обновлены стили форм аутентификации и регистрации' 
-    },
-    { 
-        version: '5.10.5', 
-        dateDisplay: '23.02.2026', 
-        description: 'Добавлены новые функции для обновления значков секций списаний и улучшены стили для визуального отображения типов списаний.' 
-    },
-    { 
-        version: '5.10.4', 
-        dateDisplay: '23.02.2026', 
-        description: 'Сделаны улучшения в печатных формах Акта передачи и Продажи' 
-    },
-    { 
-        version: '5.10.3', 
-        dateDisplay: '23.02.2026', 
-        description: 'Рефакторинг таблицы списаний: разделение на заголовок и тело, улучшение стилей и добавление прокрутки для тела таблицы.' 
-    },
+const CHANGELOG_ENTRIES = [   
     { 
         version: '5.10.2', 
-        dateDisplay: '23.02.2026', 
-        description: 'Добавлена цветовая индикация групп документов в таблице списаний.' 
-    },
+        dateDisplay: '25.02.2026', 
+        description: 'Улучшения продукта: \n• Обновлены стили форм аутентификации и регистрации. \n• Рефакторинг таблиц разделов Изделий, Списаний, Филамента, Сервиса - таблицы стали удобнее и функциональней. \n• В таблице продуктов добавлена сортировка по цвету.' 
+    }, 
     { 
         version: '5.10.1', 
-        dateDisplay: '23.02.2026', 
-        description: 'В Списании добавлена возможность сохранения без закрытия окна.' 
+        dateDisplay: '24.02.2026', 
+        description: 'Улучшения в разделе Списаний: \n• В Списании добавлена возможность сохранения без закрытия окна. \n• Добавлена цветовая индикация групп документов. \n• Сделаны улучшения в печатных формах Акта передачи и Продажи. \n• Улучшения визуального отображения секций изделий и типов списаний.' 
     },
     { 
         version: '5.10.0', 
@@ -1427,7 +1407,10 @@ function exportData() {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db));
     const dl = document.createElement('a');
     dl.setAttribute("href", dataStr);
-    dl.setAttribute("download", `3d_filament_backup_${new Date().toISOString().split('T')[0]}.json`);
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const ts = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}`;
+    dl.setAttribute("download", `3d_filament_backup_${ts}.json`);
     document.body.appendChild(dl); dl.click(); dl.remove();
 }
 
@@ -3457,7 +3440,7 @@ function buildProductRow(p, isChild) {
     if (isChild) {
         let statusTextStyle = 'status-text-purple';
         if (p.status === 'Брак') statusTextStyle = 'status-text-danger';
-        statusHtml = `<span class="${statusTextStyle}">${escapeHtml(p.status)}</span>`;
+        statusHtml = `<span class="${statusTextStyle}" style="cursor:pointer;" onclick="editProduct(${p.id})">${escapeHtml(p.status)}</span>`;
     } else {
         const productWriteoffs = db.writeoffs.filter(w => w.productId === p.id);
         if (productWriteoffs.length > 0) {
@@ -3466,11 +3449,9 @@ function buildProductRow(p, isChild) {
                 .map(w => {
                     const plainType = `<strong>${escapeHtml(w.type)}</strong>`;
                     
-                    // --- ВОССТАНОВЛЕННАЯ ЧАСТЬ КОДА ---
                     let linkText = w.type === 'Продажа' 
                         ? `${w.date} ${plainType}: ${w.qty} шт. х ${w.price.toFixed(2)} ₽ = ${w.total.toFixed(2)} ₽`
                         : `${w.date} ${plainType}: ${w.qty} шт.`;
-                    // ----------------------------------
 
                     const style = w.type === 'Подготовлено к продаже' ? 'color: #94a3b8;' : '';
                     const safeId = escapeHtml(String(w.systemId || ''));
@@ -3478,11 +3459,11 @@ function buildProductRow(p, isChild) {
                 }).join('');
 
             statusHtml = `<div class="tooltip-container">
-                            <span class="badge ${statusClass}" style="cursor:pointer;">${escapeHtml(p.status)}</span>
+                            <span class="badge ${statusClass}" style="cursor:pointer;" onclick="editProduct(${p.id})">${escapeHtml(p.status)}</span>
                             <span class="tooltip-text tooltip-top-right tooltip-writeoffs" style="text-align: left; width: auto; white-space: normal;">${linksHtml}</span>
                          </div>`;
         } else {
-            statusHtml = `<span class="badge ${statusClass}">${escapeHtml(p.status)}</span>`;
+            statusHtml = `<span class="badge ${statusClass}" style="cursor:pointer;" onclick="editProduct(${p.id})">${escapeHtml(p.status)}</span>`;
         }
     }
     
@@ -3497,12 +3478,12 @@ function buildProductRow(p, isChild) {
     
     const linkHtml = p.link ? `<a href="${escapeHtml(p.link)}" target="_blank" style="color:#1e40af;text-decoration:underline;">Модель</a>` : '';
 
-    const nameEvents = `onmouseenter="showProductImagePreview(this, ${p.id})" onmousemove="moveProductImagePreview(event)" onmouseleave="hideProductImagePreview(this)"`;
+    const nameEvents = `onmouseenter="showProductImagePreview(this, ${p.id})" onmousemove="moveProductImagePreview(event)" onmouseleave="hideProductImagePreview(this)" onclick="editProduct(${p.id})"`;
 
     const layerSuffix = (p.layerHeight && String(p.layerHeight).trim()) ? ` [слой ${escapeHtml(String(p.layerHeight))}]` : '';
     let nameHtml = isChild 
-        ? `<div class="product-name-cell product-child-indent"><div class="product-icon-wrapper">${icon}</div><span ${nameEvents} style="cursor:default">${escapeHtml(p.name)}${layerSuffix}</span>${note}</div>`
-        : `<div class="product-name-cell"><div class="product-icon-wrapper">${icon}</div><span ${nameEvents} style="cursor:default"><strong>${escapeHtml(p.name)}${layerSuffix}</strong></span>${note}</div>`;
+        ? `<div class="product-name-cell product-child-indent"><div class="product-icon-wrapper">${icon}</div><span ${nameEvents} style="cursor:pointer">${escapeHtml(p.name)}${layerSuffix}</span>${note}</div>`
+        : `<div class="product-name-cell"><div class="product-icon-wrapper">${icon}</div><span ${nameEvents} style="cursor:pointer"><strong>${escapeHtml(p.name)}${layerSuffix}</strong></span>${note}</div>`;
 
     let addPartButtonHtml = '';
 	if (p.type === 'Составное') {
@@ -3572,6 +3553,23 @@ function updateProductsTable() {
     const sortBy = document.getElementById('productSortBy').value;
     const showChildren = document.getElementById('showProductChildren').checked;
 
+    const getFilamentCustomId = (p) => {
+        if (!p || !p.filament) return '';
+        const f = typeof p.filament === 'object' ? p.filament : db.filaments.find(fil => fil.id == p.filament);
+        return (f && f.customId) ? f.customId : '';
+    };
+
+    const applyFilters = (p) => {
+        if (term && !p.name.toLowerCase().includes(term)) return false;
+        if (availFilter) {
+            if (availFilter === 'Брак') { if (!p.defective) return false; }
+            else if (availFilter === 'Draft') { if (!p.isDraft) return false; }
+            else if (availFilter === 'InStock') { if ((p.inStock || 0) <= 0 || p.isDraft) return false; }
+            else if (p.status !== availFilter) return false;
+        }
+        return true;
+    };
+
     const sortFn = (a, b) => {
         if (sortBy === 'systemId-desc') return (b.systemId||'').localeCompare(a.systemId||'');
         if (sortBy === 'systemId-asc') return (a.systemId||'').localeCompare(b.systemId||'');
@@ -3584,30 +3582,60 @@ function updateProductsTable() {
         return 0;
     };
 
-    let rootProducts = db.products.filter(p => {
-        if (p.type === 'Часть составного') return false; 
-        if (term && !p.name.toLowerCase().includes(term)) return false;
-        
-        if (availFilter) {
-            if (availFilter === 'Брак') { if (!p.defective) return false; }
-            else if (availFilter === 'Draft') { if (!p.isDraft) return false; } // Фильтр черновиков
-            else if (availFilter === 'InStock') { if ((p.inStock || 0) <= 0 || p.isDraft) return false; } // Черновики не "В наличии"
-            else if (p.status !== availFilter) return false;
-        }
-        return true;
-    });
-    
-    rootProducts.sort(sortFn);
+    const filamentSortFn = (a, b) => {
+        const fa = getFilamentCustomId(a), fb = getFilamentCustomId(b);
+        if (!fa && fb) return 1;
+        if (fa && !fb) return -1;
+        if (!fa && !fb) return (b.length||0) - (a.length||0);
+        if (fa !== fb) return fa.localeCompare(fb);
+        return (b.length||0) - (a.length||0);
+    };
+
+    const partsFlatSortFn = (a, b) => {
+        if (sortBy === 'length-parts') return (b.length||0) - (a.length||0);
+        if (sortBy === 'weight-parts') return (b.weight||0) - (a.weight||0);
+        return 0;
+    };
+
+    const childrenSortFn = (a, b) => {
+        if (sortBy === 'filament') return filamentSortFn(a, b);
+        if (sortBy === 'length-parts') return (b.length||0) - (a.length||0);
+        if (sortBy === 'weight-parts') return (b.weight||0) - (a.weight||0);
+        return (a.systemId || '').localeCompare(b.systemId || '');
+    };
+
+    const isPartsFlatMode = sortBy === 'filament' || sortBy === 'length-parts' || sortBy === 'weight-parts';
 
     let html = '';
-    rootProducts.forEach(root => {
-        html += buildProductRow(root, false);
-        if (root.type === 'Составное' && showChildren) {
-            const children = db.products.filter(k => k.parentId === root.id);
-            children.sort((a, b) => (a.systemId || '').localeCompare(b.systemId || ''));
-            children.forEach(child => html += buildProductRow(child, true));
-        }
-    });
+    if (isPartsFlatMode) {
+        const standalone = db.products.filter(p => {
+            if (p.type === 'Составное' || p.type === 'Часть составного') return false;
+            return applyFilters(p);
+        });
+        const parts = db.products.filter(p => {
+            if (p.type !== 'Часть составного') return false;
+            return applyFilters(p);
+        });
+        const flatList = [...standalone, ...parts];
+        flatList.sort(sortBy === 'filament' ? filamentSortFn : partsFlatSortFn);
+        flatList.forEach(p => {
+            html += buildProductRow(p, p.type === 'Часть составного');
+        });
+    } else {
+        let rootProducts = db.products.filter(p => {
+            if (p.type === 'Часть составного') return false;
+            return applyFilters(p);
+        });
+        rootProducts.sort(sortFn);
+        rootProducts.forEach(root => {
+            html += buildProductRow(root, false);
+            if (root.type === 'Составное' && showChildren) {
+                const children = db.products.filter(k => k.parentId === root.id);
+                children.sort(childrenSortFn);
+                children.forEach(child => html += buildProductRow(child, true));
+            }
+        });
+    }
     tbody.innerHTML = html;
 }
 
@@ -3845,8 +3873,8 @@ function updateFilamentsTable() {
         let rowClass = '';
         if (f.availability === 'Израсходовано') rowClass = 'row-bg-gray';
         
-        // === ИСПРАВЛЕНИЕ: Считаем остаток на лету ===
-        const realRemaining = Math.max(0, (f.length || 0) - (f.usedLength || 0));
+        // Остаток: допускаем отрицательное значение при перерасходе
+        const realRemaining = (f.length || 0) - (f.usedLength || 0);
         let remainingHtml = realRemaining.toFixed(1);
         
         if (f.availability === 'В наличии' && realRemaining < 50) {
@@ -3855,7 +3883,7 @@ function updateFilamentsTable() {
         }
 
         return `<tr class="${rowClass}">
-            <td>${iconHtml}<strong>${escapeHtml(f.customId)}</strong></td>
+            <td style="cursor:pointer" onclick="editFilament(${f.id})">${iconHtml}<strong>${escapeHtml(f.customId)}</strong></td>
             <td>${f.date}</td>
             <td><span class="badge ${badge}">${escapeHtml(f.availability)}</span></td>
             <td><span class="color-swatch" style="background:${f.color ? f.color.hex : '#eee'}"></span>${f.color ? escapeHtml(f.color.name) : '-'}</td>
@@ -4753,7 +4781,7 @@ function updateWriteoffSection(index) {
     section.querySelector('.section-stock').textContent = currentStock + ' шт.';
     
     const qty = parseInt(qtyInput.value) || 0;
-    const remaining = Math.max(0, currentStock - qty); 
+    const remaining = currentStock - qty;
     section.querySelector('.section-remaining').textContent = remaining + ' шт.';
 
     let totalEnrichmentCost = 0;
@@ -5217,12 +5245,12 @@ function updateWriteoffTable() {
         const docColor = systemIdToColor[w.systemId || ''] ?? 0;
 
         // --- ИЗМЕНЕНИЕ: Добавлены обработчики событий для превью картинки ---
-        const nameEvents = w.productId ? `onmouseenter="showProductImagePreview(this, ${w.productId})" onmousemove="moveProductImagePreview(event)" onmouseleave="hideProductImagePreview(this)"` : '';
+        const nameEvents = w.productId ? `onmouseenter="showProductImagePreview(this, ${w.productId})" onmousemove="moveProductImagePreview(event)" onmouseleave="hideProductImagePreview(this)" onclick="editWriteoff('${escapeHtml(String(w.systemId || ''))}')"` : `onclick="editWriteoff('${escapeHtml(String(w.systemId || ''))}')"`;
 
         return `<tr data-doc-group="${docColor}">
             <td><span class="writeoff-doc-badge writeoff-doc-badge--${docColor}">${escapeHtml(w.date)}</span></td>
-            <td><span class="writeoff-doc-badge writeoff-doc-badge--${docColor}">${escapeHtml(w.systemId)}</span></td>
-            <td ${nameEvents} style="cursor:default"><strong>${escapeHtml(w.productName)}</strong></td>
+            <td class="writeoff-id-cell" data-system-id="${escapeHtml(String(w.systemId || ''))}" onclick="editWriteoff(this.getAttribute('data-system-id'))" title="Открыть в режиме редактирования"><span class="writeoff-doc-badge writeoff-doc-badge--${docColor}">${escapeHtml(w.systemId)}</span></td>
+            <td ${nameEvents} style="cursor:pointer"><strong>${escapeHtml(w.productName)}</strong></td>
             <td><span class="badge ${statusBadge}">${escapeHtml(w.type)}</span></td>
             <td>${actualCost} ₽</td>
             <td>${w.qty}</td>
@@ -6271,27 +6299,6 @@ async function deleteService(id) {
 function updateServiceTable() {
     const tbody = document.querySelector('#serviceTable tbody');
     if (!tbody) return;
-    
-    // 1. Динамическое обновление заголовков таблицы
-    const theadRow = document.querySelector('#serviceTable thead tr');
-    if (theadRow) {
-        // Убедимся, что есть колонка "Примечание"
-        if (!Array.from(theadRow.children).some(th => th.textContent === 'Примечание')) {
-             const thNote = document.createElement('th');
-             thNote.textContent = 'Примечание';
-             theadRow.insertBefore(thNote, theadRow.lastElementChild); // Вставляем перед "Действия"
-        }
-        
-        // Убедимся, что есть колонка для Ссылки (она идет после Примечания и перед Действиями)
-        // Сейчас структура: [Дата, Имя, Кол, Цена, Итого, Примечание, Действия] = 7 колонок.
-        // Нам нужно 8.
-        if (theadRow.children.length < 8) {
-             const thLink = document.createElement('th');
-             thLink.textContent = ''; // Без названия
-             thLink.style.width = '60px'; // Небольшая ширина
-             theadRow.insertBefore(thLink, theadRow.lastElementChild);
-        }
-    }
 
     const search = document.getElementById('serviceSearch').value.toLowerCase();
     
@@ -6310,8 +6317,8 @@ function updateServiceTable() {
             <td>${x.price.toFixed(2)}</td>
             <td>${x.total.toFixed(2)}</td>
             <td style="max-width: 200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(x.note || '')}">${escapeHtml(x.note || '-')}</td>
-            <td class="text-center">${linkHtml}</td>
-            <td class="text-center">
+            <td>${linkHtml}</td>
+            <td>
                 <div class="action-buttons">
                     <button class="btn-secondary btn-small" title="Редактировать" onclick="openServiceModal(${x.id})">✎</button>
                     <button class="btn-secondary btn-small" title="Копировать" onclick="copyService(${x.id})">❐</button>
