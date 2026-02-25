@@ -657,20 +657,36 @@
                     </div>
                 </div>
                 <div class="card">
-                    <div class="table-container">
-                        <table id="serviceTable">
-                            <thead>
-                                <tr>
-                                    <th style="width: 120px;">Дата</th>
-                                    <th>Наименование</th>
-                                    <th>Кол-во</th>
-                                    <th>Цена за ед. (₽)</th>
-                                    <th>Стоимость (₽)</th>
-                                    <th class="text-center">Действия</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
+                    <div class="table-container service-table-container">
+                        <div class="service-table-inner">
+                        <div class="service-table-header">
+                            <table id="serviceTableHead">
+                                <colgroup>
+                                    <col style="width:10%"><col style="width:22%"><col style="width:6%"><col style="width:12%"><col style="width:12%"><col style="width:22%"><col style="width:6%"><col style="width:10%">
+                                </colgroup>
+                                <thead>
+                                    <tr>
+                                        <th>Дата</th>
+                                        <th>Наименование</th>
+                                        <th>Кол-во</th>
+                                        <th>Цена за ед. (₽)</th>
+                                        <th>Стоимость (₽)</th>
+                                        <th>Примечание</th>
+                                        <th></th>
+                                        <th>Действия</th>
+                                    </tr>
+                                </thead>
+                            </table>
+                        </div>
+                        <div class="service-table-body-scroll">
+                            <table id="serviceTable">
+                                <colgroup>
+                                    <col style="width:10%"><col style="width:22%"><col style="width:6%"><col style="width:12%"><col style="width:12%"><col style="width:22%"><col style="width:6%"><col style="width:10%">
+                                </colgroup>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                        </div>
                     </div>
                 </div>
             </div>

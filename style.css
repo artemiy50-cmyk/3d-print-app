@@ -194,11 +194,12 @@
         
         .page.active { display: block; }
 
-        /* Fixed Layout Pages (Filament, Products, Writeoff) - Internal Table Scroll */
+        /* Fixed Layout Pages (Filament, Products, Writeoff, Service) - Internal Table Scroll */
         /* Эти страницы становятся Flex-контейнерами на всю высоту */
         #filament.page.active, 
         #products.page.active, 
-        #writeoff.page.active {
+        #writeoff.page.active,
+        #service.page.active {
             display: flex;
             flex-direction: column;
             overflow: hidden; /* Запрещаем скролл страницы */
@@ -207,7 +208,8 @@
         /* На этих страницах последняя карточка (с таблицей) растягивается */
         #filament.page > .card:last-of-type,
         #products.page > .card:last-of-type,
-        #writeoff.page > .card:last-of-type {
+        #writeoff.page > .card:last-of-type,
+        #service.page > .card:last-of-type {
             flex: 1;
             display: flex;
             flex-direction: column;
@@ -229,7 +231,8 @@
         }
         #writeoff.page > .card:last-of-type .table-container.writeoff-table-container,
         #filament.page > .card:last-of-type .table-container.filament-table-container,
-        #products.page > .card:last-of-type .table-container.products-table-container {
+        #products.page > .card:last-of-type .table-container.products-table-container,
+        #service.page > .card:last-of-type .table-container.service-table-container {
             flex: 1;
             overflow-x: auto;
             overflow-y: hidden;
@@ -1902,6 +1905,20 @@ td:nth-last-child(2) {
 .writeoff-table-body-scroll table { table-layout: fixed; width: 100%; }
 .writeoff-table-header thead { background: var(--color-bg); border-bottom: none; }
 
+/* --- Таблица сервиса: скролл в теле, горизонтальный при узком окне --- */
+.service-table-container { display: flex; flex-direction: column; min-height: 0; overflow-x: auto; overflow-y: hidden; }
+.service-table-inner { display: flex; flex-direction: column; min-height: 0; min-width: 900px; flex: 1; }
+.service-table-header { flex-shrink: 0; overflow: hidden; padding-right: 17px; box-sizing: border-box; background: var(--color-bg); border-bottom: 2px solid var(--color-border); }
+.service-table-body-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
+.service-table-header table,
+.service-table-body-scroll table { table-layout: fixed; width: 100%; }
+.service-table-header thead { background: var(--color-bg); border-bottom: none; }
+/* Все колонки сервиса по левому краю */
+#serviceTableHead th,
+#serviceTable td { text-align: left; }
+#serviceTableHead th:first-child,
+#serviceTable td:first-child { padding-left: 12px; }
+
 /* --- Таблица филамента: скролл только в теле, горизонтальный при узком окне --- */
 .filament-table-container { display: flex; flex-direction: column; min-height: 0; overflow-x: auto; overflow-y: hidden; }
 .filament-table-inner { display: flex; flex-direction: column; min-height: 0; min-width: 1200px; flex: 1; }
@@ -2095,7 +2112,6 @@ td:nth-last-child(2) {
 .writeoff-doc-badge--1 { background: #f1f5f9; color: #475569; }
 
 #writeoffTableBody td:last-child .action-buttons { justify-content: flex-end; }
-#serviceTable th:first-child,
 #serviceTable td:first-child { padding-left: 12px; }
 
 /* --- Фикс для таблицы Списаний --- */
@@ -2153,7 +2169,7 @@ td:nth-last-child(2) {
 }
 
 /* Кнопки действий оставляем по центру по вертикали */
-#productsTable td:last-child, #writeoffTableBody td:last-child, #filamentsTable td:last-child {
+#productsTable td:last-child, #writeoffTableBody td:last-child, #filamentsTable td:last-child, #serviceTable td:last-child {
     vertical-align: middle;
 }
 

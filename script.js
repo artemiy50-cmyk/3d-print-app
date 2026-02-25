@@ -6319,27 +6319,6 @@ async function deleteService(id) {
 function updateServiceTable() {
     const tbody = document.querySelector('#serviceTable tbody');
     if (!tbody) return;
-    
-    // 1. Динамическое обновление заголовков таблицы
-    const theadRow = document.querySelector('#serviceTable thead tr');
-    if (theadRow) {
-        // Убедимся, что есть колонка "Примечание"
-        if (!Array.from(theadRow.children).some(th => th.textContent === 'Примечание')) {
-             const thNote = document.createElement('th');
-             thNote.textContent = 'Примечание';
-             theadRow.insertBefore(thNote, theadRow.lastElementChild); // Вставляем перед "Действия"
-        }
-        
-        // Убедимся, что есть колонка для Ссылки (она идет после Примечания и перед Действиями)
-        // Сейчас структура: [Дата, Имя, Кол, Цена, Итого, Примечание, Действия] = 7 колонок.
-        // Нам нужно 8.
-        if (theadRow.children.length < 8) {
-             const thLink = document.createElement('th');
-             thLink.textContent = ''; // Без названия
-             thLink.style.width = '60px'; // Небольшая ширина
-             theadRow.insertBefore(thLink, theadRow.lastElementChild);
-        }
-    }
 
     const search = document.getElementById('serviceSearch').value.toLowerCase();
     
@@ -6358,8 +6337,8 @@ function updateServiceTable() {
             <td>${x.price.toFixed(2)}</td>
             <td>${x.total.toFixed(2)}</td>
             <td style="max-width: 200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(x.note || '')}">${escapeHtml(x.note || '-')}</td>
-            <td class="text-center">${linkHtml}</td>
-            <td class="text-center">
+            <td>${linkHtml}</td>
+            <td>
                 <div class="action-buttons">
                     <button class="btn-secondary btn-small" title="Редактировать" onclick="openServiceModal(${x.id})">✎</button>
                     <button class="btn-secondary btn-small" title="Копировать" onclick="copyService(${x.id})">❐</button>
