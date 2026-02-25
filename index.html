@@ -442,6 +442,7 @@
 
 
                     <div class="table-container filament-table-container">
+                        <div class="filament-table-inner">
                         <div class="filament-table-header">
                             <table id="filamentsTableHead">
                                 <colgroup>
@@ -474,6 +475,7 @@
                                 </colgroup>
                                 <tbody></tbody>
                             </table>
+                        </div>
                         </div>
                     </div>
                 </div>
@@ -530,29 +532,43 @@
                         </div>
                     </div>
 
-                    <div class="table-container">
-                        <table id="productsTable">
-								<thead>
-									<tr>
-										<th class="th-name-align">Наименование</th>
-										<th style="width: 2px;"></th>
-										<th style="width: 100px;">Дата</th>
-										<th>Филамент</th>
-										<th>Время (ч:м)</th> 
-										<th>Вес (г)</th>
-										<th>Длина (м)</th>
-										<th>Кол-во</th>
-										<th>Остаток</th>
-										<th>Себест. за 1 шт.<br><small>(рынок)</small></th>
-										<th>Себест. за 1 шт.<br><small>(точная)</small></th>
-										<th style="text-align: left;">Статус</th>
-										<th class="text-center"></th>
-										<th class="text-center">Действия</th>
-									</tr>
-								</thead>
-                            <tbody></tbody>
-                        </table>                        
-					</div>
+                    <div class="table-container products-table-container">
+                        <div class="products-table-inner">
+                        <div class="products-table-header">
+                            <table id="productsTableHead">
+                                <colgroup>
+                                    <col style="width:22%"><col style="width:1.8%"><col style="width:5.3%"><col style="width:10.7%"><col style="width:4.5%"><col style="width:4%"><col style="width:5%"><col style="width:3.5%"><col style="width:4.2%"><col style="width:6%"><col style="width:6%"><col style="width:11%"><col style="width:4%"><col style="width:12%">
+                                </colgroup>
+                                <thead>
+                                    <tr>
+                                        <th class="th-name-align">Наименование</th>
+                                        <th></th>
+                                        <th>Дата</th>
+                                        <th>Филамент</th>
+                                        <th>Время (ч:м)</th>
+                                        <th>Вес (г)</th>
+                                        <th>Длина (м)</th>
+                                        <th>Кол-во</th>
+                                        <th>Остаток</th>
+                                        <th>Себест. за 1<br><small>шт. (рынок)</small></th>
+                                        <th>Себест. за 1<br><small>шт. (точная)</small></th>
+                                        <th style="text-align: left;">Статус</th>
+                                        <th class="text-center"></th>
+                                        <th class="text-center">Действия</th>
+                                    </tr>
+                                </thead>
+                            </table>
+                        </div>
+                        <div class="products-table-body-scroll">
+                            <table id="productsTable">
+                                <colgroup>
+                                    <col style="width:22%"><col style="width:1.8%"><col style="width:5.3%"><col style="width:10.7%"><col style="width:4.5%"><col style="width:4%"><col style="width:5%"><col style="width:3.5%"><col style="width:4.2%"><col style="width:6%"><col style="width:6%"><col style="width:11%"><col style="width:4%"><col style="width:12%">
+                                </colgroup>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -593,6 +609,7 @@
                     </div>
 
                     <div class="table-container writeoff-table-container">
+                        <div class="writeoff-table-inner">
                         <div class="writeoff-table-header">
                             <table id="writeoffTableHead">
                                 <colgroup>
@@ -621,6 +638,7 @@
                                 </colgroup>
                                 <tbody></tbody>
                             </table>
+                        </div>
                         </div>
                     </div>
                 </div>

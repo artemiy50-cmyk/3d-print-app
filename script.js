@@ -3469,11 +3469,9 @@ function buildProductRow(p, isChild) {
                 .map(w => {
                     const plainType = `<strong>${escapeHtml(w.type)}</strong>`;
                     
-                    // --- ВОССТАНОВЛЕННАЯ ЧАСТЬ КОДА ---
                     let linkText = w.type === 'Продажа' 
                         ? `${w.date} ${plainType}: ${w.qty} шт. х ${w.price.toFixed(2)} ₽ = ${w.total.toFixed(2)} ₽`
                         : `${w.date} ${plainType}: ${w.qty} шт.`;
-                    // ----------------------------------
 
                     const style = w.type === 'Подготовлено к продаже' ? 'color: #94a3b8;' : '';
                     const safeId = escapeHtml(String(w.systemId || ''));
