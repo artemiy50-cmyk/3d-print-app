@@ -3009,13 +3009,20 @@ function validateProductForm() {
         const filEl = document.getElementById('productFilament');
         const filId = filEl.value;
         const filament = db.filaments.find(f => f.id == filId);
+        const eid = document.getElementById('productModal').getAttribute('data-edit-id');
 
         // Если филамент выбран, но его статус НЕ "В наличии"
+        // Исключение при РЕДАКТИРОВАНИИ: если филамент "текущий" (израсходован, ост. 0 м.) —
+        // изделие уже было изготовлено, филамент не меняли — не блокировать сохранение и списание
         if (filament && filament.availability !== 'В наличии') {
-            filEl.classList.add('error');
-            msgEl.textContent = 'Выберите цвет имеющийся в наличии'; // Спец. сообщение
-            msgEl.classList.remove('hidden');
-            return false; // Блокируем сохранение
+            if (!eid) {
+                // Создание нового изделия — блокируем
+                filEl.classList.add('error');
+                msgEl.textContent = 'Выберите цвет имеющийся в наличии';
+                msgEl.classList.remove('hidden');
+                return false;
+            }
+            // Редактирование: филамент "текущий" (Израсходовано) — разрешаем
         }
     }
 
@@ -3868,11 +3875,13 @@ function updateFilamentsTable() {
         const note = f.note ? `<span class="tooltip-container" style="display:inline-flex; vertical-align:middle;"><span class="tooltip-icon">ℹ</span><span class="tooltip-text tooltip-top-left" style="width:200px; white-space:normal; line-height:1.2;">${escapeHtml(f.note)}</span></span>` : '';
         const link = f.link ? `<a href="${escapeHtml(f.link)}" target="_blank" style="color:#1e40af;text-decoration:underline;">Товар</a>` : '';
         
-        const iconHtml = `<span class="tooltip-container" style="margin-right:6px; cursor:default;"><span style="font-size:16px;">🧵</span><span class="tooltip-text tooltip-top-right">${escapeHtml(f.name)}</span></span>`;
+        const nameHintHtml = `<span class="tooltip-text tooltip-top-right">${escapeHtml(f.name)}</span>`;
+        const iconHtml = `<span style="margin-right:6px; font-size:16px;">🧵</span>`;
+        const cellContent = `<span class="tooltip-container" style="display:inline-flex; align-items:center; cursor:pointer;">${iconHtml}<strong>${escapeHtml(f.customId)}</strong>${nameHintHtml}</span>`;
 
         let rowClass = '';
         if (f.availability === 'Израсходовано') rowClass = 'row-bg-gray';
-        
+
         // Остаток: допускаем отрицательное значение при перерасходе
         const realRemaining = (f.length || 0) - (f.usedLength || 0);
         let remainingHtml = realRemaining.toFixed(1);
@@ -3883,7 +3892,7 @@ function updateFilamentsTable() {
         }
 
         return `<tr class="${rowClass}">
-            <td style="cursor:pointer" onclick="editFilament(${f.id})">${iconHtml}<strong>${escapeHtml(f.customId)}</strong></td>
+            <td style="cursor:pointer" onclick="editFilament(${f.id})">${cellContent}</td>
             <td>${f.date}</td>
             <td><span class="badge ${badge}">${escapeHtml(f.availability)}</span></td>
             <td><span class="color-swatch" style="background:${f.color ? f.color.hex : '#eee'}"></span>${f.color ? escapeHtml(f.color.name) : '-'}</td>
