@@ -1,13 +1,19 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
 // Номер версии ведём в формате xx.xx.xx, например 7.7.7
-const APP_VERSION_NUMBER = '5.10.2';
-console.log('2026-02-25 21-27-04');
+const APP_VERSION_NUMBER = '5.10.3';
+console.log('2026-02-27 07-50-53');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
 
 // === CHANGELOG
-const CHANGELOG_ENTRIES = [   
+const CHANGELOG_ENTRIES = [
+    { 
+        version: '5.10.3', 
+        dateDisplay: '27.02.2026', 
+        description: 'Исправлена логика проверки доступности филамента при редактировании Изделия: если филамент израсходован, то это не блокирует пересохранение Изделия, в котором данный филамент указан ранее, при изготовлении.' },
+ 
+   
     { 
         version: '5.10.2', 
         dateDisplay: '25.02.2026', 
