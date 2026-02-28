@@ -1,7 +1,7 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
 // Номер версии ведём в формате xx.xx.xx, например 7.7.7
 const APP_VERSION_NUMBER = '5.10.4';
-console.log('2026-02-28 08-50-00');
+console.log('2026-02-28 16-35-10');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
@@ -11,7 +11,7 @@ const CHANGELOG_ENTRIES = [
     { 
         version: '5.10.4', 
         dateDisplay: '28.02.2026', 
-        description: 'Улучшения продукта: \n• В Изделии добавлена кнопка "Сохранить." \n• Высота слоя переносится в скопированное изделие. \n• Применены другие улучшения и изменения замечаний.' 
+        description: 'Улучшения продукта: \n• В Изделии добавлена кнопка "Сохранить." \n• Высота слоя переносится в скопированное изделие. \n• Добавлены улучшения в логику работы с высотой слоя и кнопками сохранения в модальных окнах, обновлены стили кнопок "Сохранить", "Сохранить и закрыть" для единообразия в интерфейсе.\n• Применены другие улучшения и исправления замечаний.' 
     },
     { 
         version: '5.10.3', 
@@ -2271,6 +2271,7 @@ function clearProductForm() {
     setVal('productParent', ''); 
     setText('productStockCalc', '1 шт.'); 
     setVal('productType', 'Самостоятельное'); 
+    setVal('productLayerHeight', ''); 
     
     const statusField = document.getElementById('productAvailabilityField');
     if (statusField) {
@@ -2301,6 +2302,7 @@ function clearProductForm() {
     renderProductFiles();
 
     updateProductTypeUI();
+    updateProductLayerHeightSelect(); // пересобирает select и устанавливает пустое значение для нового изделия
     updateProductColorDisplay();
     updateProductCosts();
 }
@@ -3241,7 +3243,25 @@ async function saveProduct(andThenWriteOff = false, andThenEditProductId = null,
         // [FIX] ОБНОВЛЕНИЕ ЛОКАЛЬНЫХ ДАННЫХ ИЗ РЕЗУЛЬТАТА ТРАНЗАКЦИИ
         // Вместо ручного push, мы берем то, что реально сохранилось на сервере
         if (result.committed && result.snapshot.val()) {
-            db.products = result.snapshot.val().filter(x => x);
+            const raw = result.snapshot.val();
+            db.products = (Array.isArray(raw) ? raw : Object.values(raw || {})).filter(x => x);
+            const savedIdx = db.products.findIndex(x => x && x.id === p.id);
+            if (savedIdx >= 0) {
+                if (p.layerHeight != null) {
+                    db.products[savedIdx].layerHeight = p.layerHeight;
+                    await dbRef.child('products').child(savedIdx).update({ layerHeight: p.layerHeight });
+                }
+            }
+        }
+
+        // Если сохранили новое изделие без закрытия — переводим форму в режим редактирования,
+        // чтобы updateAllSelects не сбросил филамент и высоту слоя, и повторное сохранение обновляло запись
+        if (!eid && !closeAfter) {
+            const modal = document.getElementById('productModal');
+            modal.setAttribute('data-edit-id', String(p.id));
+            modal.setAttribute('data-system-id', p.systemId || '');
+            const titleEl = document.querySelector('#productModal .modal-header-title');
+            if (titleEl) titleEl.textContent = 'Редактировать изделие';
         }
 
         updateAllSelects(); 
@@ -3249,6 +3269,14 @@ async function saveProduct(andThenWriteOff = false, andThenEditProductId = null,
         updateDashboard(); 
         updateFilamentsTable(); 
         updateReports();
+
+        // Восстановление высоты слоя после updateProductLayerHeightSelect (она пересобирает select и сбрасывает значение)
+        if (!eid && !closeAfter) {
+            const lhEl = document.getElementById('productLayerHeight');
+            if (lhEl && p.layerHeight) lhEl.value = p.layerHeight;
+            updateProductColorDisplay();
+            updateProductAvailability(); // отобразить кнопку «Списать»
+        }
         
         productSnapshotForDirtyCheck = captureProductSnapshot();
 
@@ -3848,9 +3876,18 @@ function updateProductAvailability() {
 function updateProductLayerHeightSelect() {
     const sel = document.getElementById('productLayerHeight');
     if (!sel) return;
+    const productModal = document.getElementById('productModal');
+    const editId = productModal ? productModal.getAttribute('data-edit-id') : null;
+    const currentProd = editId ? db.products.find(function(p) { return p.id == editId; }) : null;
+    // Для нового изделия — всегда пустое («Укажите высоту»); для редактирования — сохраняем текущее значение
+    const preserveVal = editId ? ((currentProd && currentProd.layerHeight) || sel.value || '') : '';
     const opts = ['<option value="">- Укажите высоту -</option>'];
     (db.layerHeights || []).forEach(h => opts.push(`<option value="${escapeHtml(String(h))}">${escapeHtml(String(h))}</option>`));
+    if (preserveVal && !(db.layerHeights || []).some(h => String(h) === String(preserveVal))) {
+        opts.push(`<option value="${escapeHtml(String(preserveVal))}">${escapeHtml(String(preserveVal))}</option>`);
+    }
     sel.innerHTML = opts.join('');
+    if (preserveVal) sel.value = preserveVal;
 }
 
 // Сортировка выпадающего списка филаментов по алфавиту
@@ -4999,6 +5036,11 @@ function calcWriteoffTotal() {
 
 
 async function saveWriteoff(closeAfter) {
+    const saveBtn = document.getElementById('saveWriteoffBtn');
+    const saveAndCloseBtn = document.getElementById('saveWriteoffAndCloseBtn');
+    if (saveBtn) { saveBtn.textContent = '⏳ Сохраняю...'; saveBtn.disabled = true; }
+    if (saveAndCloseBtn) { saveAndCloseBtn.textContent = '⏳ Сохраняю...'; saveAndCloseBtn.disabled = true; }
+
     const systemId = document.getElementById('writeoffSystemId').textContent;
     let date = document.getElementById('writeoffDate').value;
     const type = document.getElementById('writeoffType').value;
@@ -5107,10 +5149,17 @@ async function saveWriteoff(closeAfter) {
 
     if (!globalValid) {
         document.getElementById('writeoffValidationMessage').classList.remove('hidden');
+        if (saveBtn) { saveBtn.textContent = 'Сохранить'; saveBtn.disabled = false; }
+        if (saveAndCloseBtn) { saveAndCloseBtn.textContent = 'Сохранить и закрыть'; saveAndCloseBtn.disabled = false; }
         return;
     }
     
-    if (newItems.length === 0) { showToast('Нет данных для сохранения', 'error'); return; }
+    if (newItems.length === 0) {
+        showToast('Нет данных для сохранения', 'error');
+        if (saveBtn) { saveBtn.textContent = 'Сохранить'; saveBtn.disabled = false; }
+        if (saveAndCloseBtn) { saveAndCloseBtn.textContent = 'Сохранить и закрыть'; saveAndCloseBtn.disabled = false; }
+        return;
+    }
 
     try {
         // 1. [FIX] ТРАНЗАКЦИЯ ДЛЯ СПИСАНИЙ (Решает коллизию массивов)
@@ -5181,6 +5230,9 @@ async function saveWriteoff(closeAfter) {
     } catch (e) {
         console.error("Ошибка сохранения списания:", e);
         showToast("Ошибка: " + e.message, "error");
+    } finally {
+        if (saveBtn) { saveBtn.textContent = 'Сохранить'; saveBtn.disabled = false; }
+        if (saveAndCloseBtn) { saveAndCloseBtn.textContent = 'Сохранить и закрыть'; saveAndCloseBtn.disabled = false; }
     }
 }
 

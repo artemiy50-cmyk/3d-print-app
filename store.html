@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Магазин 3D-печати</title>
+
+    <!-- Firebase (тот же проект, что и Manager) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+</head>
+<body class="store-page">
+    <!-- Шапка магазина (заполняется из настроек в Фазе 4) -->
+    <header id="storeHeader" class="store-header">
+        <div class="store-header-inner">
+            <h1 id="storeTitle">Магазин</h1>
+            <p id="storeDescription" class="store-description">Загрузка...</p>
+        </div>
+    </header>
+
+    <!-- Контейнер Store SPA -->
+    <main id="storeRoot" class="store-root">
+        <!-- Состояние: загрузка / магазин не найден / каталог (Фаза 4+) -->
+        <div id="storeLoading" class="store-loading">
+            <p id="storeLoadingText">Загрузка магазина...</p>
+        </div>
+        <div id="storeNotFound" class="store-not-found hidden">
+            <h2>Магазин не найден</h2>
+            <p id="storeNotFoundReason">Поддомен не указан или магазин не зарегистрирован.</p>
+        </div>
+        <div id="storeCatalog" class="store-catalog hidden">
+            <!-- Каталог товаров (Фаза 4) -->
+        </div>
+    </main>
+
+    <script src="store.js"></script>
+</body>
+</html>
