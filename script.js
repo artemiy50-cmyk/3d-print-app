@@ -1,7 +1,7 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
 // Номер версии ведём в формате xx.xx.xx, например 7.7.7
-const APP_VERSION_NUMBER = '5.10.3';
-console.log('2026-02-27 07-50-53');
+const APP_VERSION_NUMBER = '5.10.4';
+console.log('2026-02-28 08-50-00');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
@@ -9,11 +9,15 @@ const APP_BASE_VERSION = APP_VERSION_NUMBER;
 // === CHANGELOG
 const CHANGELOG_ENTRIES = [
     { 
+        version: '5.10.4', 
+        dateDisplay: '28.02.2026', 
+        description: 'Улучшения продукта: \n• В Изделии добавлена кнопка "Сохранить." \n• Высота слоя переносится в скопированное изделие. \n• Применены другие улучшения и изменения замечаний.' 
+    },
+    { 
         version: '5.10.3', 
         dateDisplay: '27.02.2026', 
-        description: 'Исправлена логика проверки доступности филамента при редактировании Изделия: если филамент израсходован, то это не блокирует пересохранение Изделия, в котором данный филамент указан ранее, при изготовлении.' },
- 
-   
+        description: 'Исправлена логика проверки доступности филамента при редактировании Изделия: если филамент израсходован, то это не блокирует пересохранение Изделия, в котором данный филамент указан ранее, при изготовлении.' 
+    },
     { 
         version: '5.10.2', 
         dateDisplay: '25.02.2026', 
@@ -2402,14 +2406,19 @@ function updateProductTypeUI() {
         draftLabel.style.display = (type === 'Часть составного') ? 'none' : 'block';
     }
 
-    const isDraft = document.getElementById('productIsDraft').checked;
-    
-    // Кнопка списания
-    const btnWriteOff = document.getElementById('btnWriteOffProduct');
-    const isExistingProduct = !!document.getElementById('productModal').getAttribute('data-edit-id');
-    if (btnWriteOff) {
-        btnWriteOff.style.display = (isExistingProduct && type !== 'Часть составного' && !isDraft) ? 'flex' : 'none';
+    // Хинт черновика: одинаковый текст для Самостоятельное и Составное (при создании / смена типа)
+    const draftTooltipEl = document.getElementById('productDraftTooltipText');
+    if (draftTooltipEl) {
+        if (type !== 'Часть составного') {
+            draftTooltipEl.textContent = 'Поставьте галочку «Черновик», чтобы рассчитать себестоимость без списания филамента со склада.';
+            draftTooltipEl.classList.add('draft-tooltip-active');
+        } else {
+            draftTooltipEl.textContent = '';
+            draftTooltipEl.classList.remove('draft-tooltip-active');
+        }
     }
+
+    const isDraft = document.getElementById('productIsDraft').checked;
 
     groups.parent.classList.add('hidden');
     if(groups.allParts) groups.allParts.style.display = 'none';
@@ -2609,6 +2618,8 @@ async function copyProduct(id) {
         document.getElementById('productPrintTimeHours').value = Math.floor(p.printTime/60);
         document.getElementById('productPrintTimeMinutes').value = p.printTime%60;
         if(p.printer) document.getElementById('productPrinter').value = p.printer.id;
+        const lhEl = document.getElementById('productLayerHeight');
+        if (lhEl) { lhEl.value = p.layerHeight || ''; }
         
         document.getElementById('productType').value = p.type;
         document.getElementById('productNote').value = '';
@@ -2878,9 +2889,9 @@ function editProduct(id) {
         lockReason = 'Редактирование ограничено: есть списания.';
     }
 
-    // 2. Блокировка Черновика, если есть бракованные дети (хинт — в tooltip при наведении). Не показывать хинт и скрыть блок, если само составное в браке
+    // 2. Блокировка Черновика, если есть бракованные дети (хинт — в tooltip при наведении). Скрыть блок черновика, если изделие в браке (составное или самостоятельное)
     const draftTooltipWrap = document.getElementById('productDraftTooltipWrap');
-    if (p.defective && p.type === 'Составное') {
+    if (p.defective) {
         if (draftTooltipWrap) draftTooltipWrap.style.display = 'none';
     } else {
         if (draftTooltipWrap) draftTooltipWrap.style.display = '';
@@ -2889,16 +2900,11 @@ function editProduct(id) {
             draftCb.setAttribute('data-locked-by-system', 'true');
             const draftTooltip = document.getElementById('productDraftTooltipText');
             if (draftTooltip) { draftTooltip.textContent = 'Статус "Черновик" недоступен: одна из частей изделия в браке.'; draftTooltip.classList.add('draft-tooltip-active'); }
-        } else {
+        } else if (p.type !== 'Часть составного') {
             const draftTooltip = document.getElementById('productDraftTooltipText');
             if (draftTooltip) {
-                if (p.type === 'Составное') {
-                    draftTooltip.textContent = 'Поставьте галочку «Черновик», чтобы рассчитать себестоимость без списания филамента со склада.';
-                    draftTooltip.classList.add('draft-tooltip-active');
-                } else {
-                    draftTooltip.textContent = '';
-                    draftTooltip.classList.remove('draft-tooltip-active');
-                }
+                draftTooltip.textContent = 'Поставьте галочку «Черновик», чтобы рассчитать себестоимость без списания филамента со склада.';
+                draftTooltip.classList.add('draft-tooltip-active');
             }
         }
     }
@@ -3043,12 +3049,17 @@ function validateProductForm() {
 /**
  * Сохранение изделия. Транзакция: 1) обновление филамента (usedLength/usedWeight), 2) transaction products.
  * При редактировании — возврат филамента от старого изделия; при добавлении — списание филамента.
+ * @param {boolean} andThenWriteOff - если true, после сохранения открыть форму списания
+ * @param {number|null} andThenEditProductId - если задан, после сохранения открыть редактирование изделия
+ * @param {boolean} closeAfter - если true, закрыть модалку после сохранения (по умолчанию true)
  */
-async function saveProduct(andThenWriteOff = false, andThenEditProductId = null) {
+async function saveProduct(andThenWriteOff = false, andThenEditProductId = null, closeAfter = true) {
     if (!validateProductForm()) return;
 
     const saveBtn = document.getElementById('saveProductBtn');
-    saveBtn.textContent = '⏳ Сохраняю...'; saveBtn.disabled = true;
+    const saveAndCloseBtn = document.getElementById('saveProductAndCloseBtn');
+    if (saveBtn) { saveBtn.textContent = '⏳ Сохраняю...'; saveBtn.disabled = true; }
+    if (saveAndCloseBtn) { saveAndCloseBtn.textContent = '⏳ Сохраняю...'; saveAndCloseBtn.disabled = true; }
 
     const eid = document.getElementById('productModal').getAttribute('data-edit-id'); 
     
@@ -3075,7 +3086,8 @@ async function saveProduct(andThenWriteOff = false, andThenEditProductId = null)
             });
         } else {
             // Загрузка не удалась или лимит превышен
-            saveBtn.disabled = false; saveBtn.textContent = 'Сохранить';
+            if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Сохранить'; }
+            if (saveAndCloseBtn) { saveAndCloseBtn.disabled = false; saveAndCloseBtn.textContent = 'Сохранить и закрыть'; }
             return; // Прерываем сохранение
         }
     }
@@ -3247,7 +3259,7 @@ async function saveProduct(andThenWriteOff = false, andThenEditProductId = null)
         } else if (andThenEditProductId) {
             closeProductModal();
             setTimeout(() => editProduct(andThenEditProductId), 150);
-        } else {
+        } else if (closeAfter) {
             closeProductModal();
         }
 
@@ -3255,8 +3267,8 @@ async function saveProduct(andThenWriteOff = false, andThenEditProductId = null)
         console.error('Ошибка при сохранении изделия:', e);
         showToast('Не удалось сохранить изделие: ' + e.message, 'error');
     } finally {
-        saveBtn.textContent = 'Сохранить и закрыть'; 
-        saveBtn.disabled = false;
+        if (saveBtn) { saveBtn.textContent = 'Сохранить'; saveBtn.disabled = false; }
+        if (saveAndCloseBtn) { saveAndCloseBtn.textContent = 'Сохранить и закрыть'; saveAndCloseBtn.disabled = false; }
     }
 }
 
@@ -3738,6 +3750,12 @@ function updateProductAvailability() {
     const statusField = document.getElementById('productAvailabilityField');
     const type = document.getElementById('productType').value;
     
+    // Скрыть блок черновика, если изделие в браке (самостоятельное или составное)
+    const draftTooltipWrap = document.getElementById('productDraftTooltipWrap');
+    if (draftTooltipWrap) {
+        draftTooltipWrap.style.display = (defCb.checked && type !== 'Часть составного') ? 'none' : '';
+    }
+
     // Блокировка чекбоксов друг другом (UI Mutual Exclusion)
     if (draftCb.checked) {
         defCb.checked = false;
@@ -3800,7 +3818,26 @@ function updateProductAvailability() {
     const btnWriteOff = document.getElementById('btnWriteOffProduct');
     const isExisting = !!document.getElementById('productModal').getAttribute('data-edit-id');
     if (btnWriteOff) {
-        btnWriteOff.style.display = (draftCb.checked) ? 'none' : (type !== 'Часть составного' && isExisting ? 'flex' : 'none');
+        const canShow = !draftCb.checked && type !== 'Часть составного' && isExisting;
+        if (!canShow) {
+            btnWriteOff.style.display = 'none';
+            btnWriteOff.disabled = false;
+            btnWriteOff.title = '';
+        } else {
+            btnWriteOff.style.display = 'flex';
+            const qty = parseInt(document.getElementById('productQuantity').value) || 0;
+            const eid = document.getElementById('productModal').getAttribute('data-edit-id');
+            const pid = eid ? parseInt(eid) : null;
+            const currentStock = defCb.checked ? 0 : Math.max(0, qty - getWriteoffQuantityForProduct(pid));
+            const canEnable = !defCb.checked && currentStock > 0;
+            if (canEnable) {
+                btnWriteOff.disabled = false;
+                btnWriteOff.title = '';
+            } else {
+                btnWriteOff.disabled = true;
+                btnWriteOff.title = defCb.checked ? 'Списание недоступно: изделие в браке.' : 'Списание недоступно: нет остатка на складе.';
+            }
+        }
     }
 
     updateProductStockDisplay();
@@ -5134,6 +5171,11 @@ async function saveWriteoff(closeAfter) {
         updateDashboard(); 
         updateReports(); 
         updateAllSelects();
+        // После сохранения нового списания без закрытия — переводим в режим редактирования,
+        // чтобы при повторном сохранении валидация исключала текущее списание из расчёта остатка
+        if (!isEdit && closeAfter === false) {
+            document.getElementById('writeoffModal').setAttribute('data-edit-group', systemId);
+        }
         if (closeAfter !== false) closeWriteoffModal();
 
     } catch (e) {
@@ -5145,10 +5187,20 @@ async function saveWriteoff(closeAfter) {
 
 
 async function deleteWriteoff(systemId) {
+    if (!systemId || String(systemId).trim() === '') {
+        showToast('Ошибка: не удалось определить идентификатор списания.', 'error');
+        return;
+    }
     if (!confirm('Удалить списание? Изделия будут возвращены на склад (кроме статуса "Подготовлено к продаже").')) return;
 
     // --- ПЕРЕСЧЕТ ОСТАТКОВ ---
-    const itemsToDelete = db.writeoffs.filter(w => w.systemId === systemId);
+    const systemIdStr = String(systemId).trim();
+    const itemsToDelete = (db.writeoffs || []).filter(w => w && (String(w.systemId || '') === systemIdStr || w.systemId === systemId));
+
+    if (itemsToDelete.length === 0) {
+        showToast('Списание не найдено в базе. Возможно, данные устарели — обновите страницу (F5).', 'error');
+        return;
+    }
 
     // Сначала готовим обновления для остатков, чтобы не потерять данные
     const stockUpdates = {};
@@ -5180,16 +5232,39 @@ async function deleteWriteoff(systemId) {
     }
 
     // --- УДАЛЕНИЕ ЗАПИСЕЙ ---
-    const indicesToRemove = [];
-    db.writeoffs.forEach((w, index) => {
-        if (w.systemId === systemId) indicesToRemove.push(index);
-    });
-
-    // Удаляем с конца, чтобы не сбивать индексы (хотя при использовании child().remove() порядок не так важен для Firebase, но важен для логики)
-    for (let i = indicesToRemove.length - 1; i >= 0; i--) {
-        await dbRef.child('writeoffs').child(indicesToRemove[i]).remove();
+    // Используем фактические ключи Firebase (индексы массива могут не совпадать при разреженной структуре)
+    const writeoffsSnap = await dbRef.child('writeoffs').once('value');
+    const writeoffsVal = writeoffsSnap.val();
+    const keysToRemove = [];
+    if (writeoffsVal && typeof writeoffsVal === 'object') {
+        Object.keys(writeoffsVal).forEach(key => {
+            const w = writeoffsVal[key];
+            if (w && (String(w.systemId || '') === systemIdStr || w.systemId === systemId)) {
+                keysToRemove.push(key);
+            }
+        });
     }
-    
+
+    try {
+        for (const key of keysToRemove) {
+            await dbRef.child('writeoffs').child(key).remove();
+        }
+        if (keysToRemove.length === 0 && itemsToDelete.length > 0) {
+            // Локальные данные есть, но в Firebase не совпадают — обновляем локально и сохраняем
+            db.writeoffs = (db.writeoffs || []).filter(w => !w || (String(w.systemId || '') !== systemIdStr && w.systemId !== systemId));
+            recalculateAllProductStock();
+            await saveData();
+        }
+        // Явное обновление данных после удаления (слушатель может пропустить обновление, если модалка открыта)
+        if (dbRef && dbRef.parent) {
+            const snapshot = await dbRef.parent.once('value');
+            if (typeof window.updateAppFromSnapshot === 'function') window.updateAppFromSnapshot(snapshot);
+        }
+        showToast('Списание удалено.', 'success');
+    } catch (e) {
+        console.error('Ошибка удаления списания:', e);
+        showToast('Не удалось удалить списание: ' + e.message, 'error');
+    }
 }
 
 
@@ -6468,7 +6543,8 @@ function setupEventListeners() {
 
     // --- PRODUCTS ---
     document.getElementById('addProductBtn')?.addEventListener('click', openProductModal);
-    document.getElementById('saveProductBtn')?.addEventListener('click', () => saveProduct(false));
+    document.getElementById('saveProductBtn')?.addEventListener('click', () => saveProduct(false, null, false));
+    document.getElementById('saveProductAndCloseBtn')?.addEventListener('click', () => saveProduct(false, null, true));
     document.getElementById('closeProductModalBtn')?.addEventListener('click', closeProductModal);
     document.getElementById('btnWriteOffProduct')?.addEventListener('click', initiateWriteOff);
 	    // Делегирование событий для динамической таблицы изделий
