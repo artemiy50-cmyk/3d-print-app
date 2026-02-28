@@ -2289,3 +2289,43 @@ td:nth-last-child(2) {
     gap: 12px;
     justify-content: flex-end;
 }
+
+/* ===== Store SPA (поддомен *.my-3d-print.ru) ===== */
+body.store-page {
+    overflow: auto;
+    display: block;
+}
+.store-header {
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
+    padding: 20px 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.store-header-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+.store-header .store-description {
+    color: var(--color-text-light);
+    font-size: 14px;
+    margin-top: 8px;
+}
+.store-root {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px 24px 48px;
+}
+.store-loading,
+.store-not-found {
+    text-align: center;
+    padding: 48px 24px;
+    color: var(--color-text-light);
+}
+.store-not-found h2 {
+    color: var(--color-text);
+    margin-bottom: 12px;
+}
+.store-catalog {
+    display: grid;
+    gap: 24px;
+}
