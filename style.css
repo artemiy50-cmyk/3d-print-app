@@ -573,6 +573,9 @@
         .writeoff-sale-summary { background: var(--color-bg); border-bottom: 1px solid var(--color-border); padding: 12px calc(var(--spacing) * 1.5); font-size: 14px; font-weight: 500; color: var(--color-text); }
         .btn-add-section { width: 100%; justify-content: center; border: 1px dashed var(--color-border); background: #fff; color: var(--color-text-light); padding: 12px; border-radius: var(--radius); cursor: pointer; font-size: 14px; font-weight: 500; display: flex; align-items: center; transition: all 0.2s; }
         .btn-add-section:hover { border-color: var(--color-primary); color: var(--color-primary); background: #f0fdf4; }
+        /* Кнопка «добавить часть» — голубая, как сохранить */
+        .btn-add-child-in-card { border: 1px solid #3b82f6; background: #3b82f6; color: white; }
+        .btn-add-child-in-card:hover { background: #2563eb; border-color: #2563eb; color: white; }
         .btn-remove-section { 
             background: none; 
             border: 1px solid var(--color-danger); 

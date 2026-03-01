@@ -2236,13 +2236,45 @@ function navigateToPart(childId) {
 }
 
 function navigateToComposite(parentId) {
+    const modal = document.getElementById('productModal');
+    const eid = modal ? modal.getAttribute('data-edit-id') : null;
+    if (!eid) {
+        showToast('Сначала сохраните изделие, чтобы перейти к составному.', 'warning');
+        return;
+    }
     const currentSnapshot = captureProductSnapshot();
     if (currentSnapshot !== productSnapshotForDirtyCheck) {
+        // Есть несохранённые изменения: сначала валидация, затем вопрос
+        if (!validateProductForm()) return;
         if (!confirm('Часть изделия изменена. Сохранить и перейти к составному изделию?')) return;
         saveProduct(false, parentId);
     } else {
         closeProductModal();
         setTimeout(() => editProduct(parentId), 150);
+    }
+}
+
+/** При клике на "(+) добавить часть изделия" в карточке составного изделия.
+ * Проверяет форму на несохранённые изменения (как при переходе к просмотру составного).
+ * Если есть изменения — предлагает сохранить, затем открывает карточку новой части, предзаполненную составным (аналогично (+) в таблице изделий).
+ */
+function addChildPartFromCompositeCard() {
+    const modal = document.getElementById('productModal');
+    const parentId = modal ? modal.getAttribute('data-edit-id') : null;
+    if (!parentId) {
+        showToast('Сначала сохраните составное изделие, чтобы добавить части.', 'warning');
+        return;
+    }
+    const p = db.products.find(x => x.id == parentId);
+    if (!p || p.type !== 'Составное') return;
+
+    const currentSnapshot = captureProductSnapshot();
+    if (currentSnapshot !== productSnapshotForDirtyCheck) {
+        if (!confirm('Составное изделие изменено. Сохранить и добавить часть?')) return;
+        saveProduct(false, null, true, parentId);
+    } else {
+        closeProductModal();
+        setTimeout(() => addChildPart(parentId), 150);
     }
 }
 
@@ -2959,6 +2991,8 @@ window.addChildPart = function(parentId) {
     if(parentSelect) {
         parentSelect.value = parentId;
     }
+    const btnGoto = document.getElementById('btnGotoComposite');
+    if (btnGoto) btnGoto.disabled = false;
 
     // Наследование количества от родителя
     const parent = db.products.find(p => p.id == parentId);
@@ -2971,6 +3005,8 @@ window.addChildPart = function(parentId) {
     if (typeof updateProductCosts === 'function') {
         updateProductCosts();
     }
+
+    productSnapshotForDirtyCheck = captureProductSnapshot();
 
     // Фокус на имя
     setTimeout(() => {
@@ -3300,8 +3336,9 @@ function validateProductForm() {
  * @param {boolean} andThenWriteOff - если true, после сохранения открыть форму списания
  * @param {number|null} andThenEditProductId - если задан, после сохранения открыть редактирование изделия
  * @param {boolean} closeAfter - если true, закрыть модалку после сохранения (по умолчанию true)
+ * @param {number|null} andThenAddChildPartId - если задан, после сохранения открыть форму добавления части составного
  */
-async function saveProduct(andThenWriteOff = false, andThenEditProductId = null, closeAfter = true) {
+async function saveProduct(andThenWriteOff = false, andThenEditProductId = null, closeAfter = true, andThenAddChildPartId = null) {
     if (!validateProductForm()) return;
 
     const saveBtn = document.getElementById('saveProductBtn');
@@ -3533,6 +3570,9 @@ async function saveProduct(andThenWriteOff = false, andThenEditProductId = null,
         } else if (andThenEditProductId) {
             closeProductModal();
             setTimeout(() => editProduct(andThenEditProductId), 150);
+        } else if (andThenAddChildPartId) {
+            closeProductModal();
+            setTimeout(() => addChildPart(andThenAddChildPartId), 150);
         } else if (closeAfter) {
             closeProductModal();
         }
@@ -6845,6 +6885,7 @@ function setupEventListeners() {
     document.getElementById('saveProductAndCloseBtn')?.addEventListener('click', () => saveProduct(false, null, true));
     document.getElementById('closeProductModalBtn')?.addEventListener('click', closeProductModal);
     document.getElementById('btnWriteOffProduct')?.addEventListener('click', initiateWriteOff);
+    document.getElementById('addChildPartInCardBtn')?.addEventListener('click', addChildPartFromCompositeCard);
 	    // Делегирование событий для динамической таблицы изделий
     		
     // Filters & Sort (search — debounce; select — immediate + save)
