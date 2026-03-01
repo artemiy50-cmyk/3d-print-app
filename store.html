@@ -14,11 +14,17 @@
     <link rel="icon" type="image/x-icon" href="favicon.ico">
 </head>
 <body class="store-page">
-    <!-- Шапка магазина (заполняется из настроек в Фазе 4) -->
+    <!-- Шапка магазина -->
     <header id="storeHeader" class="store-header">
         <div class="store-header-inner">
-            <h1 id="storeTitle">Магазин</h1>
+            <a href="#" id="storeLogoLink" class="store-logo-link">
+                <h1 id="storeTitle">Магазин</h1>
+            </a>
             <p id="storeDescription" class="store-description">Загрузка...</p>
+            <button type="button" id="storeCartBtn" class="store-cart-btn hidden" title="Корзина" aria-label="Корзина">
+                <span class="store-cart-icon">🛒</span>
+                <span id="storeCartCount" class="store-cart-count">0</span>
+            </button>
         </div>
     </header>
 
@@ -33,9 +39,73 @@
             <p id="storeNotFoundReason">Поддомен не указан или магазин не зарегистрирован.</p>
         </div>
         <div id="storeCatalog" class="store-catalog hidden">
-            <!-- Каталог товаров (Фаза 4) -->
+            <!-- Каталог товаров -->
+        </div>
+        <div id="storeCartPage" class="store-cart-page hidden">
+            <div class="store-cart-page-header">
+                <a href="#" id="storeBackToCatalog" class="store-back-link">← Назад в каталог</a>
+                <h2>Корзина</h2>
+            </div>
+            <div id="storeCartList" class="store-cart-list"></div>
+            <div id="storeCartEmpty" class="store-cart-empty hidden">Корзина пуста</div>
+            <div id="storeCartFooter" class="store-cart-footer hidden">
+                <div class="store-cart-total">Итого: <span id="storeCartTotalVal">0</span> ₽</div>
+                <button type="button" class="btn-primary" id="storeCheckoutBtn">Оформить заказ</button>
+            </div>
         </div>
     </main>
+
+    <!-- Выдвижная панель корзины -->
+    <div id="storeCartDrawer" class="store-cart-drawer" aria-hidden="true">
+        <div class="store-cart-drawer-backdrop"></div>
+        <div class="store-cart-drawer-panel">
+            <div class="store-cart-drawer-header">
+                <h3>Корзина</h3>
+                <button type="button" class="store-cart-drawer-close" aria-label="Закрыть">&times;</button>
+            </div>
+            <div id="storeCartDrawerList" class="store-cart-drawer-list"></div>
+            <div id="storeCartDrawerEmpty" class="store-cart-drawer-empty">Корзина пуста</div>
+            <div id="storeCartDrawerFooter" class="store-cart-drawer-footer hidden">
+                <div class="store-cart-drawer-total">Итого: <span id="storeCartDrawerTotalVal">0</span> ₽</div>
+                <a href="#cart" id="storeCartDrawerToPage" class="btn-primary">Перейти в корзину</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Форма оформления заказа -->
+    <div id="storeCheckoutModal" class="store-checkout-modal hidden">
+        <div class="store-checkout-backdrop"></div>
+        <div class="store-checkout-form-wrap">
+            <h3>Оформление заказа</h3>
+            <form id="storeCheckoutForm">
+                <div class="store-checkout-row">
+                    <label for="storeBuyerName">Имя *</label>
+                    <input type="text" id="storeBuyerName" required placeholder="Как к вам обращаться">
+                </div>
+                <div class="store-checkout-row">
+                    <label for="storeBuyerEmail">Email *</label>
+                    <input type="email" id="storeBuyerEmail" required placeholder="email@example.com">
+                </div>
+                <div class="store-checkout-row">
+                    <label for="storeBuyerPhone">Телефон</label>
+                    <input type="tel" id="storeBuyerPhone" placeholder="+7 900 123-45-67">
+                </div>
+                <div class="store-checkout-row">
+                    <label for="storeBuyerComment">Комментарий</label>
+                    <textarea id="storeBuyerComment" rows="2" placeholder="Пожелания по доставке"></textarea>
+                </div>
+                <button type="submit" class="btn-primary" id="storeCheckoutSubmitBtn">Отправить заказ</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Сообщение "Заказ отправлен" -->
+    <div id="storeOrderSuccess" class="store-order-success hidden">
+        <div class="store-order-success-inner">
+            <span class="store-order-success-icon">✓</span>
+            <p>Заказ отправлен</p>
+        </div>
+    </div>
 
     <script src="store.js"></script>
 </body>

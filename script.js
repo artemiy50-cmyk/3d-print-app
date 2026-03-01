@@ -814,6 +814,8 @@ async function fillStoreSettingsPage() {
     document.getElementById('storeEnabledInput').checked = !(store && store.enabled === false);
     document.getElementById('storeContactEmailInput').value = (store && store.contactEmail) || '';
     document.getElementById('storeContactTelegramInput').value = (store && store.contactTelegram) || '';
+    const minInput = document.getElementById('storeMinOrderInput');
+    if (minInput) minInput.value = (store && store.minOrderAmount != null && store.minOrderAmount !== '') ? store.minOrderAmount : '';
 
     const tbody = document.querySelector('#storeProductsTable tbody');
 
@@ -824,6 +826,49 @@ async function fillStoreSettingsPage() {
     }).join('') || '<tr><td colspan="3" style="color:#64748b;">Товаров нет. Нажмите «Добавить товар».</td></tr>';
 
     document.getElementById('storeAddProductBtn').disabled = !hasStore;
+
+    loadStoreOrders();
+}
+
+async function loadStoreOrders() {
+    const user = firebase.auth().currentUser;
+    if (!user) return;
+
+    const listEl = document.getElementById('storeOrdersList');
+    const emptyEl = document.getElementById('storeOrdersEmpty');
+    if (!listEl) return;
+
+    try {
+        const snap = await firebase.database().ref('storeOrders').orderByChild('ownerUid').equalTo(user.uid).once('value');
+        const orders = [];
+        snap.forEach((child) => {
+            orders.push({ id: child.key, ...child.val() });
+        });
+        orders.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+
+        if (orders.length === 0) {
+            listEl.innerHTML = '<p class="text-muted" id="storeOrdersEmpty">Нет заказов</p>';
+            return;
+        }
+
+        listEl.innerHTML = orders.map((o) => {
+            const date = o.createdAt ? new Date(o.createdAt).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+            const itemsStr = Array.isArray(o.items) ? o.items.map(i => `${i.name || 'Товар'} × ${i.qty || 1}`).join(', ') : '—';
+            return `
+                <div class="store-order-card">
+                    <div class="store-order-header">
+                        <span class="store-order-date">${escapeHtml(date)}</span>
+                        <span class="store-order-total">${(o.total || 0).toFixed(0)} ₽</span>
+                    </div>
+                    <div class="store-order-buyer">${escapeHtml(o.buyerName || '—')}, ${escapeHtml(o.buyerEmail || '—')}</div>
+                    <div class="store-order-items">${escapeHtml(itemsStr)}</div>
+                </div>`;
+        }).join('');
+    } catch (e) {
+        console.error('loadStoreOrders:', e);
+        const msg = e && e.message ? e.message : String(e);
+        listEl.innerHTML = '<p class="text-muted" id="storeOrdersEmpty">Ошибка загрузки заказов. Консоль (F12): ' + escapeHtml(msg) + '</p>';
+    }
 }
 
 async function saveStoreSettings() {
@@ -853,6 +898,9 @@ async function saveStoreSettings() {
     }
 
     const now = new Date().toISOString();
+    const minVal = document.getElementById('storeMinOrderInput') ? document.getElementById('storeMinOrderInput').value : '';
+    const minOrderAmount = (minVal !== '' && minVal != null) ? parseFloat(minVal) : null;
+
     const storeData = {
         subdomain,
         title: (document.getElementById('storeTitleInput') && document.getElementById('storeTitleInput').value) || '',
@@ -860,6 +908,7 @@ async function saveStoreSettings() {
         enabled: document.getElementById('storeEnabledInput') ? document.getElementById('storeEnabledInput').checked : true,
         contactEmail: (document.getElementById('storeContactEmailInput') && document.getElementById('storeContactEmailInput').value) || '',
         contactTelegram: (document.getElementById('storeContactTelegramInput') && document.getElementById('storeContactTelegramInput').value) || '',
+        minOrderAmount: (minOrderAmount != null && !isNaN(minOrderAmount) && minOrderAmount > 0) ? minOrderAmount : null,
         updatedAt: now
     };
     if (!existingStore) storeData.createdAt = now;

@@ -878,6 +878,8 @@
 
             <div id="myStore" class="page">
                 <div class="page-title">Мой магазин</div>
+                <div class="my-store-layout">
+                <div class="my-store-left">
                 <div class="card" style="max-width: 720px; margin-bottom: 20px;">
                     <div class="form-section-title">Настройки магазина</div>
                     <div id="storeSubdomainWrap" class="form-group">
@@ -911,6 +913,11 @@
                             <label>Telegram для связи:</label>
                             <input type="text" id="storeContactTelegramInput" placeholder="@username">
                         </div>
+                        <div class="form-group">
+                            <label>Мин. сумма заказа (₽):</label>
+                            <input type="number" id="storeMinOrderInput" placeholder="Не ограничено" min="0" step="1">
+                            <span class="form-hint" style="font-size: 11px; color: #64748b;">Оставьте пустым — без ограничения</span>
+                        </div>
                     </div>
                     <div id="storeLinkWrap" class="form-group hidden" style="margin-top: 12px;">
                         <label>Ссылка на магазин:</label>
@@ -929,6 +936,16 @@
                             <tbody></tbody>
                         </table>
                     </div>
+                </div>
+                </div>
+                <div class="my-store-right">
+                    <div class="card">
+                        <div class="form-section-title">Заказы</div>
+                        <div id="storeOrdersList" class="store-orders-list">
+                            <p class="text-muted" id="storeOrdersEmpty">Нет заказов</p>
+                        </div>
+                    </div>
+                </div>
                 </div>
             </div>
 
