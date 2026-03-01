@@ -91,7 +91,7 @@
     }
 
     /**
-     * Обновление шапки (в Фазе 4 — из настроек магазина)
+     * Обновление шапки (из настроек магазина)
      */
     function updateHeader(title, description) {
         const titleEl = document.getElementById('storeTitle');
@@ -99,6 +99,11 @@
         if (titleEl) titleEl.textContent = title || 'Магазин';
         if (descEl) descEl.textContent = description || '';
     }
+
+    // Для Фазы 4: загруженные данные магазина (ownerUid, store config, storeProducts)
+    let storeOwnerUid = null;
+    let storeConfig = null;
+    let storeProductsData = null;
 
     /**
      * Детальный лог для диагностики (откройте консоль браузера: F12 → Console).
@@ -119,10 +124,9 @@
 
     /**
      * Инициализация Store SPA.
-     * Фаза 1: статическая страница + резолв поддомена.
-     * Фаза 2+: запрос storesBySubdomain/{subdomain} → ownerUid → store, storeProducts.
+     * Резолв поддомена: storesBySubdomain/{subdomain} → ownerUid → store, storeProducts.
      */
-    function init() {
+    async function init() {
         debugLog();
         const subdomain = getSubdomain();
 
@@ -135,13 +139,50 @@
             return;
         }
 
-        // Фаза 1: показываем поддомен. В Фазе 2 — запрос к Firebase
-        updateHeader('Магазин: ' + subdomain, 'Поддомен: ' + subdomain + '. Резолв через storesBySubdomain — в Фазе 2.');
-        showState('catalog');
+        // Инициализация Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.database();
 
-        // TODO Фаза 2: firebase.database().ref('storesBySubdomain/' + subdomain).once('value', ...)
-        // TODO Фаза 2: если ownerUid найден → загрузка users/{ownerUid}/store и storeProducts
-        // TODO Фаза 4: рендер каталога
+        showState('loading', { message: 'Загрузка магазина...' });
+        updateHeader('Магазин: ' + subdomain, '');
+
+        try {
+            const subdomainKey = subdomain.toLowerCase();
+            const subdomainSnap = await db.ref('storesBySubdomain/' + subdomainKey).once('value');
+            const subdomainData = subdomainSnap.val();
+
+            if (!subdomainData || !subdomainData.ownerUid) {
+                showState('notFound', { reason: 'Магазин не зарегистрирован.' });
+                updateHeader('Магазин: ' + subdomain, 'Магазин не найден');
+                return;
+            }
+
+            const uid = subdomainData.ownerUid;
+            const storeSnap = await db.ref('users/' + uid + '/store').once('value');
+            const store = storeSnap.val();
+
+            if (!store || store.enabled === false) {
+                showState('notFound', { reason: 'Магазин не найден или отключён.' });
+                updateHeader('Магазин: ' + subdomain, '');
+                return;
+            }
+
+            storeOwnerUid = uid;
+            storeConfig = store;
+
+            const storeProductsSnap = await db.ref('users/' + uid + '/storeProducts').once('value');
+            const raw = storeProductsSnap.val();
+            storeProductsData = raw && typeof raw === 'object' ? (Array.isArray(raw) ? raw : Object.values(raw)) : [];
+
+            updateHeader(store.title || 'Магазин', store.description || '');
+            showState('catalog');
+        } catch (e) {
+            console.error('[Store] Firebase error:', e);
+            showState('notFound', { reason: 'Ошибка загрузки. Проверьте подключение к интернету.' });
+            updateHeader('Магазин: ' + subdomain, '');
+        }
     }
 
     if (document.readyState === 'loading') {
