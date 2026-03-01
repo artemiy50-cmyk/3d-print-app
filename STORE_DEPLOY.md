@@ -21,7 +21,7 @@
 
 Проверка нужна, чтобы убедиться: Store-страница открывается и определяет «поддомен» (код магазина).
 
-**Почему эмуляция?** В продакшене магазин будет по адресу `ivan-shop.my-3d-print.ru`. На локальном ПК таких поддоменов нет, поэтому мы передаём код магазина через `?store=ivan-shop` в адресной строке.
+**Почему эмуляция?** В продакшене магазин будет по адресу `test-shop.my-3d-print.ru`. На локальном ПК таких поддоменов нет, поэтому мы передаём код магазина через `?store=test-shop` в адресной строке.
 
 **Важно:** Серверы `serve` и `http-server` делают редирект 301 с `store.html` на `/store`, при этом теряется параметр `?store=`. Используйте **Python-сервер** — он не редиректит.
 
@@ -41,17 +41,17 @@
      ```
      http://localhost:3000/open-store-test.html
      ```
-     Страница сама перенаправит на тест магазина «ivan-shop».
+     Страница сама перенаправит на тест магазина «test-shop».
    - **Вариант Б (вручную):** вставьте целиком:
      ```
-     http://localhost:3000/store.html?store=ivan-shop
+     http://localhost:3000/store.html?store=test-shop
      ```
    - Важно: не нажимайте на `store.html` в списке файлов — там нет параметра `?store=`.
 
 3. **Ожидаемый результат**
-   - В адресной строке: `http://localhost:3000/store.html?store=ivan-shop`
-   - Заголовок: «Магазин: ivan-shop».
-   - Текст: «Поддомен: ivan-shop. Резолв через storesBySubdomain — в Фазе 2».
+   - В адресной строке: `http://localhost:3000/store.html?store=test-shop`
+   - Заголовок: «Магазин: test-shop».
+   - Текст: «Поддомен: test-shop. Резолв через storesBySubdomain — в Фазе 2».
 
 ### Отладка (если видите «Магазин не найден»)
 
@@ -117,7 +117,7 @@
 | URL | Отдаётся | Приложение |
 |-----|----------|------------|
 | `app.my-3d-print.ru/` | `index.html` | Manager |
-| `ivan-shop.my-3d-print.ru/` | `store.html` | Store (subdomain: ivan-shop) |
+| `test-shop.my-3d-print.ru/` | `store.html` | Store (subdomain: test-shop) |
 | `test.my-3d-print.ru/` | `store.html` | Store (subdomain: test) |
 | `store.html?store=ivan` | `store.html` | Store (dev-режим) |
 
@@ -128,7 +128,7 @@
 Если wildcard DNS недоступен, можно использовать path-based:
 
 - Manager: `app.my-3d-print.ru/`
-- Store: `app.my-3d-print.ru/shop.html?store=ivan-shop`
+- Store: `app.my-3d-print.ru/shop.html?store=test-shop`
 
 `store.js` уже поддерживает `?store=subdomain` для локальной отладки.
 
@@ -136,7 +136,11 @@
 
 ## Дальнейшие фазы
 
+См. `STORE_ROADMAP.md` — полный план фаз.
+
 - **Фаза 2:** модель данных в Realtime Database, `storesBySubdomain`, правила безопасности.
 - **Фаза 3:** раздел «Мой магазин» в Manager.
 - **Фаза 4:** каталог, корзина, оформление заказа в Store.
-- **Фаза 5:** уведомления (Telegram), личный кабинет покупателя.
+- **Фаза 5:** UX/UI улучшения Фазы 4, шаблоны магазина (2–3 шт.), смена цветовой палитры.
+- **Фаза 6:** уведомления (Email, Telegram).
+- **Фаза 7:** финальная отладка UX/UI.

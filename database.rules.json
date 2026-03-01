@@ -1,0 +1,32 @@
+{
+  "rules": {
+    "storesBySubdomain": {
+      ".read": true,
+      "$subdomain": {
+        ".write": "auth != null"
+      }
+    },
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "store": {
+          ".read": true,
+          ".write": "auth != null && auth.uid === $uid"
+        },
+        "storeProducts": {
+          ".read": true,
+          ".write": "auth != null && auth.uid === $uid"
+        }
+      }
+    },
+    "storeOrders": {
+      ".read": "auth != null && query.orderByChild == 'ownerUid' && query.equalTo == auth.uid",
+      ".indexOn": ["ownerUid"],
+      "$orderId": {
+        ".read": "auth != null && auth.uid === data.child('ownerUid').val()",
+        ".write": "!data.exists()"
+      }
+    }
+  }
+}

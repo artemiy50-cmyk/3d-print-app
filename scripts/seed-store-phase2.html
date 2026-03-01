@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seed Store Phase 2</title>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+</head>
+<body style="font-family: system-ui; max-width: 500px; margin: 40px auto; padding: 20px;">
+    <h1>Seed Store Phase 2</h1>
+    <p>Создаёт тестовые данные: storesBySubdomain, store, storeProducts.</p>
+    <p><strong>Требуется:</strong> вы должны быть авторизованы в Manager на этом домене (localhost или app.my-3d-print.ru).</p>
+
+    <div id="status" style="margin: 16px 0; padding: 12px; border-radius: 8px; background: #f1f5f9;"></div>
+    <button id="seedBtn" disabled style="padding: 10px 20px; font-size: 16px;">Создать тестовые данные</button>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyAC1jhjIEncoLZyoVkPVPs9J1s-cVQeOV4",
+            authDomain: "d-print-app-3655b.firebaseapp.com",
+            projectId: "d-print-app-3655b",
+            storageBucket: "d-print-app-3655b.firebasestorage.app",
+            messagingSenderId: "691529808811",
+            appId: "1:691529808811:web:a6aec2a47d85d55f41f0ee",
+            databaseURL: "https://d-print-app-3655b-default-rtdb.europe-west1.firebasedatabase.app"
+        };
+        firebase.initializeApp(firebaseConfig);
+
+        const statusEl = document.getElementById('status');
+        const btn = document.getElementById('seedBtn');
+
+        function setStatus(text, isError) {
+            statusEl.textContent = text;
+            statusEl.style.background = isError ? '#fee2e2' : '#dcfce7';
+        }
+
+        firebase.auth().onAuthStateChanged(async (user) => {
+            if (!user) {
+                setStatus('Войдите в Manager (index.html) на этом домене, затем обновите эту страницу.', true);
+                return;
+            }
+
+            setStatus('UID: ' + user.uid + ' — нажмите кнопку для создания данных.', false);
+            btn.disabled = false;
+            btn.onclick = async () => {
+                btn.disabled = true;
+                setStatus('Создание данных...', false);
+
+                const uid = user.uid;
+                const now = new Date().toISOString();
+
+                const storeData = {
+                    subdomain: 'test-shop',
+                    title: 'Тестовый магазин',
+                    description: 'Проверка Фазы 2',
+                    enabled: true,
+                    createdAt: now,
+                    updatedAt: now
+                };
+
+                const storeProductsData = {
+                    0: {
+                        name: 'Пример товара',
+                        price: 500,
+                        inCatalog: true
+                    }
+                };
+
+                try {
+                    const db = firebase.database();
+                    await db.ref('storesBySubdomain/test-shop').set({ ownerUid: uid });
+                    await db.ref('users/' + uid + '/store').set(storeData);
+                    await db.ref('users/' + uid + '/storeProducts').set(storeProductsData);
+                    setStatus('Готово. storesBySubdomain, store, storeProducts созданы.', false);
+                } catch (e) {
+                    setStatus('Ошибка: ' + e.message, true);
+                    btn.disabled = false;
+                }
+            };
+        });
+    </script>
+</body>
+</html>
