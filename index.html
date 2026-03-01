@@ -876,6 +876,62 @@
                 </div>
             </div>
 
+            <div id="myStore" class="page">
+                <div class="page-title">Мой магазин</div>
+                <div class="card" style="max-width: 720px; margin-bottom: 20px;">
+                    <div class="form-section-title">Настройки магазина</div>
+                    <div id="storeSubdomainWrap" class="form-group">
+                        <label>Поддомен:</label>
+                        <input type="text" id="storeSubdomainInput" placeholder="test-shop" style="max-width: 200px;">
+                        <span id="storeSubdomainHint" class="form-hint hidden" style="font-size: 12px; color: #64748b; margin-top: 4px;">Для смены поддомена обратитесь к администратору через «Связаться» в меню.</span>
+                    </div>
+                    <div id="storeSubdomainReadonly" class="form-group hidden">
+                        <label>Поддомен:</label>
+                        <div class="calc-field" id="storeSubdomainDisplay" style="max-width: 200px;">—</div>
+                        <span class="form-hint" style="font-size: 12px; color: #64748b; margin-top: 4px;">Для смены поддомена обратитесь к администратору через «Связаться» в меню.</span>
+                    </div>
+                    <div class="form-group">
+                        <label>Заголовок:</label>
+                        <input type="text" id="storeTitleInput" placeholder="Мой магазин 3D-печати">
+                    </div>
+                    <div class="form-group">
+                        <label>Описание:</label>
+                        <textarea id="storeDescInput" rows="3" placeholder="Краткое описание магазина"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Магазин включён:</label>
+                        <label class="checkbox-label"><input type="checkbox" id="storeEnabledInput" checked> Показывать магазин посетителям</label>
+                    </div>
+                    <div class="form-row-3">
+                        <div class="form-group">
+                            <label>Email для связи:</label>
+                            <input type="email" id="storeContactEmailInput" placeholder="email@example.com">
+                        </div>
+                        <div class="form-group">
+                            <label>Telegram для связи:</label>
+                            <input type="text" id="storeContactTelegramInput" placeholder="@username">
+                        </div>
+                    </div>
+                    <div id="storeLinkWrap" class="form-group hidden" style="margin-top: 12px;">
+                        <label>Ссылка на магазин:</label>
+                        <a id="storeLink" href="#" target="_blank" rel="noopener" style="color: var(--color-primary);">—</a>
+                    </div>
+                    <div class="form-group" style="margin-top: 16px;">
+                        <button type="button" class="btn-primary" id="storeSaveBtn" onclick="saveStoreSettings()">Сохранить</button>
+                    </div>
+                </div>
+                <div class="card" style="max-width: 720px;">
+                    <div class="form-section-title">Товары в каталоге</div>
+                    <button type="button" class="btn-secondary" id="storeAddProductBtn" onclick="openAddStoreProductModal()">➕ Добавить товар</button>
+                    <div class="table-container" style="margin-top: 12px;">
+                        <table id="storeProductsTable">
+                            <thead><tr><th>Изделие</th><th>Цена (₽)</th><th>Действия</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 
@@ -1374,7 +1430,33 @@
         </div>
     </div>
 
-
+    <!-- Модалка: Добавить товар в каталог магазина -->
+    <div id="addStoreProductModal" class="modal">
+        <div class="modal-content" style="max-width: 480px;">
+            <div class="modal-header-simple-custom">
+                <div class="modal-header-title">Добавить товар в каталог</div>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Изделие (необязательно):</label>
+                    <select id="addStoreProductSelect"></select>
+                    <span class="form-hint" style="font-size: 11px; color: #64748b;">Можно оставить «Не привязано» — для аксессуаров, перепродажи, handmade и т.п.</span>
+                </div>
+                <div class="form-group">
+                    <label>Наименование для магазина:*</label>
+                    <input type="text" id="addStoreProductName" placeholder="Название товара" required>
+                </div>
+                <div class="form-group">
+                    <label>Цена за 1 шт. (₽):*</label>
+                    <input type="number" id="addStoreProductPrice" step="0.01" min="0" placeholder="500">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="document.getElementById('addStoreProductModal').classList.remove('active')">Отмена</button>
+                <button class="btn-primary" onclick="confirmAddStoreProduct()">Добавить</button>
+            </div>
+        </div>
+    </div>
 
 	<div id="globalImageTooltip"><img id="globalImageTooltipImg" src=""></div>
     <!-- Глобальный текстовый тултип -->

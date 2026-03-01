@@ -52,7 +52,7 @@
                 const now = new Date().toISOString();
 
                 const storeData = {
-                    subdomain: 'ivan-shop',
+                    subdomain: 'test-shop',
                     title: 'Тестовый магазин',
                     description: 'Проверка Фазы 2',
                     enabled: true,
@@ -62,7 +62,7 @@
 
                 const storeProductsData = {
                     0: {
-                        productId: 0,
+                        name: 'Пример товара',
                         price: 500,
                         inCatalog: true
                     }
@@ -70,7 +70,7 @@
 
                 try {
                     const db = firebase.database();
-                    await db.ref('storesBySubdomain/ivan-shop').set({ ownerUid: uid });
+                    await db.ref('storesBySubdomain/test-shop').set({ ownerUid: uid });
                     await db.ref('users/' + uid + '/store').set(storeData);
                     await db.ref('users/' + uid + '/storeProducts').set(storeProductsData);
                     setStatus('Готово. storesBySubdomain, store, storeProducts созданы.', false);

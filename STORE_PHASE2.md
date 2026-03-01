@@ -6,7 +6,7 @@
 
 ## 1. Цели фазы
 
-1. Реализовать резолв поддомена: `ivan-shop.my-3d-print.ru` → определение владельца магазина через Firebase.
+1. Реализовать резолв поддомена: `test-shop.my-3d-print.ru` → определение владельца магазина через Firebase.
 2. Ввести структуру данных для магазина и его продуктов.
 3. Настроить правила безопасности Realtime Database.
 4. Обновить `store.js` — загрузка настроек магазина и проверка «магазин найден / не найден».
@@ -34,7 +34,7 @@
 
 ```
 storesBySubdomain/
-  ivan-shop:       { ownerUid: "abc123..." }
+  test-shop:       { ownerUid: "abc123..." }
   test-store:      { ownerUid: "def456..." }
 ```
 
@@ -48,7 +48,7 @@ storesBySubdomain/
 
 ```
 users/{uid}/store:
-  subdomain:       "ivan-shop"           // зарезервированный поддомен
+  subdomain:       "test-shop"           // зарезервированный поддомен
   title:           "Магазин Ивана"       // заголовок
   description:     "3D-печать на заказ"  // краткое описание
   contactEmail:    ""                    // опционально
@@ -154,7 +154,7 @@ users/{uid}/storeProducts/
 
 ## 5. Критерии приёмки Фазы 2
 
-- [ ] По адресу `store.html?store=ivan-shop` (или `ivan-shop.my-3d-print.ru` после DNS) отображается заголовок и описание из `users/{uid}/store`.
+- [ ] По адресу `store.html?store=test-shop` (или `test-shop.my-3d-print.ru` после DNS) отображается заголовок и описание из `users/{uid}/store`.
 - [ ] При несуществующем поддомене показывается «Магазин не найден».
 - [ ] Правила Realtime Database разрешают анонимное чтение `storesBySubdomain` и `users/{uid}/store`, `users/{uid}/storeProducts`.
 - [ ] Запись в эти ветки возможна только авторизованным владельцам.
@@ -163,7 +163,7 @@ users/{uid}/storeProducts/
 
 ## 6. Скрипт тестовых данных
 
-Файл: `scripts/seed-store-phase2.html` — страница в браузере, добавляет тестовый магазин `ivan-shop` и пример записи в `storeProducts`. Использует Firebase Web SDK; требуется авторизация в Manager на том же домене.
+Файл: `scripts/seed-store-phase2.html` — страница в браузере, добавляет тестовый магазин `test-shop` и пример записи в `storeProducts`. Использует Firebase Web SDK; требуется авторизация в Manager на том же домене.
 
 ---
 
@@ -251,7 +251,7 @@ firebase deploy --only database
 6. Дождитесь сообщения «Готово»
 
 **Результат:** в базе появятся:
-- `storesBySubdomain/ivan-shop` → `{ ownerUid: "ваш_uid" }`
+- `storesBySubdomain/test-shop` → `{ ownerUid: "ваш_uid" }`
 - `users/ваш_uid/store` → настройки тестового магазина
 - `users/ваш_uid/storeProducts/0` → пример записи (productId: 0, price: 500, inCatalog: true)
 
@@ -270,7 +270,7 @@ firebase deploy --only database
    ```
 2. Откройте в браузере:
    ```
-   http://localhost:3000/store.html?store=ivan-shop
+   http://localhost:3000/store.html?store=test-shop
    ```
 3. Ожидается:
    - Заголовок: «Тестовый магазин» (или как задано в скрипте)
@@ -291,7 +291,7 @@ firebase deploy --only database
 ШАГ 2 (Вы)   → firebase login → firebase use <project> → firebase deploy --only database
 ШАГ 3 (Вы)   → Войти в Manager → открыть scripts/seed-store-phase2.html → нажать «Создать тестовые данные»
          (Я)   → Обновить store.js
-ШАГ 4 (Вы)   → Открыть store.html?store=ivan-shop и проверить отображение
+ШАГ 4 (Вы)   → Открыть store.html?store=test-shop и проверить отображение
 ```
 
 > ШАГ 1 можно выполнить в любой момент. ШАГ 2 и 3 — до проверки Store. Обновление store.js (моя часть) может идти параллельно с вашими шагами 2–3. После любых изменений в `database.rules.json` — повторять `firebase deploy --only database`.

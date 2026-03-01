@@ -635,6 +635,13 @@ function setupUserSidebar(user) {
     userDiv.onclick = () => showPage('profile');
     controlsContainer.appendChild(userDiv);
 
+    const storeBtn = document.createElement('button');
+    storeBtn.className = 'menu-item';
+    storeBtn.dataset.page = 'myStore';
+    storeBtn.innerHTML = `<span class="menu-icon">🌐</span><span class="menu-text">Мой магазин</span>`;
+    storeBtn.onclick = () => showPage('myStore');
+    controlsContainer.appendChild(storeBtn);
+
     const settingsRef = firebase.database().ref('users/' + user.uid + '/settings');
     settingsRef.on('value', (snap) => {
         const s = snap.val();
@@ -748,6 +755,195 @@ async function saveProfileSettings() {
     }
 }
 
+
+// === МОЙ МАГАЗИН (Store Phase 3) ===
+const RESERVED_SUBDOMAINS = ['app','www','api','mail','admin','store','elena','artem','lukarts','luckyartstudio','anna','maria','alex','alexander','ivan','dmitry','sergey','andrey','natalia','olga','svetlana','mikhail','ekaterina','tatiana','irina','yulia','daria','marina','victor','maxim','pavel','nikolay','elena-shop','artem-shop','anna-shop','shop','e-shop','myshop','my-shop','market','marketplace','mall','outlet','online','online-shop','webshop','eshop','storefront','boutique','3d','3dprint','print','model','craft','gift','hobby','toys','models','minis','figures','figurines','support','help','info','blog','landing','contact','about'];
+const RESERVED_SUBDOMAIN_MESSAGE = 'Этот поддомен зарезервирован. Для возможности его использования обратитесь к администратору через «Связаться».';
+
+function validateSubdomain(val) {
+    const s = (val || '').toLowerCase().trim();
+    if (!s || s.length < 2) return { ok: false, msg: 'Поддомен должен быть не короче 2 символов.' };
+    if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/.test(s)) return { ok: false, msg: 'Поддомен: только латинские буквы, цифры и дефис.' };
+    if (RESERVED_SUBDOMAINS.includes(s)) return { ok: false, msg: RESERVED_SUBDOMAIN_MESSAGE };
+    return { ok: true, subdomain: s };
+}
+
+async function fillStoreSettingsPage() {
+    const user = firebase.auth().currentUser;
+    if (!user) return;
+
+    const storeRef = firebase.database().ref('users/' + user.uid + '/store');
+    const productsRef = firebase.database().ref('users/' + user.uid + '/storeProducts');
+
+    const storeSnap = await storeRef.once('value');
+    const productsSnap = await productsRef.once('value');
+    const store = storeSnap.val();
+    const raw = productsSnap.val();
+    const storeProducts = raw && typeof raw === 'object' ? (Array.isArray(raw) ? raw : Object.values(raw)) : [];
+
+    const subdomainWrap = document.getElementById('storeSubdomainWrap');
+    const subdomainReadonly = document.getElementById('storeSubdomainReadonly');
+    const subdomainInput = document.getElementById('storeSubdomainInput');
+    const subdomainDisplay = document.getElementById('storeSubdomainDisplay');
+    const storeLinkWrap = document.getElementById('storeLinkWrap');
+    const storeLink = document.getElementById('storeLink');
+
+    const hasStore = store && store.subdomain;
+
+    if (hasStore) {
+        subdomainWrap.classList.add('hidden');
+        subdomainReadonly.classList.remove('hidden');
+        subdomainDisplay.textContent = store.subdomain;
+        storeLinkWrap.classList.remove('hidden');
+        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const host = isLocal ? window.location.host : 'my-3d-print.ru';
+        const href = isLocal
+            ? `${window.location.protocol}//${host}/store.html?store=${store.subdomain}`
+            : `https://${store.subdomain}.${host}`;
+        storeLink.href = href;
+        storeLink.textContent = isLocal ? href : `${store.subdomain}.${host}`;
+    } else {
+        subdomainWrap.classList.remove('hidden');
+        subdomainReadonly.classList.add('hidden');
+        subdomainInput.value = '';
+        storeLinkWrap.classList.add('hidden');
+    }
+
+    document.getElementById('storeTitleInput').value = (store && store.title) || '';
+    document.getElementById('storeDescInput').value = (store && store.description) || '';
+    document.getElementById('storeEnabledInput').checked = !(store && store.enabled === false);
+    document.getElementById('storeContactEmailInput').value = (store && store.contactEmail) || '';
+    document.getElementById('storeContactTelegramInput').value = (store && store.contactTelegram) || '';
+
+    const tbody = document.querySelector('#storeProductsTable tbody');
+
+    tbody.innerHTML = storeProducts.map((sp, idx) => {
+        const name = (sp.name && String(sp.name).trim()) ? escapeHtml(sp.name) : (sp.productId ? (() => { const p = db.products.find(x => x.id == sp.productId); return p ? escapeHtml(p.name) : `ID: ${sp.productId}`; })() : '—');
+        const price = (sp.price != null && sp.price !== '') ? parseFloat(sp.price).toFixed(2) : '—';
+        return `<tr><td>${name}</td><td>${price}</td><td><button type="button" class="btn-secondary btn-small" onclick="removeStoreProduct(${idx})">Удалить</button></td></tr>`;
+    }).join('') || '<tr><td colspan="3" style="color:#64748b;">Товаров нет. Нажмите «Добавить товар».</td></tr>';
+
+    document.getElementById('storeAddProductBtn').disabled = !hasStore;
+}
+
+async function saveStoreSettings() {
+    const user = firebase.auth().currentUser;
+    if (!user) return;
+
+    const subdomainWrap = document.getElementById('storeSubdomainWrap');
+    const subdomainReadonly = document.getElementById('storeSubdomainReadonly');
+    const subdomainInput = document.getElementById('storeSubdomainInput');
+    const storeRef = firebase.database().ref('users/' + user.uid + '/store');
+    const storeSnap = await storeRef.once('value');
+    const existingStore = storeSnap.val();
+    const hasStore = existingStore && existingStore.subdomain;
+
+    let subdomain = hasStore ? existingStore.subdomain : null;
+    if (!hasStore) {
+        const val = validateSubdomain(subdomainInput ? subdomainInput.value : '');
+        if (!val.ok) { showToast(val.msg, 'error'); return; }
+        subdomain = val.subdomain;
+        const subRef = firebase.database().ref('storesBySubdomain/' + subdomain);
+        const subSnap = await subRef.once('value');
+        const subData = subSnap.val();
+        if (subData && subData.ownerUid && subData.ownerUid !== user.uid) {
+            showToast('Этот поддомен уже занят.', 'error');
+            return;
+        }
+    }
+
+    const now = new Date().toISOString();
+    const storeData = {
+        subdomain,
+        title: (document.getElementById('storeTitleInput') && document.getElementById('storeTitleInput').value) || '',
+        description: (document.getElementById('storeDescInput') && document.getElementById('storeDescInput').value) || '',
+        enabled: document.getElementById('storeEnabledInput') ? document.getElementById('storeEnabledInput').checked : true,
+        contactEmail: (document.getElementById('storeContactEmailInput') && document.getElementById('storeContactEmailInput').value) || '',
+        contactTelegram: (document.getElementById('storeContactTelegramInput') && document.getElementById('storeContactTelegramInput').value) || '',
+        updatedAt: now
+    };
+    if (!existingStore) storeData.createdAt = now;
+
+    try {
+        if (!hasStore) {
+            await firebase.database().ref('storesBySubdomain/' + subdomain).set({ ownerUid: user.uid });
+        }
+        await storeRef.set(storeData);
+        showToast('Настройки сохранены', 'success');
+        fillStoreSettingsPage();
+    } catch (e) {
+        showToast('Ошибка: ' + e.message, 'error');
+    }
+}
+
+function openAddStoreProductModal() {
+    const select = document.getElementById('addStoreProductSelect');
+    const nameInput = document.getElementById('addStoreProductName');
+    const priceInput = document.getElementById('addStoreProductPrice');
+    if (!select || !nameInput || !priceInput) return;
+
+    const storeProductsRef = firebase.database().ref('users/' + firebase.auth().currentUser.uid + '/storeProducts');
+    storeProductsRef.once('value').then((snap) => {
+        const raw = snap.val();
+        const storeProducts = raw && typeof raw === 'object' ? (Array.isArray(raw) ? raw : Object.values(raw)) : [];
+        const usedIds = new Set(storeProducts.map(sp => sp.productId).filter(Boolean));
+
+        const rootProducts = db.products.filter(p => p.type !== 'Часть составного' && !p.isDraft);
+        const inStock = rootProducts.filter(p => (p.status === 'В наличии полностью' || p.status === 'В наличии частично') && !usedIds.has(p.id));
+
+        select.innerHTML = '<option value="">— Не привязано к изделию —</option>' + inStock.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+        select.onchange = function() {
+            const id = this.value ? parseInt(this.value) : null;
+            const p = id ? db.products.find(x => x.id === id) : null;
+            nameInput.value = p ? (p.name || '') : '';
+        };
+        nameInput.value = '';
+        priceInput.value = '';
+        document.getElementById('addStoreProductModal').classList.add('active');
+    });
+}
+
+async function confirmAddStoreProduct() {
+    const user = firebase.auth().currentUser;
+    if (!user) return;
+
+    const select = document.getElementById('addStoreProductSelect');
+    const nameInput = document.getElementById('addStoreProductName');
+    const priceInput = document.getElementById('addStoreProductPrice');
+    const productId = select && select.value ? parseInt(select.value) : null;
+    const name = nameInput ? String(nameInput.value || '').trim() : '';
+    const price = priceInput ? parseFloat(priceInput.value) || 0 : 0;
+
+    if (!name) { showToast('Укажите наименование для магазина', 'error'); return; }
+    if (price <= 0) { showToast('Укажите цену', 'error'); return; }
+
+    const productsRef = firebase.database().ref('users/' + user.uid + '/storeProducts');
+    const snap = await productsRef.once('value');
+    const raw = snap.val();
+    const arr = raw && typeof raw === 'object' ? (Array.isArray(raw) ? raw : Object.values(raw)) : [];
+    const item = { name, price: price, inCatalog: true };
+    if (productId) item.productId = productId;
+    arr.push(item);
+    await productsRef.set(arr);
+    document.getElementById('addStoreProductModal').classList.remove('active');
+    showToast('Товар добавлен в каталог', 'success');
+    fillStoreSettingsPage();
+}
+
+async function removeStoreProduct(index) {
+    const user = firebase.auth().currentUser;
+    if (!user) return;
+    if (!confirm('Удалить товар из каталога?')) return;
+
+    const productsRef = firebase.database().ref('users/' + user.uid + '/storeProducts');
+    const snap = await productsRef.once('value');
+    const raw = snap.val();
+    const arr = raw && typeof raw === 'object' ? (Array.isArray(raw) ? raw : Object.values(raw)) : [];
+    arr.splice(index, 1);
+    await productsRef.set(arr);
+    showToast('Товар удалён из каталога', 'success');
+    fillStoreSettingsPage();
+}
 
 function initProfileCabinetHandlers() {
     const input = document.getElementById('profileImageInput');
@@ -1103,7 +1299,7 @@ function updateAllDates() {
 
 
 
-const VALID_PAGE_IDS = ['dashboard', 'products', 'writeoff', 'filament', 'service', 'reports', 'references', 'profile'];
+const VALID_PAGE_IDS = ['dashboard', 'products', 'writeoff', 'filament', 'service', 'reports', 'references', 'profile', 'myStore'];
 
 function showPage(id) {
     if (!id || !VALID_PAGE_IDS.includes(id)) return;
@@ -1116,6 +1312,7 @@ function showPage(id) {
         if(btn.dataset.page === id) btn.classList.add('active');
     });
     if (id === 'profile') fillProfilePage();
+    if (id === 'myStore') fillStoreSettingsPage();
     try { localStorage.setItem('appLastPage', id); } catch (e) {}
 }
 

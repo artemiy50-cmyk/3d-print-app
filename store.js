@@ -27,14 +27,14 @@
     /**
      * Определяет поддомен по hostname.
      * app.my-3d-print.ru → Manager (не Store)
-     * ivan-shop.my-3d-print.ru → "ivan-shop"
+     * test-shop.my-3d-print.ru → "test-shop"
      * localhost / 127.0.0.1 → для dev-режима поддержка ?store=subdomain
      */
     function getSubdomain() {
         const hostname = window.location.hostname;
         const params = new URLSearchParams(window.location.search);
 
-        // Dev: ?store=ivan-shop или #store=ivan-shop (hash переживает редирект 301)
+        // Dev: ?store=test-shop или #store=test-shop (hash переживает редирект 301)
         if (hostname === 'localhost' || hostname === '127.0.0.1') {
             const fromQuery = params.get('store');
             if (fromQuery) return fromQuery;
@@ -132,8 +132,8 @@
 
         if (!subdomain) {
             showState('notFound', {
-                reason: 'Откройте страницу по адресу вида: {subdomain}.my-3d-print.ru (например, ivan-shop.my-3d-print.ru). ' +
-                    'В режиме разработки: store.html?store=ivan-shop'
+                reason: 'Откройте страницу по адресу вида: {subdomain}.my-3d-print.ru (например, test-shop.my-3d-print.ru). ' +
+                    'В режиме разработки: store.html?store=test-shop'
             });
             updateHeader('Магазин', 'Поддомен не указан');
             return;
