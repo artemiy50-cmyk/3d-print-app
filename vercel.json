@@ -1,9 +1,0 @@
-{
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html",
-      "has": [{ "type": "host", "value": "app.my-3d-print.ru" }]
-    }
-  ]
-}

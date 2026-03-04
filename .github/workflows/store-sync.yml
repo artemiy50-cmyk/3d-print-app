@@ -1,0 +1,78 @@
+# Store Sync — копирует store.html, store.js, style.css в deploy-репо
+# Триггер: push в main (при изменении store-файлов) или ручной запуск
+
+name: Store Sync to Deploy Repos
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'store.html'
+      - 'store.js'
+      - 'style.css'
+      - 'store-deploy-config.json'
+      - '.github/workflows/store-sync.yml'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup config
+        id: cfg
+        run: |
+          if [ ! -f store-deploy-config.json ]; then
+            echo "store-deploy-config.json not found, skipping"
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "skip=false" >> $GITHUB_OUTPUT
+          cat store-deploy-config.json
+
+      - name: Sync to deploy repos
+        if: steps.cfg.outputs.skip != 'true'
+        env:
+          PAT: ${{ secrets.STORE_SYNC_TOKEN }}
+        run: |
+          set -e
+          git config --global user.email "store-sync@github-actions"
+          git config --global user.name "Store Sync"
+
+          REPOS=$(jq -r '.deployRepos[] | "\(.repo)|\(.subdomain)"' store-deploy-config.json)
+          DOMAIN="my-3d-print.ru"
+
+          for entry in $REPOS; do
+            REPO="${entry%|*}"
+            SUB="${entry#*|}"
+            echo "--- Syncing to $REPO (subdomain: $SUB) ---"
+
+            # Клонируем deploy-репо
+            git clone "https://x-access-token:${PAT}@github.com/${REPO}.git" deploy-tmp
+            cd deploy-tmp
+
+            # Копируем файлы
+            cp ../store.html index.html
+            cp ../store.js store.js
+            cp ../style.css style.css
+            [ -f ../favicon.ico ] && cp ../favicon.ico favicon.ico || true
+
+            # CNAME для GitHub Pages
+            echo "${SUB}.${DOMAIN}" > CNAME
+
+            # Коммит и пуш (поддержка пустого deploy-репо)
+            git checkout -b main 2>/dev/null || git checkout main
+            git add -A
+            if git diff --staged --quiet; then
+              echo "No changes for $REPO"
+            else
+              git commit -m "Sync Store from main repo [skip ci]"
+              git push -u origin main
+            fi
+
+            cd ..
+            rm -rf deploy-tmp
+          done
+
+          echo "Sync complete."
