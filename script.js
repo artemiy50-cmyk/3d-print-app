@@ -253,6 +253,26 @@ function showToast(message, type) {
 // Глобальная переменная для текущего пользователя
 let currentUser = null;
 
+// ==================== Вспомогательные функции для дат ====================
+function formatDateOnly(dateStr) {
+    if (!dateStr) return '';
+    return dateStr.substring(0, 10);
+}
+
+function mergeDateWithTime(inputDate, existingDateTimeStr) {
+    if (!inputDate) {
+        const now = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+    }
+    if (existingDateTimeStr && existingDateTimeStr.substring(0, 10) === inputDate) {
+        return existingDateTimeStr;
+    }
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${inputDate}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+}
+
 try {
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
@@ -1341,7 +1361,7 @@ function recalculateAllProductCosts() {
 
 
 function updateAllDates() {
-    const today = new Date().toISOString().split('T')[0];
+    const today = formatDateOnly(mergeDateWithTime(null));
     // [FIX] Добавлен 'serviceDate' для автоматического заполнения
     ['filamentDate','productDate','writeoffDate','serviceDate'].forEach(id => {
         const el = document.getElementById(id); 
@@ -1726,7 +1746,7 @@ function updateDashboard() {
     document.querySelector('#dashFilamentTable tbody').innerHTML = filamentsSorted.map(f => {
         const rem = Math.max(0, (f.length || 0) - (f.usedLength || 0));
         const rowClass = (rem < 50) ? 'row-bg-danger' : '';
-        return `<tr class="${rowClass}"><td><span class="color-swatch" style="background:${f.color ? f.color.hex : '#eee'}"></span>${f.color ? escapeHtml(f.color.name) : '-'}</td><td>${f.date}</td><td>${escapeHtml(f.brand)}</td><td>${escapeHtml(f.type)}</td><td>${rem.toFixed(1)}</td><td>${(f.actualPrice||0).toFixed(2)} ₽</td></tr>`;
+        return `<tr class="${rowClass}"><td><span class="color-swatch" style="background:${f.color ? f.color.hex : '#eee'}"></span>${f.color ? escapeHtml(f.color.name) : '-'}</td><td>${formatDateOnly(f.date)}</td><td>${escapeHtml(f.brand)}</td><td>${escapeHtml(f.type)}</td><td>${rem.toFixed(1)}</td><td>${(f.actualPrice||0).toFixed(2)} ₽</td></tr>`;
     }).join('');
 
 
@@ -1766,7 +1786,7 @@ function updateDashboard() {
 
         return `<tr>
             <td ${nameEvents(p.id)}><strong>${escapeHtml(p.name)}</strong></td>
-            <td>${p.date}</td>
+            <td>${formatDateOnly(p.date)}</td>
             <td>${colorHtml}</td>
             <td>${p.inStock}</td>
             <td><span class="badge ${badgeClass}" style="${statusStyle}">${escapeHtml(p.status)}</span></td>
@@ -1776,19 +1796,19 @@ function updateDashboard() {
     const sales = db.writeoffs.filter(w => w.type === 'Продажа');
     document.getElementById('dashSoldCount').textContent = sales.reduce((sum, w) => sum + w.qty, 0);
     const lastSales = [...sales].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
-    document.querySelector('#dashSalesTable tbody').innerHTML = lastSales.map(w => `<tr><td ${nameEvents(w.productId)}>${escapeHtml(w.productName)}</td><td>${w.date}</td><td>${w.qty}</td><td>${(w.price||0).toFixed(2)}</td><td>${(w.total||0).toFixed(2)}</td><td><span class="badge badge-success">Продажа</span></td></tr>`).join('');
+    document.querySelector('#dashSalesTable tbody').innerHTML = lastSales.map(w => `<tr><td ${nameEvents(w.productId)}>${escapeHtml(w.productName)}</td><td>${formatDateOnly(w.date)}</td><td>${w.qty}</td><td>${(w.price||0).toFixed(2)}</td><td>${(w.total||0).toFixed(2)}</td><td><span class="badge badge-success">Продажа</span></td></tr>`).join('');
 
     const used = db.writeoffs.filter(w => w.type === 'Использовано');
     document.getElementById('dashUsedCount').textContent = used.reduce((sum, w) => sum + w.qty, 0);
     const lastUsed = [...used].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
-    document.querySelector('#dashUsedTable tbody').innerHTML = lastUsed.map(w => `<tr><td ${nameEvents(w.productId)}>${escapeHtml(w.productName)}</td><td>${w.date}</td><td>${w.qty}</td><td>${escapeHtml(w.note || '')}</td><td><span class="badge badge-purple">Использовано</span></td></tr>`).join('');
+    document.querySelector('#dashUsedTable tbody').innerHTML = lastUsed.map(w => `<tr><td ${nameEvents(w.productId)}>${escapeHtml(w.productName)}</td><td>${formatDateOnly(w.date)}</td><td>${w.qty}</td><td>${escapeHtml(w.note || '')}</td><td><span class="badge badge-purple">Использовано</span></td></tr>`).join('');
 
     const indepProds = db.products.filter(p => p.type !== 'Часть составного');
     const defProds = indepProds.filter(p => p.defective).map(p=>({productId: p.id, name: p.name, date: p.date, qty: p.quantity, note: p.note, ts: new Date(p.date).getTime()}));
     const defWrites = db.writeoffs.filter(w => w.type === 'Брак').map(w=>({productId: w.productId, name: w.productName, date: w.date, qty: w.qty, note: w.note, ts: new Date(w.date).getTime()}));
     const allDef = [...defProds, ...defWrites].sort((a, b) => b.ts - a.ts).slice(0, 5);
     document.getElementById('dashDefectiveCount').textContent = allDef.reduce((s, i) => s + i.qty, 0);
-    document.querySelector('#dashDefectiveTable tbody').innerHTML = allDef.map(i => `<tr><td ${nameEvents(i.productId)}>${escapeHtml(i.name)}</td><td>${i.date}</td><td>${i.qty}</td><td>${escapeHtml(i.note || '')}</td><td><span class="badge badge-danger">Брак</span></td></tr>`).join('');
+    document.querySelector('#dashDefectiveTable tbody').innerHTML = allDef.map(i => `<tr><td ${nameEvents(i.productId)}>${escapeHtml(i.name)}</td><td>${formatDateOnly(i.date)}</td><td>${i.qty}</td><td>${escapeHtml(i.note || '')}</td><td><span class="badge badge-danger">Брак</span></td></tr>`).join('');
 }
 
 
@@ -1858,7 +1878,7 @@ function clearFilamentForm() {
     document.getElementById('filamentType').value = '';
     document.getElementById('filamentAvgPrice').value = ''; document.getElementById('filamentActualPrice').value = ''; document.getElementById('filamentNote').value = '';
     document.getElementById('filamentBrand').value = ''; document.getElementById('filamentColorPreview').style.background = '#ffffff'; document.getElementById('filamentAvailability').value = 'В наличии';
-    document.getElementById('filamentWeight').value = '1000'; document.getElementById('filamentLength').value = '330'; document.getElementById('filamentDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('filamentWeight').value = '1000'; document.getElementById('filamentLength').value = '330'; document.getElementById('filamentDate').value = formatDateOnly(mergeDateWithTime(null));
     document.getElementById('filamentValidationMessage').classList.add('hidden'); document.getElementById('filamentUniqueIdMessage').classList.add('hidden');
     document.querySelectorAll('#filamentModal input, #filamentModal select').forEach(el => el.classList.remove('error'));
     document.querySelectorAll('#filamentModal input, #filamentModal select, #filamentModal textarea').forEach(el => el.disabled = false);
@@ -2549,7 +2569,7 @@ function clearProductForm() {
     
     const printers = db.printers || [];
     setVal('productPrinter', printers.length > 0 ? printers[0].id : ''); 
-    setVal('productDate', new Date().toISOString().split('T')[0]);
+    setVal('productDate', formatDateOnly(mergeDateWithTime(null)));
     
     setVal('productParent', ''); 
     setText('productStockCalc', '1 шт.'); 
@@ -2799,14 +2819,14 @@ async function copyProduct(id) {
         }
         
         const now = new Date();
-        const dateStr = now.toISOString().split('T')[0];
+        const dateStr = formatDateOnly(mergeDateWithTime(null));
         
         // --- Подготовка Родителя ---
         const newParent = JSON.parse(JSON.stringify(p));
         newParent.id = now.getTime();
         newParent.systemId = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
         newParent.name = p.name + ' (Копия)';
-        newParent.date = dateStr;
+        newParent.date = mergeDateWithTime(dateStr, null);
         newParent.inStock = p.quantity;
         newParent.allPartsCreated = false;
         newParent.defective = false;
@@ -2825,7 +2845,7 @@ async function copyProduct(id) {
             newChild.id = childNow.getTime() + index + 1;
             newChild.systemId = `${childNow.getFullYear()}${String(childNow.getMonth()+1).padStart(2,'0')}${String(childNow.getDate()).padStart(2,'0')}${String(childNow.getHours()).padStart(2,'0')}${String(childNow.getMinutes()).padStart(2,'0')}${String(childNow.getSeconds()+index+1).padStart(2,'0')}`;
             newChild.parentId = newParent.id;
-            newChild.date = dateStr;
+            newChild.date = mergeDateWithTime(dateStr, null);
             newChild.inStock = newChild.quantity;
             newChild.defective = false;
             newChild.status = determineProductStatus(newChild);
@@ -2897,7 +2917,7 @@ async function copyProduct(id) {
 
         document.getElementById('productName').value = p.name + ' (Копия)';
         document.getElementById('productLink').value = p.link || '';
-        document.getElementById('productDate').value = new Date().toISOString().split('T')[0];
+        document.getElementById('productDate').value = formatDateOnly(mergeDateWithTime(null));
         document.getElementById('productWeight').value = p.weight;
         document.getElementById('productLength').value = p.length;
         document.getElementById('productPrintTimeHours').value = Math.floor(p.printTime/60);
@@ -3166,10 +3186,10 @@ function editProduct(id) {
     if (validationMessage) validationMessage.classList.add('hidden');
     document.querySelectorAll('#productModal input, #productModal select').forEach(el => el.classList.remove('error'));
 
-    const fieldsToFill = [ 
+        const fieldsToFill = [ 
 		{ id: 'productName', value: p.name }, 
 		{ id: 'productLink', value: p.link || '' }, 
-		{ id: 'productDate', value: p.date }, 
+		{ id: 'productDate', value: formatDateOnly(p.date) }, 
 		{ id: 'productQuantity', value: p.quantity }, 
 		{ id: 'productWeight', value: p.weight || '' }, 
 		{ id: 'productLength', value: p.length || '' }, 
@@ -3264,7 +3284,7 @@ function editProduct(id) {
             const prepared = productWriteoffs.filter(w => w.type === 'Подготовлено к продаже').sort((a,b) => new Date(b.date) - new Date(a.date));
             
             const renderLink = (w) => {
-                let details = `${w.date} | ${w.type} | ${w.qty} шт.`;
+                let details = `${formatDateOnly(w.date)} | ${w.type} | ${w.qty} шт.`;
                 if (w.type === 'Продажа') details += ` | ${w.total.toFixed(2)} ₽`;
                 const safeId = escapeHtml(String(w.systemId || ''));
                 return `<a class="writeoff-link-item" data-writeoff-id="${safeId}" onclick="closeProductModal(); var _el=this; setTimeout(function(){editWriteoff(_el.getAttribute('data-writeoff-id'));}, 200);">${escapeHtml(details)}</a>`;
@@ -3428,7 +3448,7 @@ async function saveProduct(andThenWriteOff = false, andThenEditProductId = null,
     const p = { 
         name: document.getElementById('productName').value, 
         systemId: eid ? document.getElementById('productModal').getAttribute('data-system-id') : document.getElementById('productSystemId').textContent, 
-        date: document.getElementById('productDate').value, 
+        date: mergeDateWithTime(document.getElementById('productDate').value, eid ? (db.products.find(x => x.id == parseInt(eid)) || {}).date : null), 
         link: document.getElementById('productLink').value, 
         quantity: qty, 
         weight: parseFloat(document.getElementById('productWeight').value) || 0, 
@@ -3817,8 +3837,8 @@ function buildProductRow(p, isChild) {
                     const plainType = `<strong>${escapeHtml(w.type)}</strong>`;
                     
                     let linkText = w.type === 'Продажа' 
-                        ? `${w.date} ${plainType}: ${w.qty} шт. х ${w.price.toFixed(2)} ₽ = ${w.total.toFixed(2)} ₽`
-                        : `${w.date} ${plainType}: ${w.qty} шт.`;
+                        ? `${formatDateOnly(w.date)} ${plainType}: ${w.qty} шт. х ${w.price.toFixed(2)} ₽ = ${w.total.toFixed(2)} ₽`
+                        : `${formatDateOnly(w.date)} ${plainType}: ${w.qty} шт.`;
 
                     const style = w.type === 'Подготовлено к продаже' ? 'color: #94a3b8;' : '';
                     const safeId = escapeHtml(String(w.systemId || ''));
@@ -3862,7 +3882,7 @@ function buildProductRow(p, isChild) {
     return `<tr class="${isChild ? 'product-child-row' : rowBgClass}">
         <td style="padding-left:12px;">${nameHtml}</td>
         <td class="text-center">${fileIconHtml}</td>
-        <td style="width: 110px;">${p.date}</td>
+        <td style="width: 110px;">${formatDateOnly(p.date)}</td>
         <td>${fil}</td>
         <td>${formattedTime}</td>
         <td>${weight.toFixed(1)}</td>
@@ -4287,7 +4307,7 @@ function updateFilamentsTable() {
 
         return `<tr class="${rowClass}">
             <td style="cursor:pointer" onclick="editFilament(${f.id})">${cellContent}</td>
-            <td>${f.date}</td>
+            <td>${formatDateOnly(f.date)}</td>
             <td><span class="badge ${badge}">${escapeHtml(f.availability)}</span></td>
             <td><span class="color-swatch" style="background:${f.color ? f.color.hex : '#eee'}"></span>${f.color ? escapeHtml(f.color.name) : '-'}</td>
             <td>${escapeHtml(f.brand)}</td>
@@ -4358,7 +4378,7 @@ function generateProductOptionLabel(product) {
     } else if (product.filament && product.filament.color) {
         colorText = ` (${escapeHtml(product.filament.color.name)})`;
     }
-    const infoText = `. Изготовлено: ${product.date}, в кол-ве: ${product.quantity}, остаток: ${product.inStock}`;
+    const infoText = `. Изготовлено: ${formatDateOnly(product.date)}, в кол-ве: ${product.quantity}, остаток: ${product.inStock}`;
     return `${escapeHtml(product.name)}${colorText}${infoText}`;
 }
 
@@ -4417,7 +4437,7 @@ function openWriteoffModal(systemId = null) {
         const items = db.writeoffs.filter(w => w.systemId === systemId);
         const first = items[0];
         document.getElementById('writeoffSystemId').textContent = first.systemId;
-        document.getElementById('writeoffDate').value = first.date;
+        document.getElementById('writeoffDate').value = formatDateOnly(first.date);
         document.getElementById('writeoffType').value = first.type;
         document.getElementById('writeoffNote').value = first.note;
         document.getElementById('writeoffItemsContainer').innerHTML = '';
@@ -4431,7 +4451,7 @@ function openWriteoffModal(systemId = null) {
         const now = new Date();
         const genId = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
         document.getElementById('writeoffSystemId').textContent = genId;
-        document.getElementById('writeoffDate').value = now.toISOString().split('T')[0];
+        document.getElementById('writeoffDate').value = formatDateOnly(mergeDateWithTime(null));
         document.getElementById('writeoffType').value = 'Продажа';
         document.getElementById('writeoffNote').value = '';
         document.getElementById('writeoffItemsContainer').innerHTML = '';
@@ -5366,9 +5386,17 @@ async function saveWriteoff(closeAfter) {
     if (isEdit) {
         const oldItem = db.writeoffs.find(w => w.systemId === editGroup);
         if (oldItem && oldItem.type === 'Подготовлено к продаже' && type !== 'Подготовлено к продаже') {
-            date = new Date().toISOString().split('T')[0];
+            date = formatDateOnly(mergeDateWithTime(null));
             document.getElementById('writeoffDate').value = date;
         }
+    }
+
+    let finalDateToSave;
+    if (isEdit) {
+        const oldItem = db.writeoffs.find(w => w.systemId === editGroup);
+        finalDateToSave = mergeDateWithTime(date, oldItem ? oldItem.date : null);
+    } else {
+        finalDateToSave = mergeDateWithTime(date, null);
     }
 
     const sections = document.querySelectorAll('.writeoff-item-section');
@@ -5446,7 +5474,7 @@ async function saveWriteoff(closeAfter) {
             newItems.push({
                 id: Date.now() + i, 
                 systemId: systemId,
-                date: date,
+                date: finalDateToSave,
                 productId: parseInt(pid),
                 productName: product ? product.name : 'Unknown',
                 type: type,
@@ -5704,7 +5732,7 @@ function updateWriteoffTable() {
         const nameEvents = w.productId ? `onmouseenter="showProductImagePreview(this, ${w.productId})" onmousemove="moveProductImagePreview(event)" onmouseleave="hideProductImagePreview(this)" onclick="editWriteoff('${escapeHtml(String(w.systemId || ''))}')"` : `onclick="editWriteoff('${escapeHtml(String(w.systemId || ''))}')"`;
 
         return `<tr data-doc-group="${docColor}">
-            <td><span class="writeoff-doc-badge writeoff-doc-badge--${docColor}">${escapeHtml(w.date)}</span></td>
+            <td><span class="writeoff-doc-badge writeoff-doc-badge--${docColor}">${escapeHtml(formatDateOnly(w.date))}</span></td>
             <td class="writeoff-id-cell" data-system-id="${escapeHtml(String(w.systemId || ''))}" onclick="editWriteoff(this.getAttribute('data-system-id'))" title="Открыть в режиме редактирования"><span class="writeoff-doc-badge writeoff-doc-badge--${docColor}">${escapeHtml(w.systemId)}</span></td>
             <td ${nameEvents} style="cursor:pointer"><strong>${escapeHtml(w.productName)}</strong></td>
             <td><span class="badge ${statusBadge}">${escapeHtml(w.type)}</span></td>
@@ -5739,7 +5767,7 @@ function copyWriteoffItem(rowId) {
     
     document.getElementById('writeoffNote').value = ''; // <--- ИЗМЕНЕНО: Очистка комментария
     
-    document.getElementById('writeoffDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('writeoffDate').value = formatDateOnly(mergeDateWithTime(null));
     
     updateWriteoffTypeUI();
 
@@ -5894,7 +5922,7 @@ function updateReports() {
         startInput.value = `${prevYear}-01-01`;
     }
     if (!endInput.value) {
-        endInput.value = new Date().toISOString().split('T')[0];
+        endInput.value = formatDateOnly(mergeDateWithTime(null));
     }
 
     updateFinancialReport();
@@ -6573,7 +6601,7 @@ function openServiceModal(id = null) {
         modal.removeAttribute('data-edit-id');
         document.querySelector('#serviceModal .modal-header-title').textContent = 'Добавить сервисный расход';
         
-        document.getElementById('serviceDate').value = new Date().toISOString().split('T')[0];
+        document.getElementById('serviceDate').value = formatDateOnly(mergeDateWithTime(null));
         document.getElementById('serviceNameInput').value = '';
         document.getElementById('serviceQty').value = '1';
         document.getElementById('servicePrice').value = '';
@@ -6718,7 +6746,7 @@ function copyService(id) {
 
     openServiceModal(); 
     
-    document.getElementById('serviceDate').value = new Date().toISOString().split('T')[0]; 
+    document.getElementById('serviceDate').value = formatDateOnly(mergeDateWithTime(null)); 
     document.getElementById('serviceNameInput').value = item.name;
     document.getElementById('serviceQty').value = item.qty;
     document.getElementById('servicePrice').value = item.price;
@@ -6767,7 +6795,7 @@ function updateServiceTable() {
 
         return `
         <tr>
-            <td>${x.date}</td>
+            <td>${formatDateOnly(x.date)}</td>
             <td>${escapeHtml(x.name)}</td>
             <td>${x.qty}</td>
             <td>${x.price.toFixed(2)}</td>
