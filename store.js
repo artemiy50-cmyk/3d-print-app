@@ -1,6 +1,6 @@
 /**
  * Store SPA — публичный лайт-магазин на поддомене.
- * Документ плана: store_landing_feature_bf77f04f.plan.md
+ * См. STORE_GITHUB_PAGES_PLAN.md, STORE_MIGRATE_GITHUB_STEPS.md
  *
  * Резолв поддомена:
  * location.hostname.split('.')[0] → storesBySubdomain/{subdomain} → ownerUid → store, storeProducts

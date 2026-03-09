@@ -1,0 +1,9 @@
+{
+  "deployRepos": [
+    {
+      "repo": "artemiy50-cmyk/store-test-shop",
+      "subdomain": "test-shop"
+    }
+  ],
+  "githubPagesBase": "artemiy50-cmyk.github.io"
+}
