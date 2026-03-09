@@ -3022,6 +3022,121 @@ window.addChildPart = function(parentId) {
 
 
 
+function applyProductFormLocks(p) {
+    const productId = p.id;
+    const draftCb = document.getElementById('productIsDraft');
+    const validationMessage = document.getElementById('productValidationMessage');
+
+    // Разблокировка всех полей по умолчанию
+    const allInputs = document.querySelectorAll('#productModal input, #productModal select, #productModal textarea, #productModal button.btn-primary, #productModal button.btn-add-section');
+    allInputs.forEach(el => {
+        // Не разблокируем кнопки сохранения/закрытия, они управляются отдельно
+        if (['saveProductBtn', 'saveProductAndCloseBtn', 'closeProductModalBtn'].includes(el.id)) return;
+        el.disabled = false;
+        el.style.opacity = '';
+        el.style.cursor = '';
+        if(el.tagName === 'BUTTON') el.title = "";
+    });
+
+    // Логика блокировок для составных полей (филамент и т.д.)
+    if (p.type === 'Составное') {
+        const compositeLockedFields = ['productFilament','productPrinter','productPrintTimeHours','productPrintTimeMinutes','productWeight','productLength'];
+        compositeLockedFields.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.disabled = true;
+        });
+    }
+
+    // === ПРОВЕРКА УСЛОВИЙ БЛОКИРОВКИ ===
+    let hasWriteoffs = db.writeoffs && db.writeoffs.some(w => w.productId === productId);
+    // Проверка списаний у родителя (для частей)
+    if (!hasWriteoffs && p.type === 'Часть составного' && p.parentId) {
+        if (db.writeoffs.some(w => w.productId === p.parentId)) hasWriteoffs = true;
+    }
+
+    let isChildOfDefectiveParent = false;
+    let isChildOfCompletedParent = false; 
+    let hasDefectiveChild = false; 
+
+    if (p.type === 'Часть составного' && p.parentId) {
+        const parent = db.products.find(x => x.id === p.parentId);
+        if (parent) {
+            if(parent.defective) isChildOfDefectiveParent = true;
+            if(parent.allPartsCreated) isChildOfCompletedParent = true;
+        }
+    }
+    
+    if (p.type === 'Составное') {
+        const children = db.products.filter(child => child.parentId === p.id);
+        if (children.some(child => child.defective)) {
+            hasDefectiveChild = true;
+        }
+    }
+
+    let lockReason = '';
+    const mediaFields = ['productImageInput', 'productFileInput'];
+	
+    // 1. Блокировка Черновика, если есть списания
+    if (hasWriteoffs) {
+        if (draftCb) {
+            draftCb.disabled = true;
+            draftCb.setAttribute('data-locked-by-system', 'true');
+        }
+        
+        allInputs.forEach(el => {
+            if (!['productNote', 'productDefective', ...mediaFields].includes(el.id) && !['saveProductBtn', 'saveProductAndCloseBtn', 'closeProductModalBtn'].includes(el.id)) el.disabled = true;
+        });
+        lockReason = 'Редактирование ограничено: есть списания.';
+    }
+
+    // 2. Блокировка Черновика, если есть бракованные дети (хинт — в tooltip при наведении). Скрыть блок черновика, если изделие в браке (составное или самостоятельное)
+    const draftTooltipWrap = document.getElementById('productDraftTooltipWrap');
+    if (p.defective) {
+        if (draftTooltipWrap) draftTooltipWrap.style.display = 'none';
+    } else {
+        if (draftTooltipWrap) draftTooltipWrap.style.display = '';
+        if (hasDefectiveChild) {
+            if (draftCb) {
+                draftCb.disabled = true; 
+                draftCb.setAttribute('data-locked-by-system', 'true');
+            }
+            const draftTooltip = document.getElementById('productDraftTooltipText');
+            if (draftTooltip) { draftTooltip.textContent = 'Статус "Черновик" недоступен: одна из частей изделия в браке.'; draftTooltip.classList.add('draft-tooltip-active'); }
+        } else if (p.type !== 'Часть составного') {
+            const draftTooltip = document.getElementById('productDraftTooltipText');
+            if (draftTooltip) {
+                draftTooltip.textContent = 'Поставьте галочку «Черновик», чтобы рассчитать себестоимость без списания филамента со склада.';
+                draftTooltip.classList.add('draft-tooltip-active');
+            }
+        }
+    }
+
+    // Стандартные блокировки
+    if (p.defective) {
+        allInputs.forEach(el => {
+            if (!['productNote', 'productDefective', ...mediaFields].includes(el.id) && !['saveProductBtn', 'saveProductAndCloseBtn', 'closeProductModalBtn'].includes(el.id)) el.disabled = true;
+        });
+        lockReason = lockReason || 'Редактирование ограничено: изделие в браке.';
+    } else if (isChildOfDefectiveParent) {
+        allInputs.forEach(el => { if (!['productNote', ...mediaFields].includes(el.id) && !['saveProductBtn', 'saveProductAndCloseBtn', 'closeProductModalBtn'].includes(el.id)) el.disabled = true; });
+        lockReason = lockReason || 'Редактирование ограничено: родительское изделие в браке.';
+    } else if (isChildOfCompletedParent) {
+        allInputs.forEach(el => { if (!['productNote', 'productDefective', ...mediaFields].includes(el.id) && !['saveProductBtn', 'saveProductAndCloseBtn', 'closeProductModalBtn'].includes(el.id)) el.disabled = true; });
+        lockReason = lockReason || 'Редактирование ограничено: родительское изделие завершено.';
+    }
+
+    if (lockReason) {
+        if (validationMessage) {
+            validationMessage.textContent = lockReason;
+            validationMessage.classList.remove('hidden');
+        }
+    } else {
+        if (validationMessage) validationMessage.classList.add('hidden');
+    }
+    
+    updateProductAvailability();
+}
+
 function editProduct(id) {
     const productId = parseInt(id);
     const p = db.products.find(x => x.id === productId);
@@ -3127,101 +3242,7 @@ function editProduct(id) {
 
     updateProductCosts();
 	
-    // Разблокировка всех полей по умолчанию
-    const allInputs = document.querySelectorAll('#productModal input, #productModal select, #productModal textarea');
-    allInputs.forEach(el => el.disabled = false);
-
-    // Логика блокировок для составных полей (филамент и т.д.)
-    if (p.type === 'Составное') {
-        const compositeLockedFields = ['productFilament','productPrinter','productPrintTimeHours','productPrintTimeMinutes','productWeight','productLength'];
-        compositeLockedFields.forEach(id => document.getElementById(id).disabled = true);
-    }
-
-    // === ПРОВЕРКА УСЛОВИЙ БЛОКИРОВКИ ===
-    let hasWriteoffs = db.writeoffs && db.writeoffs.some(w => w.productId === productId);
-    // Проверка списаний у родителя (для частей)
-    if (!hasWriteoffs && p.type === 'Часть составного' && p.parentId) {
-        if (db.writeoffs.some(w => w.productId === p.parentId)) hasWriteoffs = true;
-    }
-
-    let isChildOfDefectiveParent = false;
-    let isChildOfCompletedParent = false; 
-    let hasDefectiveChild = false; 
-
-    if (p.type === 'Часть составного' && p.parentId) {
-        const parent = db.products.find(x => x.id === p.parentId);
-        if (parent) {
-            if(parent.defective) isChildOfDefectiveParent = true;
-            if(parent.allPartsCreated) isChildOfCompletedParent = true;
-        }
-    }
-    
-    if (p.type === 'Составное') {
-        const children = db.products.filter(child => child.parentId === p.id);
-        if (children.some(child => child.defective)) {
-            hasDefectiveChild = true;
-        }
-    }
-
-    // УДАЛЕНО ПОВТОРНОЕ ОБЪЯВЛЕНИЕ validationMessage
-    let lockReason = '';
-    const mediaFields = ['productImageInput', 'productFileInput'];
-	
-    // 1. Блокировка Черновика, если есть списания
-    if (hasWriteoffs) {
-        draftCb.disabled = true;
-        draftCb.setAttribute('data-locked-by-system', 'true');
-        
-        allInputs.forEach(el => {
-            if (!['productNote', 'productDefective', ...mediaFields].includes(el.id)) el.disabled = true;
-        });
-        lockReason = 'Редактирование ограничено: есть списания.';
-    }
-
-    // 2. Блокировка Черновика, если есть бракованные дети (хинт — в tooltip при наведении). Скрыть блок черновика, если изделие в браке (составное или самостоятельное)
-    const draftTooltipWrap = document.getElementById('productDraftTooltipWrap');
-    if (p.defective) {
-        if (draftTooltipWrap) draftTooltipWrap.style.display = 'none';
-    } else {
-        if (draftTooltipWrap) draftTooltipWrap.style.display = '';
-        if (hasDefectiveChild) {
-            draftCb.disabled = true; 
-            draftCb.setAttribute('data-locked-by-system', 'true');
-            const draftTooltip = document.getElementById('productDraftTooltipText');
-            if (draftTooltip) { draftTooltip.textContent = 'Статус "Черновик" недоступен: одна из частей изделия в браке.'; draftTooltip.classList.add('draft-tooltip-active'); }
-        } else if (p.type !== 'Часть составного') {
-            const draftTooltip = document.getElementById('productDraftTooltipText');
-            if (draftTooltip) {
-                draftTooltip.textContent = 'Поставьте галочку «Черновик», чтобы рассчитать себестоимость без списания филамента со склада.';
-                draftTooltip.classList.add('draft-tooltip-active');
-            }
-        }
-    }
-
-    // Стандартные блокировки
-    if (p.defective) {
-        allInputs.forEach(el => {
-            if (!['productNote', 'productDefective', ...mediaFields].includes(el.id)) el.disabled = true;
-        });
-        lockReason = lockReason || 'Редактирование ограничено: изделие в браке.';
-    } else if (isChildOfDefectiveParent) {
-        allInputs.forEach(el => { if (!['productNote', ...mediaFields].includes(el.id)) el.disabled = true; });
-        lockReason = lockReason || 'Редактирование ограничено: родительское изделие в браке.';
-    } else if (isChildOfCompletedParent) {
-        allInputs.forEach(el => { if (!['productNote', 'productDefective', ...mediaFields].includes(el.id)) el.disabled = true; });
-        lockReason = lockReason || 'Редактирование ограничено: родительское изделие завершено.';
-    }
-
-    if (lockReason) {
-        if (validationMessage) {
-            validationMessage.textContent = lockReason;
-            validationMessage.classList.remove('hidden');
-        }
-    } else {
-        if (validationMessage) validationMessage.classList.add('hidden');
-    }
-    
-    updateProductAvailability();
+    applyProductFormLocks(p);
 
     // --- Секция списаний ---
     const modalBody = document.querySelector('#productModal .modal-body');
@@ -3580,6 +3601,8 @@ async function saveProduct(andThenWriteOff = false, andThenEditProductId = null,
             setTimeout(() => addChildPart(andThenAddChildPartId), 150);
         } else if (closeAfter) {
             closeProductModal();
+        } else {
+            applyProductFormLocks(p);
         }
 
     } catch (e) {
