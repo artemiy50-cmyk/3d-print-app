@@ -1,15 +1,16 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
 // Номер версии ведём в формате xx.xx.xx, например 7.7.7
-const APP_VERSION_NUMBER = '5.11.0';
-console.log('2026-03-12 13-16-42');
+const APP_VERSION_NUMBER = '5.11.1';
+console.log('2026-03-12 14-27-23');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
 
 // === CHANGELOG
 const CHANGELOG_ENTRIES = [
+
     {
-        version: '5.11.0', 
+        version: '5.11.1', 
         dateDisplay: '12.03.2026', 
         description: 'Добавлены новые возможности для управления сервисными задачами, включая отображение задач на дашборде и напоминаний о них в баннере.' 
     },
@@ -1337,13 +1338,28 @@ function getPrinterTotalHours(printerId) {
         .reduce((sum, p) => sum + ((p.printTime || 0) / 60), 0);
 }
 
-// Текущая наработка с учётом последних значений по сервисным задачам (по счётчику принтера)
-function getPrinterHoursWithServiceOverrides(printerId) {
-    const base = getPrinterTotalHours(printerId);
-    const tasks = (db.serviceTasks || []).filter(t => t && t.printerId === printerId && (t.lastCompletedHours || 0) > 0);
-    if (!tasks.length) return base;
-    // Используем только значения, введённые пользователем в сервисных задачах
-    return tasks.reduce((max, t) => Math.max(max, t.lastCompletedHours || 0), 0);
+// Наработка для конкретной сервисной задачи:
+// считаем часы только ПОСЛЕ последнего обслуживания этой задачи.
+function getPrinterHoursForServiceTask(task) {
+    const printerId = task.printerId;
+    const all = (db.products || []).filter(p => p && p.printer && p.printer.id === printerId);
+    if (!all.length) {
+        return { currentHours: task.lastCompletedHours || 0, hoursSinceService: 0 };
+    }
+
+    if (task.lastCompletedDate) {
+        // Берём только изделия с датой строго после конца дня обслуживания
+        const cutoff = new Date(task.lastCompletedDate);
+        cutoff.setHours(23, 59, 59, 999);
+        const after = all.filter(p => p.date && new Date(p.date) > cutoff);
+        const since = after.reduce((sum, p) => sum + ((p.printTime || 0) / 60), 0);
+        const base = task.lastCompletedHours || 0;
+        return { currentHours: base + since, hoursSinceService: since };
+    }
+
+    // Если обслуживание ещё не проводилось — считаем по всем изделиям
+    const total = all.reduce((sum, p) => sum + ((p.printTime || 0) / 60), 0);
+    return { currentHours: total, hoursSinceService: total };
 }
 
 function getServiceTaskStatus(task, currentHours) {
@@ -1364,8 +1380,8 @@ function updateServiceTasksTable() {
     tbody.innerHTML = tasks.map(task => {
         const printer = db.printers && db.printers.find(p => p.id === task.printerId);
         const printerName = printer ? printer.model : `ID ${task.printerId}`;
-        const displayHours = getPrinterHoursWithServiceOverrides(task.printerId);
-        const st = getServiceTaskStatus(task, displayHours);
+        const { currentHours } = getPrinterHoursForServiceTask(task);
+        const st = getServiceTaskStatus(task, currentHours);
         let statusBadge = 'badge-success';
         let statusText = 'ОК';
         if (st.status === 'approaching') {
@@ -1376,11 +1392,13 @@ function updateServiceTasksTable() {
             statusText = `просрочено ${Math.round(st.hoursOverdue)} ч`;
         }
         const lastDone = task.lastCompletedDate ? formatDateOnly(task.lastCompletedDate) : '—';
+        const baseHours = task.lastCompletedHours || 0;
         return `<tr>
             <td>${escapeHtml(printerName)}</td>
             <td>${escapeHtml(task.name)}</td>
             <td>${task.periodHours} ч</td>
-            <td>${displayHours.toFixed(0)} ч</td>
+            <td>${(task.remindBeforeHours ?? 10)} ч</td>
+            <td>${baseHours.toFixed(0)} ч</td>
             <td>${Math.round(st.nextDueHours)} ч</td>
             <td>${lastDone}</td>
             <td><span class="badge ${statusBadge}">${statusText}</span></td>
@@ -1402,7 +1420,7 @@ function updateServiceTasksBanner() {
     const tasks = db.serviceTasks || [];
     const urgent = [];
     tasks.forEach(task => {
-        const currentHours = getPrinterTotalHours(task.printerId);
+        const { currentHours } = getPrinterHoursForServiceTask(task);
         const st = getServiceTaskStatus(task, currentHours);
         if (st.status === 'approaching' || st.status === 'overdue') {
             const printer = db.printers && db.printers.find(p => p.id === task.printerId);
@@ -1924,7 +1942,7 @@ function updateDashboard() {
     // Приближающиеся задачи обслуживания
     const allTasks = [];
     (db.serviceTasks || []).forEach(task => {
-        const currentHours = getPrinterHoursWithServiceOverrides(task.printerId);
+        const { currentHours } = getPrinterHoursForServiceTask(task);
         const st = getServiceTaskStatus(task, currentHours);
         const printer = db.printers && db.printers.find(p => p.id === task.printerId);
         const pName = printer ? printer.model : `ID ${task.printerId}`;
@@ -7079,7 +7097,7 @@ function openServiceTaskCompleteModal(taskId) {
     const task = db.serviceTasks.find(t => t.id === taskId);
     if (!task) return;
     const printer = db.printers && db.printers.find(p => p.id === task.printerId);
-    const currentHours = getPrinterHoursWithServiceOverrides(task.printerId);
+    const { currentHours } = getPrinterHoursForServiceTask(task);
     document.getElementById('serviceTaskCompleteModal').classList.add('active');
     document.getElementById('serviceTaskCompleteModal').setAttribute('data-task-id', taskId);
     document.getElementById('serviceTaskCompleteName').textContent = task.name;
@@ -7161,9 +7179,9 @@ async function confirmServiceTaskComplete() {
     }
     const inputEl = document.getElementById('serviceTaskCompleteHours');
     const manualHours = parseFloat(inputEl && inputEl.value ? inputEl.value : 'NaN');
-    const currentHours = !isNaN(manualHours) && manualHours >= 0 ? manualHours : getPrinterHoursWithServiceOverrides(task.printerId);
+    const hoursToStore = !isNaN(manualHours) && manualHours >= 0 ? manualHours : getPrinterTotalHours(task.printerId);
     const index = db.serviceTasks.indexOf(task);
-    const updated = { ...task, lastCompletedHours: currentHours, lastCompletedDate: dateStr };
+    const updated = { ...task, lastCompletedHours: hoursToStore, lastCompletedDate: dateStr };
     db.serviceTasks[index] = updated;
     try {
         if (dbRef) await dbRef.child('serviceTasks').child(index).set(updated);
