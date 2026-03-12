@@ -150,6 +150,15 @@
 		<button class="btn-secondary btn-small" style="margin-left: 15px; height: 24px; font-size: 11px;" onclick="document.getElementById('contactModal').classList.add('active')">Продлить</button>
 	</div>
 
+	<!-- 1b. БАННЕР СЕРВИСНЫХ ЗАДАЧ (приближающиеся/просроченные) -->
+	<div id="serviceTasksBanner" class="service-tasks-banner hidden" style="background: #fff7ed; border-bottom: 1px solid #fdba74; color: #9a3412; padding: 10px 20px; font-size: 13px; display: none; justify-content: space-between; align-items: center;">
+		<span id="serviceTasksBannerText"></span>
+		<div style="display: flex; gap: 8px; align-items: center;">
+			<button type="button" id="serviceTasksBannerDismiss" class="btn-secondary btn-small" style="height: 24px; font-size: 11px;">Скрыть</button>
+			<button type="button" id="serviceTasksBannerGo" class="btn-primary btn-small" style="height: 24px; font-size: 11px;">К задачам</button>
+		</div>
+	</div>
+
 	<!-- 2. ЭКРАН БЛОКИРОВКИ (ЕСЛИ ПОДПИСКА ИСТЕКЛА) -->
 	<div id="subscriptionBlockOverlay" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #1e293b; z-index: 99998; display: none; flex-direction: column; align-items: center; justify-content: center; color: white;">
 		<div style="background: white; padding: 40px; border-radius: 12px; width: 400px; color: #333; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.5);">
@@ -275,6 +284,30 @@
  
             <div id="dashboard" class="page active">
                 <div class="page-title">Дашборд</div>
+
+                <!-- Сервисные задачи: первая секция -->
+                <div class="dashboard-row" id="dashServiceTasksRow">
+                    <div class="card dashboard-counter-card">
+                        <div class="counter-title">Сервисные задачи</div>
+                        <div class="counter-value" id="dashServiceTasksCount">0</div>
+                    </div>
+                    <div class="card dashboard-table-card">
+                        <div class="card-header">Приближающиеся задачи обслуживания</div>
+                        <div class="table-container">
+                            <table id="dashServiceTasksTable">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 18%;">Принтер</th>
+                                        <th style="width: 32%;">Задача</th>
+                                        <th style="width: 15%;">След. обслуж.</th>
+                                        <th style="width: 35%;">Статус</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
                 
                  <div class="dashboard-row">
                     <div class="card dashboard-counter-card">
@@ -313,6 +346,28 @@
                                         <th style="width: 20%;">Цвет</th>
                                         <th style="width: 10%;">Остаток</th>
                                         <th style="width: 25%;">Статус</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-row" id="dashServiceTasksRow">
+                    <div class="card dashboard-counter-card">
+                        <div class="counter-title">Сервисные задачи</div>
+                        <div class="counter-value" id="dashServiceTasksCount">0</div>
+                    </div>
+                    <div class="card dashboard-table-card">
+                        <div class="card-header">Приближающиеся задачи обслуживания</div>
+                        <div class="table-container">
+                            <table id="dashServiceTasksTable">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 25%;">Принтер</th>
+                                        <th style="width: 40%;">Задача</th>
+                                        <th style="width: 35%;">Статус</th>
                                     </tr>
                                 </thead>
                                 <tbody></tbody>
@@ -393,6 +448,7 @@
                         </div>
                     </div>
                 </div>
+
             </div>
    
             <div id="filament" class="page">
@@ -646,46 +702,95 @@
 
 
             <div id="service" class="page">
-                <div class="page-title">Сервисные расходы</div>
-                <div class="controls">
-                    <div class="controls-left">
-                        <button id="addServiceBtn" class="btn-primary">➕ Добавить расход</button>
-                        <div class="search-container">
-                            <input type="text" class="search-input" id="serviceSearch" placeholder="Поиск по названию...">
-                            <span class="search-clear">&times;</span>
+                <div class="page-title-row" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+                    <div class="page-title">Сервис</div>
+                    <div class="service-tabs" role="tablist" style="display: flex; gap: 4px;">
+                        <button type="button" class="service-tab-btn service-tab-active" data-service-tab="expenses">Сервисные расходы</button>
+                        <button type="button" class="service-tab-btn" data-service-tab="tasks">Сервисные задачи</button>
+                    </div>
+                </div>
+                <div id="serviceExpensesPanel" class="service-panel active">
+                    <div class="controls">
+                        <div class="controls-left">
+                            <button id="addServiceBtn" class="btn-primary">➕ Добавить расход</button>
+                            <div class="search-container">
+                                <input type="text" class="search-input" id="serviceSearch" placeholder="Поиск по названию...">
+                                <span class="search-clear">&times;</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="table-container service-table-container">
+                            <div class="service-table-inner">
+                            <div class="service-table-header">
+                                <table id="serviceTableHead">
+                                    <colgroup>
+                                        <col style="width:10%"><col style="width:22%"><col style="width:6%"><col style="width:12%"><col style="width:12%"><col style="width:22%"><col style="width:6%"><col style="width:10%">
+                                    </colgroup>
+                                    <thead>
+                                        <tr>
+                                            <th>Дата</th>
+                                            <th>Наименование</th>
+                                            <th>Кол-во</th>
+                                            <th>Цена за ед. (₽)</th>
+                                            <th>Стоимость (₽)</th>
+                                            <th>Примечание</th>
+                                            <th></th>
+                                            <th>Действия</th>
+                                        </tr>
+                                    </thead>
+                                </table>
+                            </div>
+                            <div class="service-table-body-scroll">
+                                <table id="serviceTable">
+                                    <colgroup>
+                                        <col style="width:10%"><col style="width:22%"><col style="width:6%"><col style="width:12%"><col style="width:12%"><col style="width:22%"><col style="width:6%"><col style="width:10%">
+                                    </colgroup>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div class="card">
-                    <div class="table-container service-table-container">
-                        <div class="service-table-inner">
-                        <div class="service-table-header">
-                            <table id="serviceTableHead">
-                                <colgroup>
-                                    <col style="width:10%"><col style="width:22%"><col style="width:6%"><col style="width:12%"><col style="width:12%"><col style="width:22%"><col style="width:6%"><col style="width:10%">
-                                </colgroup>
-                                <thead>
-                                    <tr>
-                                        <th>Дата</th>
-                                        <th>Наименование</th>
-                                        <th>Кол-во</th>
-                                        <th>Цена за ед. (₽)</th>
-                                        <th>Стоимость (₽)</th>
-                                        <th>Примечание</th>
-                                        <th></th>
-                                        <th>Действия</th>
-                                    </tr>
-                                </thead>
-                            </table>
+                <div id="serviceTasksPanel" class="service-panel">
+                    <div class="controls">
+                        <div class="controls-left">
+                            <button id="addServiceTaskBtn" class="btn-primary">➕ Добавить задачу</button>
+                            <button id="serviceTaskInfoBtn" type="button" class="btn-secondary btn-small" style="margin-left: 8px;">ℹ️ Обслуживание принтеров</button>
                         </div>
-                        <div class="service-table-body-scroll">
-                            <table id="serviceTable">
-                                <colgroup>
-                                    <col style="width:10%"><col style="width:22%"><col style="width:6%"><col style="width:12%"><col style="width:12%"><col style="width:22%"><col style="width:6%"><col style="width:10%">
-                                </colgroup>
-                                <tbody></tbody>
-                            </table>
-                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="table-container service-tasks-table-container">
+                            <div class="service-tasks-table-inner">
+                            <div class="service-tasks-table-header">
+                                <table id="serviceTasksTableHead">
+                                    <colgroup>
+                                        <col style="width:18%"><col style="width:22%"><col style="width:8%"><col style="width:10%"><col style="width:10%"><col style="width:12%"><col style="width:10%"><col style="width:10%">
+                                    </colgroup>
+                                    <thead>
+                                        <tr>
+                                            <th>Принтер</th>
+                                            <th>Задача</th>
+                                            <th>Период</th>
+                                            <th>Наработка</th>
+                                            <th>След. обслуж.</th>
+                                            <th>Посл. выполнение</th>
+                                            <th>Статус</th>
+                                            <th>Действия</th>
+                                        </tr>
+                                    </thead>
+                                </table>
+                            </div>
+                            <div class="service-tasks-table-body-scroll">
+                                <table id="serviceTasksTable">
+                                    <colgroup>
+                                        <col style="width:18%"><col style="width:22%"><col style="width:8%"><col style="width:10%"><col style="width:10%"><col style="width:12%"><col style="width:10%"><col style="width:10%">
+                                    </colgroup>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1444,6 +1549,98 @@
             <div class="modal-footer">
                 <button id="closeServiceModalBtn" class="btn-secondary">Отмена</button>
                 <button id="saveServiceBtn" class="btn-primary">Сохранить и закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно "Сервисная задача" (создание/редактирование) -->
+    <div id="serviceTaskModal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header-simple-custom">
+                <div class="modal-header-title" id="serviceTaskModalTitle">Добавить задачу</div>
+                <div id="serviceTaskValidationMessage" class="validation-message hidden" style="position: absolute; bottom: 8px; left: 24px; margin: 0; padding: 0;">Заполните все поля</div>
+            </div>
+            <div class="modal-body">
+                <div class="form-section">
+                    <div class="form-group">
+                        <label>Принтер:*</label>
+                        <select id="serviceTaskPrinter"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Название задачи:*</label>
+                        <input type="text" id="serviceTaskName" placeholder="Например: Смазывать направляющие">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Периодичность (часов):*</label>
+                            <input type="number" id="serviceTaskPeriod" min="1" placeholder="200">
+                        </div>
+                        <div class="form-group">
+                            <label>Напоминать за (часов):*</label>
+                            <input type="number" id="serviceTaskRemindBefore" min="0" value="10" placeholder="10">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="closeServiceTaskModalBtn" class="btn-secondary">Отмена</button>
+                <button id="saveServiceTaskBtn" class="btn-primary">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно "Отметить выполнение" сервисной задачи -->
+    <div id="serviceTaskCompleteModal" class="modal">
+        <div class="modal-content" style="max-width: 450px;">
+            <div class="modal-header-simple-custom">
+                <div class="modal-header-title">Отметить выполнение</div>
+            </div>
+            <div class="modal-body">
+                <div class="form-section">
+                    <div class="form-group">
+                        <label>Задача:</label>
+                        <div class="calc-field" id="serviceTaskCompleteName" style="font-weight: 500;">—</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Принтер:</label>
+                        <div class="calc-field" id="serviceTaskCompletePrinter">—</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Текущая наработка по счетчику (ч):</label>
+                        <input type="number" id="serviceTaskCompleteHours" min="0" step="0.1" class="input-full">
+                    </div>
+                    <div class="form-group">
+                        <label>Дата обслуживания:*</label>
+                        <input type="date" id="serviceTaskCompleteDate">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="closeServiceTaskCompleteModalBtn" class="btn-secondary">Отмена</button>
+                <button id="confirmServiceTaskCompleteBtn" class="btn-primary">Выполнено</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно: Информация об обслуживании принтера -->
+    <div id="printerMaintenanceInfoModal" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header-simple-custom">
+                <div class="modal-header-title">Регулярное обслуживание принтера</div>
+            </div>
+            <div class="modal-body">
+                <div class="form-section">
+                    <div class="form-group">
+                        <label>Принтер:</label>
+                        <select id="printerMaintenanceSelect"></select>
+                    </div>
+                    <div id="printerMaintenanceContent" class="maintenance-info-content" style="max-height: 420px; overflow-y: auto; font-size: 13px; line-height: 1.5;">
+                        <!-- Заполняется скриптом -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="closePrinterMaintenanceInfoModalBtn" class="btn-secondary">Закрыть</button>
             </div>
         </div>
     </div>
