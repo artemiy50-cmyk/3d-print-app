@@ -212,6 +212,7 @@ const db = {
     // Исправлены дефолтные значения по скриншотам
     brands: ['eSUN', 'Creality', 'Creality Ender', 'Creality Soleyin'],
 	serviceExpenses: [],
+	serviceTasks: [],
     components: [],
 	serviceNames: [],
 	colors: [ { id: 1, name: 'Белый', hex: '#ffffff' }, { id: 2, name: 'Чёрный', hex: '#000000' }, { id: 3, name: 'Красный', hex: '#ff0000' }, { id: 4, name: 'Синий', hex: '#0000ff' }, { id: 5, name: 'Зелёный', hex: '#00ff00' } ],
@@ -521,6 +522,7 @@ window.addEventListener('DOMContentLoaded', () => {
                     db.products = toArray(loadedData.products);
                     db.writeoffs = toArray(loadedData.writeoffs);
                     db.serviceExpenses = toArray(loadedData.serviceExpenses);
+                    db.serviceTasks = toArray(loadedData.serviceTasks);
                     
                     db.brands = toArrayOrDefault(loadedData.brands, db.brands);
                     db.colors = toArrayOrDefault(loadedData.colors, db.colors);
@@ -539,6 +541,7 @@ window.addEventListener('DOMContentLoaded', () => {
 					db.products = []; 
 					db.writeoffs = []; 
 					db.serviceExpenses = []; 
+					db.serviceTasks = [];
                     // Справочники НЕ очищаем, они берутся из const db
 				}
 
@@ -552,6 +555,8 @@ window.addEventListener('DOMContentLoaded', () => {
                 try { updateWriteoffTable(); } catch(e) { console.error('Writeoff update failed', e); }
                 try { updateReports(); } catch(e) { console.error('Reports update failed', e); }
 				try { updateServiceTable(); } catch(e) { console.error('Service update failed', e); } 
+                try { updateServiceTasksTable(); } catch(e) { console.error('ServiceTasks update failed', e); }
+                try { updateServiceTasksBanner(); } catch(e) { console.error('ServiceTasksBanner failed', e); }
                 try { updateDashboard(); } catch(e) { console.error('Dashboard update failed', e); }
             };
 
@@ -1320,6 +1325,100 @@ function getCostPerKwForDate(productDateStr) {
     return db.electricityCosts.sort((a, b) => new Date(a.date) - new Date(b.date))[0].cost;
 }
 
+function getPrinterTotalHours(printerId) {
+    if (!db.products || !printerId) return 0;
+    return db.products
+        .filter(p => p && p.printer && p.printer.id === printerId)
+        .reduce((sum, p) => sum + ((p.printTime || 0) / 60), 0);
+}
+
+// Текущая наработка с учётом последних значений по сервисным задачам (по счётчику принтера)
+function getPrinterHoursWithServiceOverrides(printerId) {
+    const base = getPrinterTotalHours(printerId);
+    const tasks = (db.serviceTasks || []).filter(t => t && t.printerId === printerId && (t.lastCompletedHours || 0) > 0);
+    if (!tasks.length) return base;
+    // Используем только значения, введённые пользователем в сервисных задачах
+    return tasks.reduce((max, t) => Math.max(max, t.lastCompletedHours || 0), 0);
+}
+
+function getServiceTaskStatus(task, currentHours) {
+    const lastHours = task.lastCompletedHours || 0;
+    const period = task.periodHours || 200;
+    const remindBefore = task.remindBeforeHours ?? 10;
+    const nextDue = lastHours + period;
+    const remindAt = lastHours + (period - remindBefore);
+    if (currentHours >= nextDue) return { status: 'overdue', nextDueHours: nextDue, hoursOverdue: currentHours - nextDue };
+    if (currentHours >= remindAt) return { status: 'approaching', nextDueHours: nextDue, hoursLeft: nextDue - currentHours };
+    return { status: 'ok', nextDueHours: nextDue, hoursLeft: nextDue - currentHours };
+}
+
+function updateServiceTasksTable() {
+    const tbody = document.querySelector('#serviceTasksTable tbody');
+    if (!tbody) return;
+    const tasks = db.serviceTasks || [];
+    tbody.innerHTML = tasks.map(task => {
+        const printer = db.printers && db.printers.find(p => p.id === task.printerId);
+        const printerName = printer ? printer.model : `ID ${task.printerId}`;
+        const displayHours = getPrinterHoursWithServiceOverrides(task.printerId);
+        const st = getServiceTaskStatus(task, displayHours);
+        let statusBadge = 'badge-success';
+        let statusText = 'ОК';
+        if (st.status === 'approaching') {
+            statusBadge = 'badge-warning';
+            statusText = `через ${Math.round(st.hoursLeft)} ч`;
+        } else if (st.status === 'overdue') {
+            statusBadge = 'badge-danger';
+            statusText = `просрочено ${Math.round(st.hoursOverdue)} ч`;
+        }
+        const lastDone = task.lastCompletedDate ? formatDateOnly(task.lastCompletedDate) : '—';
+        return `<tr>
+            <td>${escapeHtml(printerName)}</td>
+            <td>${escapeHtml(task.name)}</td>
+            <td>${task.periodHours} ч</td>
+            <td>${displayHours.toFixed(0)} ч</td>
+            <td>${Math.round(st.nextDueHours)} ч</td>
+            <td>${lastDone}</td>
+            <td><span class="badge ${statusBadge}">${statusText}</span></td>
+            <td>
+                <div class="action-buttons">
+                    <button class="btn-primary btn-small" onclick="openServiceTaskCompleteModal(${task.id})" title="Выполнить">✓</button>
+                    <button class="btn-secondary btn-small" onclick="openServiceTaskModal(${task.id})" title="Редактировать">✎</button>
+                    <button class="btn-danger btn-small" onclick="deleteServiceTask(${task.id})" title="Удалить">✕</button>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function updateServiceTasksBanner() {
+    const banner = document.getElementById('serviceTasksBanner');
+    const textEl = document.getElementById('serviceTasksBannerText');
+    if (!banner || !textEl) return;
+    const tasks = db.serviceTasks || [];
+    const urgent = [];
+    tasks.forEach(task => {
+        const currentHours = getPrinterTotalHours(task.printerId);
+        const st = getServiceTaskStatus(task, currentHours);
+        if (st.status === 'approaching' || st.status === 'overdue') {
+            const printer = db.printers && db.printers.find(p => p.id === task.printerId);
+            const pName = printer ? printer.model : `ID ${task.printerId}`;
+            let msg = st.status === 'overdue' ? `просрочено ${Math.round(st.hoursOverdue)} ч` : `через ${Math.round(st.hoursLeft)} ч`;
+            urgent.push({ printer: pName, task: task.name, msg });
+        }
+    });
+    if (urgent.length === 0) {
+        banner.classList.add('hidden');
+        banner.style.display = 'none';
+        return;
+    }
+    const first = urgent[0];
+    textEl.textContent = urgent.length === 1
+        ? `Обслуживание: ${first.printer} — ${first.task} (${first.msg})`
+        : `Обслуживание: ${urgent.length} задач требуют внимания`;
+    banner.classList.remove('hidden');
+    banner.style.display = 'flex';
+}
+
 function recalculateAllProductCosts() {
     if (!db.products) return;
     // Pass 1: Простые изделия и части составного
@@ -1721,6 +1820,7 @@ function updateAllSelects() {
     updateElectricityCostList();
 	updateComponentsList();
     updateServiceNamesList();
+    fillServiceTaskPrinterSelect();
 }
 
 // ==================== DASHBOARD ====================
@@ -1815,6 +1915,44 @@ function updateDashboard() {
     const allDef = [...defProds, ...defWrites].sort((a, b) => b.ts - a.ts).slice(0, 5);
     document.getElementById('dashDefectiveCount').textContent = allDef.reduce((s, i) => s + i.qty, 0);
     document.querySelector('#dashDefectiveTable tbody').innerHTML = allDef.map(i => `<tr><td ${nameEvents(i.productId)}>${escapeHtml(i.name)}</td><td>${formatDateOnly(i.date)}</td><td>${i.qty}</td><td>${escapeHtml(i.note || '')}</td><td><span class="badge badge-danger">Брак</span></td></tr>`).join('');
+
+    // Приближающиеся задачи обслуживания
+    const allTasks = [];
+    (db.serviceTasks || []).forEach(task => {
+        const currentHours = getPrinterHoursWithServiceOverrides(task.printerId);
+        const st = getServiceTaskStatus(task, currentHours);
+        const printer = db.printers && db.printers.find(p => p.id === task.printerId);
+        const pName = printer ? printer.model : `ID ${task.printerId}`;
+        let msg;
+        if (st.status === 'overdue') {
+            msg = `просрочено ${Math.round(st.hoursOverdue)} ч`;
+        } else if (st.status === 'approaching') {
+            msg = `через ${Math.round(st.hoursLeft)} ч (напоминание)`;
+        } else {
+            msg = `план через ${Math.round(st.hoursLeft)} ч`;
+        }
+        allTasks.push({ printer: pName, task: task.name, msg, status: st.status, nextDue: Math.round(st.nextDueHours) });
+    });
+    const dashRow = document.getElementById('dashServiceTasksRow');
+    const dashTbody = document.querySelector('#dashServiceTasksTable tbody');
+    const dashCountEl = document.getElementById('dashServiceTasksCount');
+    if (dashRow && dashTbody && dashCountEl) {
+        if (allTasks.length === 0) {
+            dashRow.style.display = 'none';
+        } else {
+            dashRow.style.display = '';
+            dashCountEl.textContent = allTasks.length;
+            dashTbody.innerHTML = allTasks.map(u => {
+                const rowClass = (u.status === 'approaching' || u.status === 'overdue') ? 'row-bg-danger' : '';
+                return `<tr class="${rowClass}" style="cursor:pointer" onclick="showPage('service');var tb=document.querySelector('.service-tab-btn[data-service-tab=tasks]');if(tb)tb.click();">
+                    <td>${escapeHtml(u.printer)}</td>
+                    <td style="text-align:left;padding-left:8px;">${escapeHtml(u.task)}</td>
+                    <td>${u.nextDue} ч</td>
+                    <td>${escapeHtml(u.msg)}</td>
+                </tr>`;
+            }).join('');
+        }
+    }
 }
 
 
@@ -6372,8 +6510,12 @@ async function addPrinter(){
 
 async function removePrinter(id){ 
     if(db.products.some(p => p.printer && p.printer.id === id)) { 
-        showToast('Нельзя удалить: используется.', 'error'); 
+        showToast('Нельзя удалить: используется в изделиях.', 'error'); 
         return; 
+    }
+    if((db.serviceTasks || []).some(t => t.printerId === id)) {
+        showToast('Нельзя удалить: есть сервисные задачи для этого принтера.', 'error');
+        return;
     } 
     
     const printer = db.printers.find(p => p.id === id);
@@ -6893,6 +7035,257 @@ async function editServiceName(i) {
     }
 }
 
+// --- Сервисные задачи ---
+function fillServiceTaskPrinterSelect() {
+    const sel = document.getElementById('serviceTaskPrinter');
+    if (!sel) return;
+    const printers = db.printers || [];
+    sel.innerHTML = '<option value="">-- Выберите принтер --</option>' + printers.map(p => `<option value="${p.id}">${escapeHtml(p.model)}</option>`).join('');
+}
+
+function openServiceTaskModal(editId) {
+    fillServiceTaskPrinterSelect();
+    document.getElementById('serviceTaskModal').classList.add('active');
+    document.getElementById('serviceTaskValidationMessage').classList.add('hidden');
+    if (editId) {
+        const task = db.serviceTasks.find(t => t.id === editId);
+        if (!task) return;
+        document.getElementById('serviceTaskModalTitle').textContent = 'Редактировать задачу';
+        document.getElementById('serviceTaskModal').setAttribute('data-edit-id', editId);
+        document.getElementById('serviceTaskPrinter').value = task.printerId;
+        document.getElementById('serviceTaskName').value = task.name;
+        document.getElementById('serviceTaskPeriod').value = task.periodHours;
+        document.getElementById('serviceTaskRemindBefore').value = task.remindBeforeHours ?? 10;
+    } else {
+        document.getElementById('serviceTaskModalTitle').textContent = 'Добавить задачу';
+        document.getElementById('serviceTaskModal').removeAttribute('data-edit-id');
+        document.getElementById('serviceTaskPrinter').value = '';
+        document.getElementById('serviceTaskName').value = '';
+        document.getElementById('serviceTaskPeriod').value = '';
+        document.getElementById('serviceTaskRemindBefore').value = 10;
+    }
+}
+
+function closeServiceTaskModal() {
+    document.getElementById('serviceTaskModal').classList.remove('active');
+}
+
+function openServiceTaskCompleteModal(taskId) {
+    const task = db.serviceTasks.find(t => t.id === taskId);
+    if (!task) return;
+    const printer = db.printers && db.printers.find(p => p.id === task.printerId);
+    const currentHours = getPrinterHoursWithServiceOverrides(task.printerId);
+    document.getElementById('serviceTaskCompleteModal').classList.add('active');
+    document.getElementById('serviceTaskCompleteModal').setAttribute('data-task-id', taskId);
+    document.getElementById('serviceTaskCompleteName').textContent = task.name;
+    document.getElementById('serviceTaskCompletePrinter').textContent = printer ? printer.model : `ID ${task.printerId}`;
+    const hoursInput = document.getElementById('serviceTaskCompleteHours');
+    if (hoursInput) hoursInput.value = currentHours.toFixed(1);
+    document.getElementById('serviceTaskCompleteDate').value = formatDateOnly(mergeDateWithTime(null));
+}
+
+function closeServiceTaskCompleteModal() {
+    document.getElementById('serviceTaskCompleteModal').classList.remove('active');
+}
+
+async function saveServiceTask() {
+    const printerId = parseInt(document.getElementById('serviceTaskPrinter').value, 10);
+    const name = (document.getElementById('serviceTaskName').value || '').trim();
+    const periodHours = parseFloat(document.getElementById('serviceTaskPeriod').value);
+    const remindBeforeHours = parseFloat(document.getElementById('serviceTaskRemindBefore').value);
+    const validationEl = document.getElementById('serviceTaskValidationMessage');
+    if (!printerId || !name || !periodHours || periodHours < 1) {
+        validationEl.textContent = 'Заполните все обязательные поля.';
+        validationEl.classList.remove('hidden');
+        return;
+    }
+    const remindVal = isNaN(remindBeforeHours) ? 10 : remindBeforeHours;
+    if (remindVal < 0 || remindVal > periodHours) {
+        validationEl.textContent = 'Напоминать за — число от 0 до периодичности.';
+        validationEl.classList.remove('hidden');
+        return;
+    }
+    validationEl.classList.add('hidden');
+    const editId = document.getElementById('serviceTaskModal').getAttribute('data-edit-id');
+    let item;
+    if (editId) {
+        const existing = db.serviceTasks.find(t => t.id === parseInt(editId, 10));
+        if (!existing) return;
+        item = { ...existing, printerId, name, periodHours, remindBeforeHours: remindVal };
+    } else {
+        item = {
+            id: Date.now(),
+            printerId,
+            name,
+            periodHours,
+            remindBeforeHours: remindVal,
+            lastCompletedHours: 0,
+            lastCompletedDate: null
+        };
+    }
+    try {
+        let index;
+        if (editId) {
+            const oldItem = db.serviceTasks.find(t => t.id === parseInt(editId, 10));
+            index = db.serviceTasks.indexOf(oldItem);
+            db.serviceTasks[index] = item;
+        } else {
+            index = db.serviceTasks.length;
+            db.serviceTasks.push(item);
+        }
+        if (dbRef) await dbRef.child('serviceTasks').child(index).set(item);
+        updateServiceTasksTable();
+        updateServiceTasksBanner();
+        updateDashboard();
+        closeServiceTaskModal();
+    } catch (e) {
+        console.error(e);
+        showToast('Ошибка сохранения: ' + e.message, 'error');
+    }
+}
+
+async function confirmServiceTaskComplete() {
+    const taskId = document.getElementById('serviceTaskCompleteModal').getAttribute('data-task-id');
+    if (!taskId) return;
+    const task = db.serviceTasks.find(t => t.id === parseInt(taskId, 10));
+    if (!task) return;
+    const dateStr = document.getElementById('serviceTaskCompleteDate').value;
+    if (!dateStr) {
+        showToast('Укажите дату обслуживания', 'error');
+        return;
+    }
+    const inputEl = document.getElementById('serviceTaskCompleteHours');
+    const manualHours = parseFloat(inputEl && inputEl.value ? inputEl.value : 'NaN');
+    const currentHours = !isNaN(manualHours) && manualHours >= 0 ? manualHours : getPrinterHoursWithServiceOverrides(task.printerId);
+    const index = db.serviceTasks.indexOf(task);
+    const updated = { ...task, lastCompletedHours: currentHours, lastCompletedDate: dateStr };
+    db.serviceTasks[index] = updated;
+    try {
+        if (dbRef) await dbRef.child('serviceTasks').child(index).set(updated);
+        updateServiceTasksTable();
+        updateServiceTasksBanner();
+        updateDashboard();
+        closeServiceTaskCompleteModal();
+    } catch (e) {
+        showToast('Ошибка: ' + e.message, 'error');
+    }
+}
+
+async function deleteServiceTask(id) {
+    if (!confirm('Удалить задачу?')) return;
+    const task = db.serviceTasks.find(t => t.id === id);
+    if (!task) return;
+    const index = db.serviceTasks.indexOf(task);
+    db.serviceTasks.splice(index, 1);
+    try {
+        if (dbRef) await dbRef.child('serviceTasks').set(db.serviceTasks);
+        updateServiceTasksTable();
+        updateServiceTasksBanner();
+        updateDashboard();
+    } catch (e) {
+        showToast('Ошибка удаления: ' + e.message, 'error');
+    }
+}
+
+// --- Информация об обслуживании принтеров ---
+
+function fillPrinterMaintenanceSelect() {
+    const sel = document.getElementById('printerMaintenanceSelect');
+    if (!sel) return;
+    const printers = db.printers || [];
+    sel.innerHTML = '<option value="">-- Выберите принтер --</option>' + printers.map(p => `<option value="${p.id}">${escapeHtml(p.model)}</option>`).join('');
+}
+
+function getMaintenanceContentForPrinter(printer) {
+    const name = (printer && printer.model) ? String(printer.model) : '';
+    const lower = name.toLowerCase();
+    const isK2Pro = lower.includes('k2') && lower.includes('pro');
+    if (isK2Pro) {
+        const encodedK2 = encodeURIComponent(`Какое регулярное обслуживание необходимо выполнять для принтера Creality K2 Pro`);
+        const moreUrl = `https://www.google.com/search?q=${encodedK2}`;
+        return `
+        <div style="display:flex;flex-direction:column;gap:8px;">
+            <div>
+                <strong>Creality K2 Pro — краткий регламент обслуживания.</strong>
+            </div>
+            <div>
+                <strong>Направляющие и валы</strong>
+                <ul style="margin:4px 0 0 18px;padding:0;">
+                    <li><strong>X‑ось, рельсовые направляющие.</strong> Проверять и обслуживать примерно каждые <strong>200 часов печати</strong>: визуальный осмотр, удаление пыли и стружки безворсовой салфеткой, тонкий слой антикоррозийного масла.</li>
+                    <li><strong>Оптические валы Y/Z.</strong> Очистка и новая смазка примерно каждые <strong>200–300 часов печати</strong>. При частой печати ABS/ASA — сокращать интервал до <strong>каждых ~40–50 часов</strong>, т.к. пары пластика и высокая температура ускоряют высыхание смазки.</li>
+                    <li><strong>Винты Z‑оси.</strong> Обслуживать с той же регулярностью, что и оптические валы: <strong>раз в 200–300 часов</strong>, при интенсивной печати — ближе к <strong>каждым 40–50 часам</strong>.</li>
+                </ul>
+            </div>
+            <div>
+                <strong>Вентиляторы и охлаждение</strong>
+                <ul style="margin:4px 0 0 18px;padding:0;">
+                    <li>Раз в неделю при отключённом питании осматривать и очищать все вентиляторы: мотора экструдера, радиатора (heat break), обдува модели, боковой вентилятор камеры, вентиляторы шасси, фильтра и электроники.</li>
+                    <li>При посторонних звуках, вибрациях или остановке вентилятора проверять крепёж, провода и при необходимости заменять вентилятор.</li>
+                </ul>
+            </div>
+            <div>
+                <strong>Фильтр воздуха</strong>
+                <ul style="margin:4px 0 0 18px;padding:0;">
+                    <li>Периодически (раз в несколько месяцев, либо при заметном падении эффективности фильтрации) извлекать кассету, визуально оценивать загрязнение.</li>
+                    <li>При сильном загрязнении — заменить фильтр новым по инструкции (быстросъёмная кассета в задней части корпуса).</li>
+                </ul>
+            </div>
+            <div>
+                <strong>Хотэнд и сопло</strong>
+                <ul style="margin:4px 0 0 18px;padding:0;">
+                    <li>Регулярно проверять сопло (латунное, закалённое и др.) на износ, следы засора и изменение формы отверстия.</li>
+                    <li>Ориентиры по ресурсу:
+                        <ul style="margin:2px 0 0 18px;padding:0;">
+                            <li><strong>Латунное сопло:</strong> около <strong>500 часов печати</strong> не абразивными материалами (PLA/PETG и т.п.). При абразивных пластиках ресурс резко падает.</li>
+                            <li><strong>Закалённое/стальное сопло:</strong до <strong>~2000 часов</strong> печати, подходит для наполненных и абразивных материалов.</li>
+                        </ul>
+                    </li>
+                    <li>При ухудшении качества печати выполнять чистку или замену сопла: прогрев до рабочей температуры, аккуратное выкручивание штатным ключом, установка нового сопла с термопастой на резьбу и теплопереходник.</li>
+                </ul>
+            </div>
+            <div>
+                <strong>Прочие узлы</strong>
+                <ul style="margin:4px 0 0 18px;padding:0;">
+                    <li>Периодически контролировать натяжение ремней, отсутствие люфтов по осям, фиксацию платформы и экструдера.</li>
+                    <li>Содержать внутреннюю камеру и стекло/камеру наблюдения в чистоте для корректной работы и мониторинга печати.</li>
+                </ul>
+            </div>
+            <div style="font-size:12px;color:#64748b;">
+                Данные основаны на официальных разделах Creality Wiki для K2 Pro (смазка механики, обслуживание вентиляторов и фильтра, замена сопла) и обобщённых рекомендациях по 3D‑принтерам (типичные интервалы 200–300 ч для смазки и ~500/2000 ч ресурса сопел). Интервалы в часах приведены как ориентиры и могут корректироваться в зависимости от материалов и интенсивности печати.
+            </div>
+            <div style="margin-top:4px;">
+                <a href="${moreUrl}" target="_blank" style="color:#1d4ed8;text-decoration:underline;">Больше информации</a>
+            </div>
+        </div>
+        `;
+    }
+    const encoded = encodeURIComponent(`Какое регулярное обслуживание необходимо выполнять для принтера ${name || '[модель принтера]'}`);
+    const queryUrl = `https://www.google.com/search?q=${encoded}`;
+    return `
+        <p>Для выбранного принтера нет подготовленной справки по обслуживанию.</p>
+        <p>Откройте поиск с рекомендуемым запросом:</p>
+        <p><a href="${queryUrl}" target="_blank" style="color:#1d4ed8;text-decoration:underline;">Поиск в Google: «Какое регулярное обслуживание необходимо выполнять для принтера ${escapeHtml(name || '[модель принтера]')}»</a></p>
+    `;
+}
+
+function openPrinterMaintenanceInfoModal() {
+    fillPrinterMaintenanceSelect();
+    const modal = document.getElementById('printerMaintenanceInfoModal');
+    if (!modal) return;
+    modal.classList.add('active');
+    const sel = document.getElementById('printerMaintenanceSelect');
+    const content = document.getElementById('printerMaintenanceContent');
+    if (sel && content) {
+        const firstPrinter = (db.printers || [])[0] || null;
+        sel.value = firstPrinter ? firstPrinter.id : '';
+        content.innerHTML = getMaintenanceContentForPrinter(firstPrinter);
+    }
+}
+
+function closePrinterMaintenanceInfoModal() {
+    const modal = document.getElementById('printerMaintenanceInfoModal');
+    if (modal) modal.classList.remove('active');
+}
 
 // ==================== EVENT LISTENERS ====================
 
@@ -7063,8 +7456,44 @@ function setupEventListeners() {
     document.getElementById('saveServiceBtn')?.addEventListener('click', saveService);
     document.getElementById('closeServiceModalBtn')?.addEventListener('click', closeServiceModal);
     document.getElementById('serviceSearch')?.addEventListener('input', updateServiceTable);
-    document.getElementById('serviceSearch')?.nextElementSibling.addEventListener('click', () => clearSearch('serviceSearch', 'updateServiceTable'));
+    const serviceSearchClear = document.getElementById('serviceSearch')?.nextElementSibling;
+    if (serviceSearchClear) serviceSearchClear.addEventListener('click', () => clearSearch('serviceSearch', 'updateServiceTable'));
     document.getElementById('addServiceNameBtn')?.addEventListener('click', addServiceName);
+    // Service tabs
+    document.querySelectorAll('.service-tab-btn[data-service-tab]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tab = btn.getAttribute('data-service-tab');
+            document.querySelectorAll('.service-tab-btn[data-service-tab]').forEach(b => b.classList.remove('service-tab-active'));
+            btn.classList.add('service-tab-active');
+            document.getElementById('serviceExpensesPanel').classList.toggle('active', tab === 'expenses');
+            document.getElementById('serviceTasksPanel').classList.toggle('active', tab === 'tasks');
+        });
+    });
+    // Service tasks
+    document.getElementById('addServiceTaskBtn')?.addEventListener('click', () => openServiceTaskModal());
+    document.getElementById('closeServiceTaskModalBtn')?.addEventListener('click', closeServiceTaskModal);
+    document.getElementById('saveServiceTaskBtn')?.addEventListener('click', saveServiceTask);
+    document.getElementById('closeServiceTaskCompleteModalBtn')?.addEventListener('click', closeServiceTaskCompleteModal);
+    document.getElementById('confirmServiceTaskCompleteBtn')?.addEventListener('click', confirmServiceTaskComplete);
+    document.getElementById('serviceTasksBannerDismiss')?.addEventListener('click', () => {
+        document.getElementById('serviceTasksBanner')?.classList.add('hidden');
+        document.getElementById('serviceTasksBanner').style.display = 'none';
+    });
+    document.getElementById('serviceTasksBannerGo')?.addEventListener('click', () => {
+        showPage('service');
+        document.querySelector('.service-tab-btn[data-service-tab="tasks"]')?.click();
+    });
+
+    // Printer maintenance info
+    document.getElementById('serviceTaskInfoBtn')?.addEventListener('click', openPrinterMaintenanceInfoModal);
+    document.getElementById('closePrinterMaintenanceInfoModalBtn')?.addEventListener('click', closePrinterMaintenanceInfoModal);
+    document.getElementById('printerMaintenanceSelect')?.addEventListener('change', (e) => {
+        const select = e.target;
+        const id = parseInt(select.value, 10);
+        const printer = (db.printers || []).find(p => p.id === id);
+        const content = document.getElementById('printerMaintenanceContent');
+        if (content) content.innerHTML = getMaintenanceContentForPrinter(printer);
+    });
 
     // Changelog modal: закрытие по клику на оверлей
     const changelogModal = document.getElementById('changelogModal');
