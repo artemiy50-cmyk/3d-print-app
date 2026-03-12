@@ -1966,10 +1966,16 @@ td:nth-last-child(2) {
 #serviceTasksTable td { text-align: left; }
 #serviceTasksTableHead th:first-child,
 #serviceTasksTable td:first-child { padding-left: 12px; }
-#serviceTasksTableHead th:nth-child(7),
-#serviceTasksTable td:nth-child(7) { text-align: left !important; padding-left: 20px; }
-#serviceTasksTableHead th:nth-child(8) { text-align: left; padding-left: 30px; }
-#serviceTasksTable td:nth-child(8) { text-align: right; padding-right: 10px; }
+/* Колонка Задача: лёгкий отступ для заголовка и значений, без отрицательных сдвигов */
+#serviceTasksTableHead th:nth-child(2) { padding-left: 8px; }
+#serviceTasksTable td:nth-child(2) { padding-left: 8px; }
+/* Столбец Статус: заголовок и значения строго по левому краю */
+#serviceTasksTableHead th:nth-child(8) { text-align: left !important; padding-left: 8px; }
+#serviceTasksTable td:nth-child(8) { text-align: left !important; padding-left: 0 !important; }
+#serviceTasksTable td:nth-child(8) .badge { margin-left: 0; }
+/* Столбец Действия: заголовок чуть сдвинут, сами кнопки прижаты вправо */
+#serviceTasksTableHead th:nth-child(9) { text-align: left; padding-left: 24px; }
+#serviceTasksTable td:nth-child(9) { text-align: right; padding-right: 10px; }
 
 /* Таблица сервисных задач на дашборде */
 #dashServiceTasksTable th,
