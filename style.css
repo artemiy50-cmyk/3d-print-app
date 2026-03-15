@@ -1948,6 +1948,16 @@ td:nth-last-child(2) {
 .service-panel { display: none; }
 .service-panel.active { display: block; }
 
+/* Одинаковая высота кнопок «Добавить расход» и «Добавить задачу» и поля поиска в разделе Сервис */
+#serviceExpensesPanel .btn-service-action,
+#serviceTasksPanel .btn-service-action { height: 40px; min-height: 40px; box-sizing: border-box; line-height: 1; }
+#serviceExpensesPanel .controls .search-input,
+#serviceTasksPanel .controls .search-input { height: 40px; min-height: 40px; box-sizing: border-box; }
+
+/* Кнопка «Обслуживание принтеров»: та же высота, что и «Добавить задачу»; ширина задаётся из JS по ширине двух вкладок */
+.service-tasks-controls .controls-right { margin-left: auto; }
+#serviceTaskInfoBtn.btn-service-info { height: 40px; min-height: 40px; box-sizing: border-box; line-height: 1; display: inline-flex; justify-content: center; align-items: center; }
+
 /* --- Баннер сервисных задач --- */
 .service-tasks-banner { }
 .service-tasks-banner.hidden { display: none !important; }
@@ -1976,6 +1986,16 @@ td:nth-last-child(2) {
 /* Столбец Действия: заголовок чуть сдвинут, сами кнопки прижаты вправо */
 #serviceTasksTableHead th:nth-child(9) { text-align: left; padding-left: 24px; }
 #serviceTasksTable td:nth-child(9) { text-align: right; padding-right: 10px; }
+
+/* Разделитель и строки истории выполнений в одной таблице */
+#serviceTasksTable tr.service-history-divider td {
+    font-weight: 600;
+    background: var(--color-bg-secondary, #f5f5f5);
+    padding: 10px 12px;
+    border-top: 2px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border);
+}
+#serviceTasksTable tr.service-completion-row td { background: var(--color-bg); }
 
 /* Таблица сервисных задач на дашборде */
 #dashServiceTasksTable th,

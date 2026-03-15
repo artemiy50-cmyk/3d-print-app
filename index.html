@@ -703,7 +703,7 @@
 
             <div id="service" class="page">
                 <div class="page-title-row" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-                    <div class="page-title">Сервис</div>
+                    <div class="page-title" id="servicePageTitle">Сервис</div>
                     <div class="service-tabs" role="tablist" style="display: flex; gap: 4px;">
                         <button type="button" class="service-tab-btn service-tab-active" data-service-tab="expenses">Сервисные расходы</button>
                         <button type="button" class="service-tab-btn" data-service-tab="tasks">Сервисные задачи</button>
@@ -712,7 +712,7 @@
                 <div id="serviceExpensesPanel" class="service-panel active">
                     <div class="controls">
                         <div class="controls-left">
-                            <button id="addServiceBtn" class="btn-primary">➕ Добавить расход</button>
+                            <button id="addServiceBtn" class="btn-primary btn-service-action">➕ Добавить расход</button>
                             <div class="search-container">
                                 <input type="text" class="search-input" id="serviceSearch" placeholder="Поиск по названию...">
                                 <span class="search-clear">&times;</span>
@@ -754,10 +754,16 @@
                     </div>
                 </div>
                 <div id="serviceTasksPanel" class="service-panel">
-                    <div class="controls">
+                    <div class="controls service-tasks-controls">
                         <div class="controls-left">
-                            <button id="addServiceTaskBtn" class="btn-primary">➕ Добавить задачу</button>
-                            <button id="serviceTaskInfoBtn" type="button" class="btn-secondary btn-small" style="margin-left: 8px;">ℹ️ Обслуживание принтеров</button>
+                            <button id="addServiceTaskBtn" class="btn-primary btn-service-action">➕ Добавить задачу</button>
+                            <div class="search-container">
+                                <input type="text" class="search-input" id="serviceTaskSearch" placeholder="Поиск по задаче...">
+                                <span class="search-clear">&times;</span>
+                            </div>
+                        </div>
+                        <div class="controls-right">
+                            <button id="serviceTaskInfoBtn" type="button" class="btn-secondary btn-service-info">ℹ️ Обслуживание принтеров</button>
                         </div>
                     </div>
                     <div class="card">
