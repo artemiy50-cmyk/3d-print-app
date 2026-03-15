@@ -1267,6 +1267,14 @@ function toggleClearButton(input) {
     if (clearBtn) clearBtn.style.display = input.value ? 'inline' : 'none';
 }
 
+/** Превращает значение (массив или объект с ключами) в массив. Для бэкапов и импорта. */
+function toArray(v) {
+    if (v == null) return [];
+    if (Array.isArray(v)) return v.filter(x => x);
+    if (typeof v === 'object') return Object.values(v).filter(x => x);
+    return [];
+}
+
 function clearSearch(inputId, filterFunctionName) {
     const input = document.getElementById(inputId);
     input.value = '';
