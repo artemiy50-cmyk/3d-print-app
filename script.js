@@ -1,13 +1,18 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
 // Номер версии ведём в формате xx.xx.xx, например 7.7.7
-const APP_VERSION_NUMBER = '5.11.2';
-console.log('2026-03-15 12-22-22');
+const APP_VERSION_NUMBER = '5.11.3';
+console.log('2026-03-15 12-50-50');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
 
 // === CHANGELOG
 const CHANGELOG_ENTRIES = [
+    {
+        version: '5.11.3', 
+        dateDisplay: '15.03.2026', 
+        description: 'Добавлена нормализация массивов для совместимости с устаревшими бэкапами в функции импорта данных.' 
+    },
     {
         version: '5.11.2', 
         dateDisplay: '15.03.2026', 
@@ -1827,6 +1832,10 @@ function importData(input) {
                     }
 
                     Object.assign(db, loaded);
+                    // Нормализация массивов, которых могло не быть в старых бэкапах
+                    db.serviceExpenses = toArray(db.serviceExpenses);
+                    db.serviceTasks = toArray(db.serviceTasks);
+                    db.serviceTaskCompletions = toArray(db.serviceTaskCompletions || []);
                     await saveData();
                     
                     showToast('База восстановлена! Устаревшие файлы очищены, новые загружены.', 'success');
