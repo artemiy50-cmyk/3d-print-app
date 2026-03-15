@@ -1,20 +1,23 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
 // Номер версии ведём в формате xx.xx.xx, например 7.7.7
-const APP_VERSION_NUMBER = '5.11.1';
-console.log('2026-03-12 14-27-23');
+const APP_VERSION_NUMBER = '5.11.2';
+console.log('2026-03-15 12-22-22');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
 
 // === CHANGELOG
 const CHANGELOG_ENTRIES = [
-
+    {
+        version: '5.11.2', 
+        dateDisplay: '15.03.2026', 
+        description: 'Улучшение в разделе работы с сервисными задачами.' 
+    },
     {
         version: '5.11.1', 
         dateDisplay: '12.03.2026', 
         description: 'Добавлены новые возможности для управления сервисными задачами, включая отображение задач на дашборде и напоминаний о них в баннере.' 
     },
-   
     { 
         version: '5.10.6', 
         dateDisplay: '09.03.2026', 
@@ -219,6 +222,7 @@ const db = {
     brands: ['eSUN', 'Creality', 'Creality Ender', 'Creality Soleyin'],
 	serviceExpenses: [],
 	serviceTasks: [],
+	serviceTaskCompletions: [],
     components: [],
 	serviceNames: [],
 	colors: [ { id: 1, name: 'Белый', hex: '#ffffff' }, { id: 2, name: 'Чёрный', hex: '#000000' }, { id: 3, name: 'Красный', hex: '#ff0000' }, { id: 4, name: 'Синий', hex: '#0000ff' }, { id: 5, name: 'Зелёный', hex: '#00ff00' } ],
@@ -529,6 +533,7 @@ window.addEventListener('DOMContentLoaded', () => {
                     db.writeoffs = toArray(loadedData.writeoffs);
                     db.serviceExpenses = toArray(loadedData.serviceExpenses);
                     db.serviceTasks = toArray(loadedData.serviceTasks);
+                    db.serviceTaskCompletions = toArray(loadedData.serviceTaskCompletions || []);
                     
                     db.brands = toArrayOrDefault(loadedData.brands, db.brands);
                     db.colors = toArrayOrDefault(loadedData.colors, db.colors);
@@ -548,6 +553,7 @@ window.addEventListener('DOMContentLoaded', () => {
 					db.writeoffs = []; 
 					db.serviceExpenses = []; 
 					db.serviceTasks = [];
+					db.serviceTaskCompletions = [];
                     // Справочники НЕ очищаем, они берутся из const db
 				}
 
@@ -1376,8 +1382,11 @@ function getServiceTaskStatus(task, currentHours) {
 function updateServiceTasksTable() {
     const tbody = document.querySelector('#serviceTasksTable tbody');
     if (!tbody) return;
-    const tasks = db.serviceTasks || [];
-    tbody.innerHTML = tasks.map(task => {
+    const searchEl = document.getElementById('serviceTaskSearch');
+    const search = (searchEl && searchEl.value || '').trim().toLowerCase();
+    let tasks = db.serviceTasks || [];
+    if (search) tasks = tasks.filter(t => (t.name || '').toLowerCase().includes(search));
+    const taskRows = tasks.map(task => {
         const printer = db.printers && db.printers.find(p => p.id === task.printerId);
         const printerName = printer ? printer.model : `ID ${task.printerId}`;
         const { currentHours } = getPrinterHoursForServiceTask(task);
@@ -1411,6 +1420,36 @@ function updateServiceTasksTable() {
             </td>
         </tr>`;
     }).join('');
+    let completions = (db.serviceTaskCompletions || []).slice().sort((a, b) => (b.completedDate || '').localeCompare(a.completedDate || ''));
+    if (search) completions = completions.filter(c => (c.taskName || '').toLowerCase().includes(search));
+    const completionRows = completions.map(c => {
+        const dateStr = c.completedDate ? formatDateOnly(c.completedDate) : '—';
+        const hours = (c.hoursAtCompletion != null && !isNaN(c.hoursAtCompletion)) ? Number(c.hoursAtCompletion).toFixed(0) : '—';
+        return `<tr class="service-completion-row">
+            <td>${escapeHtml(c.printerName || '—')}</td>
+            <td>${escapeHtml(c.taskName || '—')}</td>
+            <td>—</td>
+            <td>—</td>
+            <td>${hours} ч</td>
+            <td>—</td>
+            <td>${dateStr}</td>
+            <td>—</td>
+            <td>
+                <div class="action-buttons">
+                    <button class="btn-danger btn-small" onclick="deleteServiceTaskCompletion(${c.id})" title="Удалить">✕</button>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+    const divider = '<tr class="service-history-divider"><td colspan="9">История выполнений</td></tr>';
+    tbody.innerHTML = taskRows + divider + completionRows;
+    toggleClearButton(document.getElementById('serviceTaskSearch'));
+}
+
+function syncServiceInfoButtonWidth() {
+    const tabs = document.querySelector('#service .service-tabs');
+    const btn = document.getElementById('serviceTaskInfoBtn');
+    if (tabs && btn) btn.style.width = tabs.offsetWidth + 'px';
 }
 
 function updateServiceTasksBanner() {
@@ -7180,16 +7219,33 @@ async function confirmServiceTaskComplete() {
     const inputEl = document.getElementById('serviceTaskCompleteHours');
     const manualHours = parseFloat(inputEl && inputEl.value ? inputEl.value : 'NaN');
     const hoursToStore = !isNaN(manualHours) && manualHours >= 0 ? manualHours : getPrinterTotalHours(task.printerId);
-    const index = db.serviceTasks.indexOf(task);
+    const printer = db.printers && db.printers.find(p => p.id === task.printerId);
+    const printerName = printer ? printer.model : `ID ${task.printerId}`;
+    const completion = {
+        id: Date.now(),
+        taskId: task.id,
+        printerId: task.printerId,
+        printerName,
+        taskName: task.name,
+        completedDate: dateStr,
+        hoursAtCompletion: hoursToStore
+    };
+    if (!db.serviceTaskCompletions) db.serviceTaskCompletions = [];
+    db.serviceTaskCompletions.push(completion);
+    const taskIndex = db.serviceTasks.indexOf(task);
     const updated = { ...task, lastCompletedHours: hoursToStore, lastCompletedDate: dateStr };
-    db.serviceTasks[index] = updated;
+    db.serviceTasks[taskIndex] = updated;
     try {
-        if (dbRef) await dbRef.child('serviceTasks').child(index).set(updated);
+        if (dbRef) {
+            await dbRef.child('serviceTaskCompletions').set(db.serviceTaskCompletions);
+            await dbRef.child('serviceTasks').child(taskIndex).set(updated);
+        }
         updateServiceTasksTable();
         updateServiceTasksBanner();
         updateDashboard();
         closeServiceTaskCompleteModal();
     } catch (e) {
+        db.serviceTaskCompletions.pop();
         showToast('Ошибка: ' + e.message, 'error');
     }
 }
@@ -7206,6 +7262,22 @@ async function deleteServiceTask(id) {
         updateServiceTasksBanner();
         updateDashboard();
     } catch (e) {
+        showToast('Ошибка удаления: ' + e.message, 'error');
+    }
+}
+
+async function deleteServiceTaskCompletion(id) {
+    if (!confirm('Удалить запись о выполнении?')) return;
+    const list = db.serviceTaskCompletions || [];
+    const index = list.findIndex(c => c.id === id);
+    if (index === -1) return;
+    const removed = list[index];
+    db.serviceTaskCompletions.splice(index, 1);
+    try {
+        if (dbRef) await dbRef.child('serviceTaskCompletions').set(db.serviceTaskCompletions);
+        updateServiceTasksTable();
+    } catch (e) {
+        db.serviceTaskCompletions.splice(index, 0, removed);
         showToast('Ошибка удаления: ' + e.message, 'error');
     }
 }
@@ -7490,10 +7562,18 @@ function setupEventListeners() {
             btn.classList.add('service-tab-active');
             document.getElementById('serviceExpensesPanel').classList.toggle('active', tab === 'expenses');
             document.getElementById('serviceTasksPanel').classList.toggle('active', tab === 'tasks');
+            const titleEl = document.getElementById('servicePageTitle');
+            if (titleEl) titleEl.textContent = tab === 'expenses' ? 'Сервисные расходы' : 'Сервисные задачи';
+            if (tab === 'tasks') syncServiceInfoButtonWidth();
         });
     });
+    const serviceTitleEl = document.getElementById('servicePageTitle');
+    if (serviceTitleEl) serviceTitleEl.textContent = 'Сервисные расходы';
     // Service tasks
     document.getElementById('addServiceTaskBtn')?.addEventListener('click', () => openServiceTaskModal());
+    document.getElementById('serviceTaskSearch')?.addEventListener('input', () => updateServiceTasksTable());
+    const serviceTaskSearchClear = document.getElementById('serviceTaskSearch')?.nextElementSibling;
+    if (serviceTaskSearchClear) serviceTaskSearchClear.addEventListener('click', () => clearSearch('serviceTaskSearch', 'updateServiceTasksTable'));
     document.getElementById('closeServiceTaskModalBtn')?.addEventListener('click', closeServiceTaskModal);
     document.getElementById('saveServiceTaskBtn')?.addEventListener('click', saveServiceTask);
     document.getElementById('closeServiceTaskCompleteModalBtn')?.addEventListener('click', closeServiceTaskCompleteModal);
@@ -7507,6 +7587,9 @@ function setupEventListeners() {
         document.querySelector('.service-tab-btn[data-service-tab="tasks"]')?.click();
     });
 
+    window.addEventListener('resize', () => {
+        if (document.getElementById('serviceTasksPanel')?.classList.contains('active')) syncServiceInfoButtonWidth();
+    });
     // Printer maintenance info
     document.getElementById('serviceTaskInfoBtn')?.addEventListener('click', openPrinterMaintenanceInfoModal);
     document.getElementById('closePrinterMaintenanceInfoModalBtn')?.addEventListener('click', closePrinterMaintenanceInfoModal);
