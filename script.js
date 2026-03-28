@@ -1,16 +1,18 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
 // Номер версии ведём в формате xx.xx.xx, например 7.7.7
-const APP_VERSION_NUMBER = '5.11.3';
-console.log('2026-03-28 20-28-47');
+const APP_VERSION_NUMBER = '6.1.0';
+console.log('2026-03-28 21-00-00');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
 
 // === CHANGELOG
 const CHANGELOG_ENTRIES = [
-    { version: '5.11.3', dateDisplay: '15.03.2026', description: 'Merge pull request #40 from artemiy50-cmyk/dev' },
-    // === ниже список существовавших версий ====
-
+    {
+        version: '6.1.0', 
+        dateDisplay: '28.03.2026', 
+        description: 'Добавлен раздел "Мой магазин" для создания собственного функционального и в то же время не сложного Интернет-магазина. Приятных продаж!' 
+    },
     {
         version: '5.11.3', 
         dateDisplay: '15.03.2026', 
