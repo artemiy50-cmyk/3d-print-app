@@ -1,0 +1,10 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+
+# Локальные секреты (CI использует переменные окружения)
+firebase-key.json
+
+# Firebase CLI
+.firebase/
