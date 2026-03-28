@@ -17,15 +17,23 @@
         "storeProducts": {
           ".read": true,
           ".write": "auth != null && auth.uid === $uid"
+        },
+        "storeCategories": {
+          ".read": true,
+          ".write": "auth != null && auth.uid === $uid"
         }
       }
     },
+    "storeOrderSeq": {
+      ".read": true,
+      ".write": true
+    },
     "storeOrders": {
-      ".read": "auth != null && query.orderByChild == 'ownerUid' && query.equalTo == auth.uid",
-      ".indexOn": ["ownerUid"],
+      ".read": "auth != null && ((query.orderByChild == 'ownerUid' && query.equalTo == auth.uid) || (query.orderByChild == 'buyerUid' && query.equalTo == auth.uid) || (query.orderByChild == 'buyerEmail' && query.equalTo == auth.token.email))",
+      ".indexOn": ["ownerUid", "buyerUid", "buyerEmail"],
       "$orderId": {
         ".read": "auth != null && auth.uid === data.child('ownerUid').val()",
-        ".write": "!data.exists()"
+        ".write": "(!data.exists() && newData.child('source').val() === 'store' && newData.child('ownerUid').exists() && newData.child('buyerEmail').exists() && newData.child('items').exists() && newData.child('orderNumber').exists() && newData.child('createdAt').exists() && newData.child('total').exists() && newData.child('status').exists()) || (auth != null && !data.exists() && newData.child('ownerUid').val() === auth.uid) || (auth != null && data.exists() && data.child('ownerUid').val() === auth.uid && (!newData.exists() || newData.child('ownerUid').val() === auth.uid))"
       }
     }
   }

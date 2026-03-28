@@ -1,13 +1,16 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
 // Номер версии ведём в формате xx.xx.xx, например 7.7.7
 const APP_VERSION_NUMBER = '5.11.3';
-console.log('2026-03-15 12-50-50');
+console.log('2026-03-28 20-28-47');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
 
 // === CHANGELOG
 const CHANGELOG_ENTRIES = [
+    { version: '5.11.3', dateDisplay: '15.03.2026', description: 'Merge pull request #40 from artemiy50-cmyk/dev' },
+    // === ниже список существовавших версий ====
+
     {
         version: '5.11.3', 
         dateDisplay: '15.03.2026', 
@@ -363,13 +366,14 @@ document.getElementById('regBtn')?.addEventListener('click', () => {
             trialEnd.setDate(now.getDate() + APP_CONFIG.trialDays);
             
             const topVersion = (CHANGELOG_ENTRIES && CHANGELOG_ENTRIES[0]) ? CHANGELOG_ENTRIES[0].version : APP_BASE_VERSION;
+            const displayName = (document.getElementById('regNameInput') && document.getElementById('regNameInput').value.trim()) || '';
             const initData = {
                 subscription: {
                     status: 'trial',
                     startDate: now.toISOString(),
                     expiryDate: trialEnd.toISOString()
                 },
-                settings: { lastSeenChangelogVersion: topVersion, displayName: '', profileImageUrl: '' },
+                settings: { lastSeenChangelogVersion: topVersion, displayName, profileImageUrl: '' },
                 // Пустые структуры данных
                 data: { filaments: [], products: [], writeoffs: [], layerHeights: ['0.08', '0.12', '0.16', '0.20', '0.24', '0.28'] }
             };
@@ -813,6 +817,23 @@ async function saveProfileSettings() {
 const RESERVED_SUBDOMAINS = ['app','www','api','mail','admin','store','elena','artem','lukarts','luckyartstudio','anna','maria','alex','alexander','ivan','dmitry','sergey','andrey','natalia','olga','svetlana','mikhail','ekaterina','tatiana','irina','yulia','daria','marina','victor','maxim','pavel','nikolay','elena-shop','artem-shop','anna-shop','shop','e-shop','myshop','my-shop','market','marketplace','mall','outlet','online','online-shop','webshop','eshop','storefront','boutique','3d','3dprint','print','model','craft','gift','hobby','toys','models','minis','figures','figurines','support','help','info','blog','landing','contact','about'];
 const RESERVED_SUBDOMAIN_MESSAGE = 'Этот поддомен зарезервирован. Для возможности его использования обратитесь к администратору через «Связаться».';
 
+/** Товар активен для витрины и выбора в заказах (по умолчанию да, если поля нет). */
+function isStoreCatalogProductActive(sp) {
+    return sp && sp.active !== false;
+}
+
+/** Совпадение строки заказа с карточкой каталога (ERP id или наименование). */
+function isStoreOrderLineLinkedToStoreProduct(line, sp) {
+    if (!sp) return false;
+    const item = line || {};
+    const spPid = sp.productId != null && sp.productId !== '' ? String(sp.productId) : '';
+    const linePid = item.productId != null && item.productId !== '' ? String(item.productId) : '';
+    if (spPid) return linePid === spPid;
+    const spName = (sp.name && String(sp.name).trim()) || '';
+    const lineName = (item.name && String(item.name).trim()) || '';
+    return !!(spName && lineName && spName === lineName);
+}
+
 function validateSubdomain(val) {
     const s = (val || '').toLowerCase().trim();
     if (!s || s.length < 2) return { ok: false, msg: 'Поддомен должен быть не короче 2 символов.' };
@@ -865,22 +886,751 @@ async function fillStoreSettingsPage() {
     document.getElementById('storeTitleInput').value = (store && store.title) || '';
     document.getElementById('storeDescInput').value = (store && store.description) || '';
     document.getElementById('storeEnabledInput').checked = !(store && store.enabled === false);
-    document.getElementById('storeContactEmailInput').value = (store && store.contactEmail) || '';
-    document.getElementById('storeContactTelegramInput').value = (store && store.contactTelegram) || '';
+    const bannerUrl = (store && store.banner) || '';
+    const bannerImg = document.getElementById('storeBannerImg');
+    const bannerPlaceholder = document.getElementById('storeBannerPlaceholder');
+    const bannerUrlInput = document.getElementById('storeBannerUrl');
+    const bannerClearBtn = document.getElementById('storeBannerClearBtn');
+    if (bannerUrlInput) bannerUrlInput.value = bannerUrl;
+    if (bannerImg) {
+        if (bannerUrl) { bannerImg.src = bannerUrl; bannerImg.style.display = ''; }
+        else { bannerImg.src = ''; bannerImg.style.display = 'none'; }
+    }
+    if (bannerPlaceholder) bannerPlaceholder.style.display = bannerUrl ? 'none' : 'inline';
+    if (bannerClearBtn) bannerClearBtn.style.display = bannerUrl ? '' : 'none';
+    document.getElementById('storeAboutDescInput').value = (store && store.aboutDesc) || '';
+    const logoUrl = (store && store.logo) || '';
+    const logoUrlInput = document.getElementById('storeLogoUrl');
+    const logoImg = document.getElementById('storeLogoImg');
+    const logoPlaceholder = document.getElementById('storeLogoPlaceholder');
+    const logoClearBtn = document.getElementById('storeLogoClearBtn');
+    if (logoUrlInput) logoUrlInput.value = logoUrl;
+    if (logoImg) { if (logoUrl) { logoImg.src = logoUrl; logoImg.style.display = ''; } else { logoImg.src = ''; logoImg.style.display = 'none'; } }
+    if (logoPlaceholder) logoPlaceholder.style.display = logoUrl ? 'none' : 'inline';
+    if (logoClearBtn) logoClearBtn.style.display = logoUrl ? '' : 'none';
+    document.getElementById('storeSocialVk').value = (store && store.socialVk) || '';
+    document.getElementById('storeSocialTelegram').value = (store && store.socialTelegram || store && store.contactTelegram) || '';
+    document.getElementById('storeSocialTiktok').value = (store && store.socialTiktok) || '';
+    document.getElementById('storeSocialInstagram').value = (store && store.socialInstagram) || '';
+    document.getElementById('storeSocialEmail').value = (store && store.socialEmail || store && store.contactEmail) || '';
+    document.getElementById('storeSocialPhone').value = (store && store.socialPhone) || '';
+    document.getElementById('storeSocialWhatsapp').value = (store && store.socialWhatsapp) || '';
+    document.getElementById('storeSellerDetailsInput').value = (store && store.sellerDetails) || '';
+    document.getElementById('storeOfferInput').value = (store && store.offer) || '';
+    document.getElementById('storeAboutContactsInput').value = (store && store.aboutContacts) || '';
+    const headerColorInput = document.getElementById('storeHeaderColorInput');
+    const footerColorInput = document.getElementById('storeFooterColorInput');
+    if (headerColorInput) headerColorInput.value = (store && store.headerColor) || '#ffffff';
+    if (footerColorInput) footerColorInput.value = (store && store.footerColor) || '#f1f5f9';
+    const tabsSectionColorInput = document.getElementById('storeTabsSectionColorInput');
+    if (tabsSectionColorInput) {
+        tabsSectionColorInput.value = (store && (store.tabsSectionColor || store.swimlaneNewColor || store.swimlaneColor)) || '#e0f2fe';
+    }
+    const addToCartColorInput = document.getElementById('storeAddToCartColorInput');
+    if (addToCartColorInput) addToCartColorInput.value = (store && store.addToCartButtonColor) || '#2563eb';
+    const addToCartTextWhiteInput = document.getElementById('storeAddToCartTextWhiteInput');
+    if (addToCartTextWhiteInput) addToCartTextWhiteInput.checked = !(store && store.addToCartButtonTextWhite === false);
+    const headingColorInput = document.getElementById('storeHeadingColorInput');
+    if (headingColorInput) headingColorInput.value = (store && store.headingColor) || '#1e293b';
+    const bannerDescTextColorInput = document.getElementById('storeBannerDescTextColorInput');
+    if (bannerDescTextColorInput) {
+        const hc = (store && store.headingColor) || '#1e293b';
+        bannerDescTextColorInput.value = (store && store.bannerDescTextColor) || hc;
+    }
+    window._storeSettingsOriginal = getStoreSettingsCurrentValues();
+    updateStoreSaveBtn();
     const minInput = document.getElementById('storeMinOrderInput');
     if (minInput) minInput.value = (store && store.minOrderAmount != null && store.minOrderAmount !== '') ? store.minOrderAmount : '';
 
     const tbody = document.querySelector('#storeProductsTable tbody');
+    const categoriesMap = await getStoreCategoriesMap(user.uid);
 
-    tbody.innerHTML = storeProducts.map((sp, idx) => {
+    const term = (document.getElementById('storeProductSearch')?.value || '').toLowerCase();
+    const filterPopular = document.getElementById('storeProductFilterPopular')?.checked;
+    const filterNew = document.getElementById('storeProductFilterNew')?.checked;
+    const filterNoCategory = document.getElementById('storeProductFilterNoCategory')?.checked;
+    const filterShowInactive = document.getElementById('storeProductFilterShowInactive')?.checked;
+
+    let filtered = storeProducts;
+    if (term) {
+        filtered = filtered.filter(sp => {
+            const n = (sp.name && String(sp.name).trim()) || (sp.productId ? (() => { const p = db.products.find(x => x.id == sp.productId); return p ? p.name : ''; })() : '');
+            return n.toLowerCase().includes(term);
+        });
+    }
+    if (filterPopular) filtered = filtered.filter(sp => !!sp.isPopular);
+    if (filterNew) filtered = filtered.filter(sp => !!sp.isNew);
+    if (filterNoCategory) filtered = filtered.filter(sp => !Array.isArray(sp.categoryIds) || sp.categoryIds.length === 0);
+    if (!filterShowInactive) filtered = filtered.filter(sp => isStoreCatalogProductActive(sp));
+
+    const origIndices = filtered.map(sp => storeProducts.indexOf(sp));
+
+    tbody.innerHTML = filtered.map((sp, i) => {
+        const idx = origIndices[i];
+        const sysId = sp.systemId || '—';
         const name = (sp.name && String(sp.name).trim()) ? escapeHtml(sp.name) : (sp.productId ? (() => { const p = db.products.find(x => x.id == sp.productId); return p ? escapeHtml(p.name) : `ID: ${sp.productId}`; })() : '—');
-        const price = (sp.price != null && sp.price !== '') ? parseFloat(sp.price).toFixed(2) : '—';
-        return `<tr><td>${name}</td><td>${price}</td><td><button type="button" class="btn-secondary btn-small" onclick="removeStoreProduct(${idx})">Удалить</button></td></tr>`;
-    }).join('') || '<tr><td colspan="3" style="color:#64748b;">Товаров нет. Нажмите «Добавить товар».</td></tr>';
+        const productName = sp.productId ? (() => { const p = db.products.find(x => x.id == sp.productId); return p ? escapeHtml(p.name) : '—'; })() : '—';
+        const price = (sp.price != null && sp.price !== '') ? parseFloat(sp.price).toFixed(0) : '—';
+        const priceSale = (sp.priceSale != null && sp.priceSale !== '') ? parseFloat(sp.priceSale).toFixed(0) : '—';
+        const signs = [sp.isPopular && 'Популярный', sp.isNew && 'Новинка'].filter(Boolean).join(', ') || '—';
+        const catIds = Array.isArray(sp.categoryIds) ? sp.categoryIds : [];
+        const catNames = catIds.map(id => categoriesMap[id] || id).slice(0, 3).join(', ');
+        const catMore = catIds.length > 3 ? ` +${catIds.length - 3}` : '';
+        const activeCell = isStoreCatalogProductActive(sp) ? 'Да' : 'Нет';
+        return `<tr>
+            <td style="padding-left:12px;">${escapeHtml(String(sysId))}</td>
+            <td>${name}</td>
+            <td>${productName}</td>
+            <td>${price}</td>
+            <td>${priceSale}</td>
+            <td>${escapeHtml(signs)}</td>
+            <td>${escapeHtml(catNames) || '—'}${catMore}</td>
+            <td class="text-center">${activeCell}</td>
+            <td class="text-center">
+                <div class="action-buttons">
+                    <button class="btn-secondary btn-small" title="Редактировать" onclick="editStoreProduct(${idx})">✎</button>
+                    <button class="btn-secondary btn-small" title="Копировать" onclick="copyStoreProduct(${idx})">❐</button>
+                    <button class="btn-danger btn-small" title="Удалить" onclick="removeStoreProduct(${idx})">✕</button>
+                </div>
+            </td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="9" style="color:#64748b;">Товаров нет. Нажмите «Добавить товар».</td></tr>';
 
     document.getElementById('storeAddProductBtn').disabled = !hasStore;
 
+    window._storeProductsCache = storeProducts;
+    window._storeCategoriesMapCache = categoriesMap;
+
     loadStoreOrders();
+    renderStoreCategoriesTree(user.uid);
+}
+
+function updateStoreProductsTable() {
+    const storeProducts = window._storeProductsCache || [];
+    const categoriesMap = window._storeCategoriesMapCache || {};
+    const tbody = document.querySelector('#storeProductsTable tbody');
+    if (!tbody) return;
+
+    const term = (document.getElementById('storeProductSearch')?.value || '').toLowerCase();
+    const filterPopular = document.getElementById('storeProductFilterPopular')?.checked;
+    const filterNew = document.getElementById('storeProductFilterNew')?.checked;
+    const filterNoCategory = document.getElementById('storeProductFilterNoCategory')?.checked;
+    const filterShowInactive = document.getElementById('storeProductFilterShowInactive')?.checked;
+
+    let filtered = storeProducts;
+    if (term) {
+        filtered = filtered.filter(sp => {
+            const n = (sp.name && String(sp.name).trim()) || (sp.productId ? (() => { const p = db.products.find(x => x.id == sp.productId); return p ? p.name : ''; })() : '');
+            return n.toLowerCase().includes(term);
+        });
+    }
+    if (filterPopular) filtered = filtered.filter(sp => !!sp.isPopular);
+    if (filterNew) filtered = filtered.filter(sp => !!sp.isNew);
+    if (filterNoCategory) filtered = filtered.filter(sp => !Array.isArray(sp.categoryIds) || sp.categoryIds.length === 0);
+    if (!filterShowInactive) filtered = filtered.filter(sp => isStoreCatalogProductActive(sp));
+
+    const origIndices = filtered.map(sp => storeProducts.indexOf(sp));
+
+    tbody.innerHTML = filtered.map((sp, i) => {
+        const idx = origIndices[i];
+        const sysId = sp.systemId || '—';
+        const name = (sp.name && String(sp.name).trim()) ? escapeHtml(sp.name) : (sp.productId ? (() => { const p = db.products.find(x => x.id == sp.productId); return p ? escapeHtml(p.name) : `ID: ${sp.productId}`; })() : '—');
+        const productName = sp.productId ? (() => { const p = db.products.find(x => x.id == sp.productId); return p ? escapeHtml(p.name) : '—'; })() : '—';
+        const price = (sp.price != null && sp.price !== '') ? parseFloat(sp.price).toFixed(0) : '—';
+        const priceSale = (sp.priceSale != null && sp.priceSale !== '') ? parseFloat(sp.priceSale).toFixed(0) : '—';
+        const signs = [sp.isPopular && 'Популярный', sp.isNew && 'Новинка'].filter(Boolean).join(', ') || '—';
+        const catIds = Array.isArray(sp.categoryIds) ? sp.categoryIds : [];
+        const catNames = catIds.map(id => categoriesMap[id] || id).slice(0, 3).join(', ');
+        const catMore = catIds.length > 3 ? ` +${catIds.length - 3}` : '';
+        const activeCell = isStoreCatalogProductActive(sp) ? 'Да' : 'Нет';
+        return `<tr>
+            <td style="padding-left:12px;">${escapeHtml(String(sysId))}</td>
+            <td>${name}</td>
+            <td>${productName}</td>
+            <td>${price}</td>
+            <td>${priceSale}</td>
+            <td>${escapeHtml(signs)}</td>
+            <td>${escapeHtml(catNames) || '—'}${catMore}</td>
+            <td class="text-center">${activeCell}</td>
+            <td class="text-center">
+                <div class="action-buttons">
+                    <button class="btn-secondary btn-small" title="Редактировать" onclick="editStoreProduct(${idx})">✎</button>
+                    <button class="btn-secondary btn-small" title="Копировать" onclick="copyStoreProduct(${idx})">❐</button>
+                    <button class="btn-danger btn-small" title="Удалить" onclick="removeStoreProduct(${idx})">✕</button>
+                </div>
+            </td>
+        </tr>`;
+    }).join('') || '<tr><td colspan="9" style="color:#64748b;">Товаров нет. Нажмите «Добавить товар».</td></tr>';
+}
+
+function resetStoreProductFilters() {
+    const searchEl = document.getElementById('storeProductSearch');
+    const popularEl = document.getElementById('storeProductFilterPopular');
+    const newEl = document.getElementById('storeProductFilterNew');
+    const noCategoryEl = document.getElementById('storeProductFilterNoCategory');
+    const showInactiveEl = document.getElementById('storeProductFilterShowInactive');
+    if (searchEl) searchEl.value = '';
+    if (popularEl) popularEl.checked = false;
+    if (newEl) newEl.checked = false;
+    if (noCategoryEl) noCategoryEl.checked = false;
+    if (showInactiveEl) showInactiveEl.checked = true;
+    updateStoreProductsTable();
+}
+
+function initStoreTabs() {
+    document.querySelectorAll('.store-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tab = btn.dataset.tab;
+            document.querySelectorAll('.store-tab').forEach(b => { b.classList.remove('active'); b.setAttribute('aria-selected', 'false'); });
+            document.querySelectorAll('.store-tab-panel').forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            btn.setAttribute('aria-selected', 'true');
+            const panel = document.getElementById(tab);
+            if (panel) panel.classList.add('active');
+        });
+    });
+}
+
+let _storeOrdersCache = [];
+let _storeOrderEditingId = null;
+let _storeOrderItemsDraft = [];
+let _storeOrderCreatedAtDraft = null;
+
+const STORE_ORDER_STATUS_META = {
+    new: { label: 'Новый', cls: 'store-order-status-new' },
+    awaiting_payment: { label: 'Ожидает оплаты', cls: 'store-order-status-awaiting-payment' },
+    paid: { label: 'Оплачен', cls: 'store-order-status-paid' },
+    shipped: { label: 'Отгружен', cls: 'store-order-status-shipped' },
+    delivered: { label: 'Доставлен', cls: 'store-order-status-delivered' },
+    cancelled: { label: 'Отменен', cls: 'store-order-status-cancelled' }
+};
+
+function getStoreOrderStatusMeta(status) {
+    return STORE_ORDER_STATUS_META[status] || STORE_ORDER_STATUS_META.new;
+}
+
+function normalizeStoreOrderNumberForDisplay(s) {
+    if (!s || typeof s !== 'string') return s;
+    return s.replace(/^ИМ--(\d)/, 'ИМ-$1').replace(/^АДМ--(\d)/, 'АДМ-$1');
+}
+
+function getDisplayOrderNumber(order, idx = 0) {
+    if (order && order.orderNumber) return normalizeStoreOrderNumberForDisplay(String(order.orderNumber).trim());
+    return `#${idx + 1}`;
+}
+
+function updateStoreOrderStatusHeaderBadge(status) {
+    const badge = document.getElementById('storeOrderStatusHeaderBadge');
+    if (!badge) return;
+    const meta = getStoreOrderStatusMeta(status);
+    badge.className = `store-order-status-badge ${meta.cls}`;
+    badge.textContent = meta.label;
+}
+
+function getStoreCatalogProductsForOrders() {
+    const list = Array.isArray(window._storeProductsCache) ? window._storeProductsCache : [];
+    return list.map((p, idx) => ({
+        idx,
+        productId: p.productId || '',
+        name: p.name || 'Товар',
+        price: (p.priceSale != null && p.priceSale !== '' && parseFloat(p.priceSale) > 0)
+            ? parseFloat(p.priceSale)
+            : (parseFloat(p.price) || 0),
+        imageUrl: p.imageUrl || (Array.isArray(p.imageUrls) && p.imageUrls.length ? p.imageUrls[0] : '')
+    })).filter((row) => isStoreCatalogProductActive(list[row.idx]));
+}
+
+/** Значение option: ERP productId или индекс строки каталога (витрина без привязки к изделию). */
+function storeCatalogRowOptionValue(p) {
+    return String((p.productId != null && p.productId !== '') ? p.productId : p.idx);
+}
+
+/**
+ * Какую option выбрать для строки заказа: по ERP productId или по наименованию (заказы ИМ часто без productId).
+ */
+function resolveStoreOrderLineCatalogSelectValue(it, catalog) {
+    if (it.productId != null && it.productId !== '') {
+        const pid = String(it.productId);
+        if (catalog.some((q) => String(q.productId) === pid)) return pid;
+    }
+    const want = (it.name || '').trim();
+    if (!want) return '';
+    const byName = catalog.find((q) => (q.name || '').trim() === want);
+    return byName ? storeCatalogRowOptionValue(byName) : '';
+}
+
+function applyPickedStoreCatalogRowToOrderDraftRow(row, picked) {
+    if (!picked) return;
+    row.name = picked.name;
+    row.productId = (picked.productId != null && picked.productId !== '') ? picked.productId : null;
+}
+
+function getOrderItemPreviewUrl(item) {
+    const list = getStoreCatalogProductsForOrders();
+    if (item.productId) {
+        const byPid = list.find(p => String(p.productId) === String(item.productId));
+        if (byPid?.imageUrl) return byPid.imageUrl;
+    }
+    const byName = list.find(p => (p.name || '').trim() === (item.name || '').trim());
+    return byName?.imageUrl || '';
+}
+
+/** Префикс без завершающего «-»: иначе получится ИМ--1001 при шаблоне prefix + '-' + n. */
+function normalizeStoreOrderNumberPrefix(prefix) {
+    return String(prefix || 'ORD').replace(/-+\s*$/, '').trim() || 'ORD';
+}
+
+/** Единый счётчик с витриной (ИМ): узел storeOrderSeq, значения ≥1001, порядковый номер. */
+async function getNextGlobalStoreOrderNumber(prefix) {
+    const base = normalizeStoreOrderNumberPrefix(prefix);
+    const seqRef = firebase.database().ref('storeOrderSeq');
+    const tx = await seqRef.transaction((current) => {
+        if (typeof current === 'number' && Number.isFinite(current)) {
+            return Math.max(1000, current + 1);
+        }
+        return 1001;
+    });
+    if (tx && tx.committed === false) {
+        throw new Error('STORE_ORDER_SEQ_NOT_COMMITTED');
+    }
+    const n = tx.snapshot && typeof tx.snapshot.val === 'function' ? tx.snapshot.val() : 1001;
+    return `${base}-${String(n).padStart(4, '0')}`;
+}
+
+function formatStoreOrderDateTime(iso) {
+    if (!iso) return '—';
+    try {
+        return new Date(iso).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' });
+    } catch (_) {
+        return String(iso);
+    }
+}
+
+function normalizeStoreOrderItems(items) {
+    const list = Array.isArray(items) ? items : [];
+    return list.map((x) => {
+        const qty = Math.max(1, parseFloat(x.qty) || 1);
+        const price = Math.max(0, parseFloat(x.price) || 0);
+        return {
+            name: x.name || 'Товар',
+            qty,
+            price,
+            total: Math.round((price * qty) * 100) / 100,
+            productId: x.productId || null
+        };
+    });
+}
+
+function calcStoreOrderTotal(items) {
+    return Math.round(normalizeStoreOrderItems(items).reduce((s, i) => s + i.total, 0) * 100) / 100;
+}
+
+function ensureStoreOrderModalBindings() {
+    const modal = document.getElementById('storeOrderModal');
+    if (!modal || modal.dataset.bound === '1') return;
+    modal.dataset.bound = '1';
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeStoreOrderModal();
+    });
+    const emailInp = document.getElementById('storeOrderBuyerEmailInput');
+    if (emailInp && emailInp.dataset.errClearBound !== '1') {
+        emailInp.dataset.errClearBound = '1';
+        emailInp.addEventListener('input', () => emailInp.classList.remove('error'));
+    }
+}
+
+function clearStoreOrderValidation() {
+    const msg = document.getElementById('storeOrderValidationMessage');
+    if (msg) {
+        msg.classList.add('hidden');
+        msg.textContent = 'Заполните обязательные поля';
+    }
+    document.querySelectorAll('#storeOrderModal input.error, #storeOrderModal select.error, #storeOrderModal textarea.error').forEach((el) => {
+        el.classList.remove('error');
+    });
+}
+
+function syncStoreOrderItemsDraftFromDom() {
+    const wrap = document.getElementById('storeOrderItemsEditor');
+    if (!wrap) return;
+    const catalog = getStoreCatalogProductsForOrders();
+    _storeOrderItemsDraft.forEach((row, idx) => {
+        const sel = wrap.querySelector(`select[data-field="productId"][data-index="${idx}"]`);
+        const priceEl = wrap.querySelector(`input[data-field="price"][data-index="${idx}"]`);
+        const qtyEl = wrap.querySelector(`input[data-field="qty"][data-index="${idx}"]`);
+        const totalEl = wrap.querySelector(`input[data-field="total"][data-index="${idx}"]`);
+        if (sel) {
+            const picked = catalog.find((p) => storeCatalogRowOptionValue(p) === String(sel.value || ''));
+            if (picked) applyPickedStoreCatalogRowToOrderDraftRow(row, picked);
+        }
+        if (priceEl) {
+            const v = parseFloat(priceEl.value);
+            row.price = Number.isFinite(v) ? Math.max(0, v) : 0;
+        }
+        if (qtyEl) {
+            const v = parseFloat(qtyEl.value);
+            row.qty = Number.isFinite(v) ? Math.max(1, v) : 1;
+        }
+        if (totalEl) {
+            const v = parseFloat(totalEl.value);
+            row.total = Number.isFinite(v) ? Math.max(0, v) : 0;
+        }
+    });
+}
+
+function validateStoreOrderForm() {
+    clearStoreOrderValidation();
+    const wrap = document.getElementById('storeOrderItemsEditor');
+    const emailEl = document.getElementById('storeOrderBuyerEmailInput');
+    const msgEl = document.getElementById('storeOrderValidationMessage');
+    let valid = true;
+
+    const email = emailEl && emailEl.value ? String(emailEl.value).trim() : '';
+    const emailOk = email.length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    if (!emailOk) {
+        valid = false;
+        if (emailEl) emailEl.classList.add('error');
+    }
+
+    const rowEls = wrap ? wrap.querySelectorAll('.store-order-item-edit-row') : [];
+    if (!rowEls.length) {
+        valid = false;
+    }
+
+    rowEls.forEach((rowEl) => {
+        const sel = rowEl.querySelector('select[data-field="productId"]');
+        const priceEl = rowEl.querySelector('input[data-field="price"]');
+        const qtyEl = rowEl.querySelector('input[data-field="qty"]');
+        const totalEl = rowEl.querySelector('input[data-field="total"]');
+        const productOk = sel && String(sel.value || '').trim() !== '';
+        const p = priceEl ? parseFloat(priceEl.value) : NaN;
+        const q = qtyEl ? parseFloat(qtyEl.value) : NaN;
+        const t = totalEl ? parseFloat(totalEl.value) : NaN;
+        const priceOk = Number.isFinite(p) && p > 0;
+        const qtyOk = Number.isFinite(q) && q >= 1;
+        const totalOk = Number.isFinite(t) && t > 0;
+
+        if (!productOk && sel) sel.classList.add('error');
+        if (!priceOk && priceEl) priceEl.classList.add('error');
+        if (!qtyOk && qtyEl) qtyEl.classList.add('error');
+        if (!totalOk && totalEl) totalEl.classList.add('error');
+        if (!productOk || !priceOk || !qtyOk || !totalOk) valid = false;
+    });
+
+    if (!valid && msgEl) {
+        msgEl.textContent = 'Укажите корректный email покупателя. В каждой строке выберите товар и заполните цену, количество и стоимость (числа больше нуля).';
+        msgEl.classList.remove('hidden');
+    }
+    return valid;
+}
+
+function renderStoreOrdersList() {
+    const listEl = document.getElementById('storeOrdersList');
+    if (!listEl) return;
+    if (!_storeOrdersCache.length) {
+        listEl.innerHTML = '<p class="text-muted" id="storeOrdersEmpty">Нет заказов</p>';
+        return;
+    }
+    const term = ((document.getElementById('storeOrdersSearchInput')?.value) || '').trim().toLowerCase();
+    const statusFilter = (document.getElementById('storeOrdersStatusFilter')?.value || '').trim();
+    const filtered = _storeOrdersCache.filter((o, idx) => {
+        if (statusFilter && (o.status || 'new') !== statusFilter) return false;
+        if (!term) return true;
+        const number = (o.orderNumber || `#${idx + 1}`).toLowerCase();
+        const email = (o.buyerEmail || '').toLowerCase();
+        const name = (o.buyerName || '').toLowerCase();
+        return number.includes(term) || email.includes(term) || name.includes(term);
+    });
+    if (!filtered.length) {
+        listEl.innerHTML = '<p class="text-muted" id="storeOrdersEmpty">Нет заказов по фильтру</p>';
+        return;
+    }
+    listEl.innerHTML = filtered.map((o, idx) => {
+        const date = formatStoreOrderDateTime(o.createdAt);
+        const number = getDisplayOrderNumber(o, idx);
+        const meta = getStoreOrderStatusMeta(o.status || 'new');
+        const items = normalizeStoreOrderItems(o.items);
+        const itemsRows = items.map((i, lineIdx) => `<div class="store-order-item-row">
+            <div class="store-order-item-line-num">${lineIdx + 1}</div>
+            <div class="store-order-item-name-cell">
+                <span class="store-order-item-name-linklike">${escapeHtml(i.name || 'Товар')}</span>
+                ${getOrderItemPreviewUrl(i) ? `<span class="store-order-item-preview"><img src="${escapeHtml(getOrderItemPreviewUrl(i))}" alt=""></span>` : ''}
+            </div>
+            <div>${(i.price || 0).toFixed(0)} ₽</div>
+            <div>${i.qty || 1}</div>
+            <div>${(i.total || 0).toFixed(0)} ₽</div>
+        </div>`).join('');
+        return `<div class="store-order-card">
+            <div class="store-order-header-row">
+                <div class="store-order-meta-col">
+                    <div class="store-order-meta-top-row">
+                        <button class="store-order-no-link" onclick="openStoreOrderModal('${o.id}')">${escapeHtml(number)}</button>
+                        <span class="store-order-status-badge store-order-status-badge--list ${meta.cls}">${meta.label}</span>
+                    </div>
+                    <div class="text-muted" style="font-size:12px;">${escapeHtml(date)}</div>
+                    <div class="store-order-email-line">${escapeHtml(o.buyerEmail || '—')}</div>
+                    <div class="store-order-buyer-name-line">${escapeHtml(o.buyerName || '—')}</div>
+                </div>
+                <div class="store-order-actions">
+                    <button class="btn-secondary btn-small" title="Редактировать" onclick="openStoreOrderModal('${o.id}')">✎</button>
+                    <button class="btn-secondary btn-small" title="Копировать" onclick="copyStoreOrder('${o.id}')">❐</button>
+                    <button class="btn-danger btn-small" title="Удалить" onclick="deleteStoreOrder('${o.id}')">✕</button>
+                </div>
+            </div>
+            ${o.comment ? `<div class="store-order-buyer-comment">Комментарий покупателя: ${escapeHtml(o.comment)}</div>` : ''}
+            <div class="store-order-items-grid store-order-items-head">
+                <div>№</div><div>Наименование</div><div>Цена</div><div>Кол-во</div><div>Стоимость</div>
+            </div>
+            <div class="store-order-items-grid store-order-items-grid--list">${itemsRows}</div>
+            <div class="store-order-list-total">ИТОГО: ${(o.total || 0).toFixed(0)} ₽</div>
+            ${o.adminComment ? `<div class="store-order-admin-comment">Комментарий администратора: ${escapeHtml(o.adminComment)}</div>` : ''}
+        </div>`;
+    }).join('');
+}
+
+function clearStoreOrdersSearch() {
+    const input = document.getElementById('storeOrdersSearchInput');
+    if (input) input.value = '';
+    renderStoreOrdersList();
+}
+
+function updateStoreOrderItemsTotalPreview() {
+    const total = calcStoreOrderTotal(_storeOrderItemsDraft);
+    const totalEl = document.getElementById('storeOrderTotalPreview');
+    if (totalEl) totalEl.textContent = `ИТОГО: ${total.toFixed(0)} ₽`;
+}
+
+/**
+ * Читает цену/кол-во/сумму из DOM, пересчитывает связанные поля в черновике и
+ * обновляет только соседние input в строке (без innerHTML) — каретка не сбрасывается.
+ */
+function syncStoreOrderItemRowFromNumberInputs(idx, activeField) {
+    const wrap = document.getElementById('storeOrderItemsEditor');
+    const row = _storeOrderItemsDraft[idx];
+    if (!wrap || !row) return;
+    const priceEl = wrap.querySelector(`input[data-field="price"][data-index="${idx}"]`);
+    const qtyEl = wrap.querySelector(`input[data-field="qty"][data-index="${idx}"]`);
+    const totalEl = wrap.querySelector(`input[data-field="total"][data-index="${idx}"]`);
+    if (!priceEl || !qtyEl || !totalEl) return;
+
+    const pv = parseFloat(priceEl.value);
+    const qv = parseFloat(qtyEl.value);
+    const tv = parseFloat(totalEl.value);
+    row.price = Number.isFinite(pv) ? Math.max(0, pv) : 0;
+    row.qty = Number.isFinite(qv) ? Math.max(1, qv) : 1;
+    row.total = Number.isFinite(tv) ? Math.max(0, tv) : 0;
+
+    if (activeField === 'price' || activeField === 'qty') {
+        row.total = Math.round((row.price * row.qty) * 100) / 100;
+    }
+    if (activeField === 'total' || activeField === 'qty') {
+        row.price = row.qty > 0 ? Math.round((row.total / row.qty) * 100) / 100 : 0;
+    }
+
+    if (activeField !== 'price') priceEl.value = String(row.price);
+    if (activeField !== 'qty') qtyEl.value = String(row.qty);
+    if (activeField !== 'total') totalEl.value = String(row.total);
+
+    updateStoreOrderItemsTotalPreview();
+}
+
+function renderStoreOrderItemsEditor() {
+    const wrap = document.getElementById('storeOrderItemsEditor');
+    if (!wrap) return;
+    if (!_storeOrderItemsDraft.length) {
+        _storeOrderItemsDraft.push({ name: '', price: 0, qty: 1, total: 0 });
+    }
+    const catalog = getStoreCatalogProductsForOrders();
+    wrap.innerHTML = _storeOrderItemsDraft.map((it, i) => {
+        const resolvedVal = resolveStoreOrderLineCatalogSelectValue(it, catalog);
+        return `
+        <div class="store-order-item-edit-row">
+            <div class="store-order-item-line-num store-order-item-line-num--edit" aria-hidden="true">${i + 1}</div>
+            <div class="store-order-item-pick-wrap">
+                <select data-field="productId" data-index="${i}">
+                    <option value="">— выбрать товар —</option>
+                    ${catalog.map((p) => {
+        const optVal = storeCatalogRowOptionValue(p);
+        const selected = resolvedVal !== '' && optVal === resolvedVal ? 'selected' : '';
+        return `<option value="${escapeHtml(optVal)}" ${selected}>${escapeHtml(p.name)}</option>`;
+    }).join('')}
+                </select>
+                ${getOrderItemPreviewUrl(it) ? `<span class="store-order-item-preview store-order-item-preview--icon"><img src="${escapeHtml(getOrderItemPreviewUrl(it))}" alt=""></span>` : ''}
+            </div>
+            <input type="number" value="${it.price || 0}" min="0" step="1" data-field="price" data-index="${i}">
+            <input type="number" value="${it.qty || 1}" min="1" step="1" data-field="qty" data-index="${i}">
+            <input type="number" value="${it.total || 0}" min="0" step="1" data-field="total" data-index="${i}">
+            <button type="button" class="btn-remove-enrichment store-order-item-remove" onclick="removeStoreOrderItemRow(${i})" aria-label="Удалить строку" title="Удалить строку">✕</button>
+        </div>
+    `;
+    }).join('');
+    wrap.querySelectorAll('select[data-field="productId"]').forEach((sel) => {
+        sel.addEventListener('change', () => {
+            sel.classList.remove('error');
+            const idx = parseInt(sel.dataset.index, 10);
+            if (Number.isNaN(idx) || !_storeOrderItemsDraft[idx]) return;
+            const row = _storeOrderItemsDraft[idx];
+            const picked = catalog.find((p) => storeCatalogRowOptionValue(p) === String(sel.value || ''));
+            if (picked) {
+                applyPickedStoreCatalogRowToOrderDraftRow(row, picked);
+                if (!row.price || row.price <= 0) row.price = picked.price || 0;
+            } else if (!sel.value) {
+                row.productId = null;
+            }
+            if (row.qty >= 1) {
+                row.total = Math.round((row.price * row.qty) * 100) / 100;
+            }
+            renderStoreOrderItemsEditor();
+        });
+    });
+    wrap.querySelectorAll('input[data-field="price"], input[data-field="qty"], input[data-field="total"]').forEach((inp) => {
+        inp.addEventListener('input', () => {
+            inp.classList.remove('error');
+            const idx = parseInt(inp.dataset.index, 10);
+            const field = inp.dataset.field;
+            if (Number.isNaN(idx) || !field) return;
+            syncStoreOrderItemRowFromNumberInputs(idx, field);
+        });
+    });
+    updateStoreOrderItemsTotalPreview();
+}
+
+function addStoreOrderItemRow() {
+    _storeOrderItemsDraft.push({ name: '', price: 0, qty: 1, total: 0 });
+    renderStoreOrderItemsEditor();
+}
+
+function removeStoreOrderItemRow(index) {
+    _storeOrderItemsDraft.splice(index, 1);
+    renderStoreOrderItemsEditor();
+}
+
+function closeStoreOrderModal() {
+    clearStoreOrderValidation();
+    const modal = document.getElementById('storeOrderModal');
+    if (modal) modal.classList.remove('active');
+}
+
+function openStoreOrderModal(orderId = null) {
+    ensureStoreOrderModalBindings();
+    clearStoreOrderValidation();
+    const modal = document.getElementById('storeOrderModal');
+    if (!modal) return;
+    const titleEl = document.getElementById('storeOrderModalTitle');
+    const noEl = document.getElementById('storeOrderNumberInput');
+    const noViewEl = document.getElementById('storeOrderNumberView');
+    const createdAtViewEl = document.getElementById('storeOrderCreatedAtView');
+    const buyerNameEl = document.getElementById('storeOrderBuyerNameInput');
+    const buyerEmailEl = document.getElementById('storeOrderBuyerEmailInput');
+    const statusEl = document.getElementById('storeOrderStatusInput');
+    const buyerCommentEl = document.getElementById('storeOrderBuyerCommentInput');
+    const adminCommentEl = document.getElementById('storeOrderAdminCommentInput');
+
+    _storeOrderEditingId = orderId;
+    const source = orderId ? _storeOrdersCache.find(x => x.id === orderId) : null;
+    const sourceIdx = source ? Math.max(0, _storeOrdersCache.findIndex(x => x.id === source.id)) : -1;
+    if (titleEl) titleEl.textContent = source ? 'Редактировать заказ' : 'Добавить заказ';
+    _storeOrderCreatedAtDraft = source?.createdAt || new Date().toISOString();
+    if (createdAtViewEl) createdAtViewEl.textContent = formatStoreOrderDateTime(_storeOrderCreatedAtDraft);
+    const displayNo = source ? getDisplayOrderNumber(source, sourceIdx >= 0 ? sourceIdx : 0) : '';
+    if (noEl) noEl.value = displayNo;
+    if (noViewEl) noViewEl.textContent = source ? displayNo : 'Будет присвоен при сохранении';
+    if (buyerNameEl) buyerNameEl.value = source?.buyerName || '';
+    if (buyerEmailEl) buyerEmailEl.value = source?.buyerEmail || '';
+    if (statusEl) statusEl.value = source?.status || 'new';
+    updateStoreOrderStatusHeaderBadge(source?.status || 'new');
+    if (statusEl) {
+        statusEl.onchange = () => updateStoreOrderStatusHeaderBadge(statusEl.value);
+    }
+    if (buyerCommentEl) buyerCommentEl.value = source?.comment || '';
+    if (adminCommentEl) adminCommentEl.value = source?.adminComment || '';
+    _storeOrderItemsDraft = normalizeStoreOrderItems(source?.items || []);
+    renderStoreOrderItemsEditor();
+    modal.classList.add('active');
+}
+
+function copyStoreOrder(orderId) {
+    const source = _storeOrdersCache.find(x => x.id === orderId);
+    if (!source) return;
+    openStoreOrderModal(null);
+    const noEl = document.getElementById('storeOrderNumberInput');
+    const noViewEl = document.getElementById('storeOrderNumberView');
+    if (noEl) noEl.value = '';
+    if (noViewEl) noViewEl.textContent = 'Будет присвоен при сохранении';
+    document.getElementById('storeOrderBuyerNameInput').value = source.buyerName || '';
+    document.getElementById('storeOrderBuyerEmailInput').value = source.buyerEmail || '';
+    document.getElementById('storeOrderStatusInput').value = source.status || 'new';
+    document.getElementById('storeOrderBuyerCommentInput').value = source.comment || '';
+    document.getElementById('storeOrderAdminCommentInput').value = source.adminComment || '';
+    _storeOrderItemsDraft = normalizeStoreOrderItems(source.items || []);
+    renderStoreOrderItemsEditor();
+}
+
+async function deleteStoreOrder(orderId) {
+    const user = firebase.auth().currentUser;
+    if (!user || !orderId) return;
+    if (!confirm('Удалить заказ?')) return;
+    try {
+        await firebase.database().ref('storeOrders/' + orderId).remove();
+        await loadStoreOrders();
+    } catch (e) {
+        const msg = e && e.message ? e.message : String(e);
+        console.error('deleteStoreOrder:', e);
+        if (typeof showToast === 'function') {
+            showToast('Не удалось удалить заказ: ' + msg, 'error');
+        } else {
+            alert('Не удалось удалить заказ: ' + msg);
+        }
+    }
+}
+
+async function saveStoreOrder(closeAfter = true) {
+    const user = firebase.auth().currentUser;
+    if (!user) return;
+    if (!validateStoreOrderForm()) return;
+    syncStoreOrderItemsDraftFromDom();
+    let number = (document.getElementById('storeOrderNumberInput')?.value || '').trim();
+    const buyerName = (document.getElementById('storeOrderBuyerNameInput')?.value || '').trim();
+    const buyerEmail = (document.getElementById('storeOrderBuyerEmailInput')?.value || '').trim();
+    const status = (document.getElementById('storeOrderStatusInput')?.value || 'new').trim();
+    const buyerComment = (document.getElementById('storeOrderBuyerCommentInput')?.value || '').trim();
+    const adminComment = (document.getElementById('storeOrderAdminCommentInput')?.value || '').trim();
+    const items = normalizeStoreOrderItems(_storeOrderItemsDraft).filter(x => (x.name || '').trim() !== '');
+    if (!items.length) {
+        const msgEl = document.getElementById('storeOrderValidationMessage');
+        if (msgEl) {
+            msgEl.textContent = 'Не удалось сформировать позиции заказа. Проверьте выбор товара в каждой строке.';
+            msgEl.classList.remove('hidden');
+        }
+        return;
+    }
+    if (!_storeOrderEditingId) {
+        number = await getNextGlobalStoreOrderNumber('АДМ');
+    } else if (!number || number === 'Генерация...' || number === 'Будет присвоен при сохранении') {
+        number = await getNextGlobalStoreOrderNumber('АДМ');
+    }
+    const payload = {
+        ownerUid: user.uid,
+        items: items.map(i => ({ name: i.name, price: i.price, qty: i.qty, productId: i.productId || null })),
+        total: calcStoreOrderTotal(items),
+        buyerName: buyerName || '',
+        buyerEmail: buyerEmail || '',
+        buyerUid: null,
+        orderNumber: number,
+        source: _storeOrderEditingId ? ((_storeOrdersCache.find(x => x.id === _storeOrderEditingId)?.source) || 'admin') : 'admin',
+        comment: buyerComment || '',
+        adminComment: adminComment || '',
+        status: status || 'new',
+        updatedAt: new Date().toISOString()
+    };
+    if (_storeOrderEditingId) {
+        await firebase.database().ref('storeOrders/' + _storeOrderEditingId).update(payload);
+    } else {
+        payload.createdAt = _storeOrderCreatedAtDraft || new Date().toISOString();
+        await firebase.database().ref('storeOrders').push(payload);
+    }
+    await loadStoreOrders();
+    if (closeAfter) closeStoreOrderModal();
 }
 
 async function loadStoreOrders() {
@@ -888,7 +1638,6 @@ async function loadStoreOrders() {
     if (!user) return;
 
     const listEl = document.getElementById('storeOrdersList');
-    const emptyEl = document.getElementById('storeOrdersEmpty');
     if (!listEl) return;
 
     try {
@@ -898,30 +1647,79 @@ async function loadStoreOrders() {
             orders.push({ id: child.key, ...child.val() });
         });
         orders.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-
-        if (orders.length === 0) {
-            listEl.innerHTML = '<p class="text-muted" id="storeOrdersEmpty">Нет заказов</p>';
-            return;
+        _storeOrdersCache = orders;
+        const searchInput = document.getElementById('storeOrdersSearchInput');
+        if (searchInput && searchInput.dataset.bound !== '1') {
+            searchInput.dataset.bound = '1';
+            searchInput.addEventListener('input', renderStoreOrdersList);
         }
-
-        listEl.innerHTML = orders.map((o) => {
-            const date = o.createdAt ? new Date(o.createdAt).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' }) : '—';
-            const itemsStr = Array.isArray(o.items) ? o.items.map(i => `${i.name || 'Товар'} × ${i.qty || 1}`).join(', ') : '—';
-            return `
-                <div class="store-order-card">
-                    <div class="store-order-header">
-                        <span class="store-order-date">${escapeHtml(date)}</span>
-                        <span class="store-order-total">${(o.total || 0).toFixed(0)} ₽</span>
-                    </div>
-                    <div class="store-order-buyer">${escapeHtml(o.buyerName || '—')}, ${escapeHtml(o.buyerEmail || '—')}</div>
-                    <div class="store-order-items">${escapeHtml(itemsStr)}</div>
-                </div>`;
-        }).join('');
+        const statusSelect = document.getElementById('storeOrdersStatusFilter');
+        if (statusSelect && statusSelect.dataset.bound !== '1') {
+            statusSelect.dataset.bound = '1';
+            statusSelect.addEventListener('change', renderStoreOrdersList);
+        }
+        renderStoreOrdersList();
     } catch (e) {
         console.error('loadStoreOrders:', e);
         const msg = e && e.message ? e.message : String(e);
         listEl.innerHTML = '<p class="text-muted" id="storeOrdersEmpty">Ошибка загрузки заказов. Консоль (F12): ' + escapeHtml(msg) + '</p>';
     }
+}
+
+function getStoreSettingsCurrentValues() {
+    const subdomainWrap = document.getElementById('storeSubdomainWrap');
+    const subdomain = subdomainWrap && !subdomainWrap.classList.contains('hidden')
+        ? (document.getElementById('storeSubdomainInput')?.value || '')
+        : (document.getElementById('storeSubdomainDisplay')?.textContent?.trim() || '');
+    return {
+        subdomain,
+        title: (document.getElementById('storeTitleInput') && document.getElementById('storeTitleInput').value) || '',
+        description: (document.getElementById('storeDescInput') && document.getElementById('storeDescInput').value) || '',
+        enabled: document.getElementById('storeEnabledInput') ? document.getElementById('storeEnabledInput').checked : true,
+        minOrderAmount: (document.getElementById('storeMinOrderInput') && document.getElementById('storeMinOrderInput').value) || '',
+        banner: (document.getElementById('storeBannerUrl') && document.getElementById('storeBannerUrl').value) || '',
+        logo: (document.getElementById('storeLogoUrl') && document.getElementById('storeLogoUrl').value) || '',
+        aboutDesc: (document.getElementById('storeAboutDescInput') && document.getElementById('storeAboutDescInput').value) || '',
+        socialVk: (document.getElementById('storeSocialVk') && document.getElementById('storeSocialVk').value) || '',
+        socialTelegram: (document.getElementById('storeSocialTelegram') && document.getElementById('storeSocialTelegram').value) || '',
+        socialTiktok: (document.getElementById('storeSocialTiktok') && document.getElementById('storeSocialTiktok').value) || '',
+        socialInstagram: (document.getElementById('storeSocialInstagram') && document.getElementById('storeSocialInstagram').value) || '',
+        socialEmail: (document.getElementById('storeSocialEmail') && document.getElementById('storeSocialEmail').value) || '',
+        socialPhone: (document.getElementById('storeSocialPhone') && document.getElementById('storeSocialPhone').value) || '',
+        socialWhatsapp: (document.getElementById('storeSocialWhatsapp') && document.getElementById('storeSocialWhatsapp').value) || '',
+        sellerDetails: (document.getElementById('storeSellerDetailsInput') && document.getElementById('storeSellerDetailsInput').value) || '',
+        offer: (document.getElementById('storeOfferInput') && document.getElementById('storeOfferInput').value) || '',
+        aboutContacts: (document.getElementById('storeAboutContactsInput') && document.getElementById('storeAboutContactsInput').value) || '',
+        headerColor: (document.getElementById('storeHeaderColorInput') && document.getElementById('storeHeaderColorInput').value) || '#ffffff',
+        footerColor: (document.getElementById('storeFooterColorInput') && document.getElementById('storeFooterColorInput').value) || '#f1f5f9',
+        tabsSectionColor: (document.getElementById('storeTabsSectionColorInput') && document.getElementById('storeTabsSectionColorInput').value) || '#e0f2fe',
+        addToCartButtonColor: (document.getElementById('storeAddToCartColorInput') && document.getElementById('storeAddToCartColorInput').value) || '#2563eb',
+        addToCartButtonTextWhite: document.getElementById('storeAddToCartTextWhiteInput') ? document.getElementById('storeAddToCartTextWhiteInput').checked : true,
+        headingColor: (document.getElementById('storeHeadingColorInput') && document.getElementById('storeHeadingColorInput').value) || '#1e293b',
+        bannerDescTextColor: (document.getElementById('storeBannerDescTextColorInput') && document.getElementById('storeBannerDescTextColorInput').value) || ''
+    };
+}
+
+function hasStoreSettingsChanges() {
+    const orig = window._storeSettingsOriginal;
+    if (!orig) return true;
+    const cur = getStoreSettingsCurrentValues();
+    return Object.keys(orig).some(k => {
+        const o = orig[k];
+        const c = cur[k];
+        if (typeof o === 'boolean' || typeof c === 'boolean') return o !== c;
+        return String(o || '') !== String(c || '');
+    });
+}
+
+function updateStoreSaveBtn() {
+    const btn = document.getElementById('storeSaveBtn');
+    if (!btn) return;
+    const hasChanges = hasStoreSettingsChanges();
+    btn.disabled = !hasChanges;
+    btn.classList.toggle('btn-primary--dimmed', !hasChanges);
+    const hint = document.getElementById('storeSaveUnsavedHint');
+    if (hint) hint.classList.toggle('hidden', !hasChanges);
 }
 
 async function saveStoreSettings() {
@@ -959,9 +1757,29 @@ async function saveStoreSettings() {
         title: (document.getElementById('storeTitleInput') && document.getElementById('storeTitleInput').value) || '',
         description: (document.getElementById('storeDescInput') && document.getElementById('storeDescInput').value) || '',
         enabled: document.getElementById('storeEnabledInput') ? document.getElementById('storeEnabledInput').checked : true,
-        contactEmail: (document.getElementById('storeContactEmailInput') && document.getElementById('storeContactEmailInput').value) || '',
-        contactTelegram: (document.getElementById('storeContactTelegramInput') && document.getElementById('storeContactTelegramInput').value) || '',
+        contactEmail: (document.getElementById('storeSocialEmail') && document.getElementById('storeSocialEmail').value) || '',
+        contactTelegram: (document.getElementById('storeSocialTelegram') && document.getElementById('storeSocialTelegram').value) || '',
         minOrderAmount: (minOrderAmount != null && !isNaN(minOrderAmount) && minOrderAmount > 0) ? minOrderAmount : null,
+        banner: (document.getElementById('storeBannerUrl') && document.getElementById('storeBannerUrl').value) || '',
+        logo: (document.getElementById('storeLogoUrl') && document.getElementById('storeLogoUrl').value) || '',
+        aboutDesc: (document.getElementById('storeAboutDescInput') && document.getElementById('storeAboutDescInput').value) || '',
+        socialVk: (document.getElementById('storeSocialVk') && document.getElementById('storeSocialVk').value) || '',
+        socialTelegram: (document.getElementById('storeSocialTelegram') && document.getElementById('storeSocialTelegram').value) || '',
+        socialTiktok: (document.getElementById('storeSocialTiktok') && document.getElementById('storeSocialTiktok').value) || '',
+        socialInstagram: (document.getElementById('storeSocialInstagram') && document.getElementById('storeSocialInstagram').value) || '',
+        socialEmail: (document.getElementById('storeSocialEmail') && document.getElementById('storeSocialEmail').value) || '',
+        socialPhone: (document.getElementById('storeSocialPhone') && document.getElementById('storeSocialPhone').value) || '',
+        socialWhatsapp: (document.getElementById('storeSocialWhatsapp') && document.getElementById('storeSocialWhatsapp').value) || '',
+        sellerDetails: (document.getElementById('storeSellerDetailsInput') && document.getElementById('storeSellerDetailsInput').value) || '',
+        offer: (document.getElementById('storeOfferInput') && document.getElementById('storeOfferInput').value) || '',
+        aboutContacts: (document.getElementById('storeAboutContactsInput') && document.getElementById('storeAboutContactsInput').value) || '',
+        headerColor: (document.getElementById('storeHeaderColorInput') && document.getElementById('storeHeaderColorInput').value) || '#ffffff',
+        footerColor: (document.getElementById('storeFooterColorInput') && document.getElementById('storeFooterColorInput').value) || '#f1f5f9',
+        tabsSectionColor: (document.getElementById('storeTabsSectionColorInput') && document.getElementById('storeTabsSectionColorInput').value) || '#e0f2fe',
+        addToCartButtonColor: (document.getElementById('storeAddToCartColorInput') && document.getElementById('storeAddToCartColorInput').value) || '#2563eb',
+        addToCartButtonTextWhite: document.getElementById('storeAddToCartTextWhiteInput') ? document.getElementById('storeAddToCartTextWhiteInput').checked : true,
+        headingColor: (document.getElementById('storeHeadingColorInput') && document.getElementById('storeHeadingColorInput').value) || '#1e293b',
+        bannerDescTextColor: (document.getElementById('storeBannerDescTextColorInput') && document.getElementById('storeBannerDescTextColorInput').value) || '',
         updatedAt: now
     };
     if (!existingStore) storeData.createdAt = now;
@@ -972,79 +1790,546 @@ async function saveStoreSettings() {
         }
         await storeRef.set(storeData);
         showToast('Настройки сохранены', 'success');
+        window._storeSettingsOriginal = getStoreSettingsCurrentValues();
+        updateStoreSaveBtn();
         fillStoreSettingsPage();
     } catch (e) {
         showToast('Ошибка: ' + e.message, 'error');
     }
 }
 
-function openAddStoreProductModal() {
-    const select = document.getElementById('addStoreProductSelect');
-    const nameInput = document.getElementById('addStoreProductName');
-    const priceInput = document.getElementById('addStoreProductPrice');
-    if (!select || !nameInput || !priceInput) return;
+let _storeProductEditIndex = null;
 
-    const storeProductsRef = firebase.database().ref('users/' + firebase.auth().currentUser.uid + '/storeProducts');
-    storeProductsRef.once('value').then((snap) => {
-        const raw = snap.val();
-        const storeProducts = raw && typeof raw === 'object' ? (Array.isArray(raw) ? raw : Object.values(raw)) : [];
-        const usedIds = new Set(storeProducts.map(sp => sp.productId).filter(Boolean));
+async function openStoreProductModal(index = null) {
+    const modal = document.getElementById('storeProductModal');
+    const titleEl = document.getElementById('storeProductModalTitle');
+    const sysIdEl = document.getElementById('storeProductSystemId');
+    _storeProductEditIndex = index;
 
-        const rootProducts = db.products.filter(p => p.type !== 'Часть составного' && !p.isDraft);
-        const inStock = rootProducts.filter(p => (p.status === 'В наличии полностью' || p.status === 'В наличии частично') && !usedIds.has(p.id));
-
-        select.innerHTML = '<option value="">— Не привязано к изделию —</option>' + inStock.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
-        select.onchange = function() {
-            const id = this.value ? parseInt(this.value) : null;
-            const p = id ? db.products.find(x => x.id === id) : null;
-            nameInput.value = p ? (p.name || '') : '';
-        };
-        nameInput.value = '';
-        priceInput.value = '';
-        document.getElementById('addStoreProductModal').classList.add('active');
-    });
+    if (index !== null) {
+        titleEl.textContent = 'Редактировать товар';
+    } else {
+        titleEl.textContent = 'Добавить товар';
+        const now = new Date();
+        sysIdEl.textContent = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
+    }
+    await clearStoreProductForm(index);
+    if (!window._storePhotoUploadInited && typeof initStoreProductPhotoUpload === 'function') {
+        initStoreProductPhotoUpload();
+        window._storePhotoUploadInited = true;
+    }
+    if (typeof initStoreProductPhotoDrag === 'function') initStoreProductPhotoDrag();
+    modal.classList.add('active');
 }
 
-async function confirmAddStoreProduct() {
+function closeStoreProductModal() {
+    document.getElementById('storeProductModal').classList.remove('active');
+    _storeProductEditIndex = null;
+}
+
+function repopulateStoreProductSelectWithFilter(term) {
+    const selectEl = document.getElementById('storeProductSelect');
+    if (!selectEl) return;
+    const t = String(term || '').trim().toLowerCase();
+    const currentVal = selectEl.value;
+    const list = window._storeProductLinkedCandidates || [];
+    const filtered = list.filter((p) => {
+        if (currentVal && String(p.id) === String(currentVal)) return true;
+        if (!t) return true;
+        return (p.name || '').toLowerCase().includes(t);
+    });
+    selectEl.innerHTML = '<option value="">— Не привязано к изделию —</option>' +
+        filtered.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+    if (currentVal) selectEl.value = currentVal;
+}
+
+function handleStoreProductLinkedSearch(inputEl) {
+    const wrapper = inputEl && inputEl.closest('.writeoff-product-search-wrapper');
+    if (wrapper) {
+        const clearBtn = wrapper.querySelector('.writeoff-product-clear');
+        if (clearBtn) clearBtn.style.visibility = inputEl.value ? 'visible' : 'hidden';
+    }
+    repopulateStoreProductSelectWithFilter(inputEl ? inputEl.value : '');
+}
+
+function clearStoreProductLinkedSearch() {
+    const inputEl = document.getElementById('storeProductLinkedSearch');
+    const clearEl = document.getElementById('storeProductLinkedSearchClear');
+    if (!inputEl) return;
+    inputEl.value = '';
+    if (clearEl) clearEl.style.visibility = 'hidden';
+    repopulateStoreProductSelectWithFilter('');
+    inputEl.focus();
+}
+
+function initStoreProductLinkedSearchFilter() {
+    const inputEl = document.getElementById('storeProductLinkedSearch');
+    const clearEl = document.getElementById('storeProductLinkedSearchClear');
+    if (!inputEl || inputEl.dataset.bound === '1') return;
+    inputEl.dataset.bound = '1';
+    inputEl.addEventListener('input', () => handleStoreProductLinkedSearch(inputEl));
+    if (clearEl) clearEl.addEventListener('click', () => clearStoreProductLinkedSearch());
+}
+
+async function clearStoreProductForm(editIndex) {
     const user = firebase.auth().currentUser;
     if (!user) return;
 
-    const select = document.getElementById('addStoreProductSelect');
-    const nameInput = document.getElementById('addStoreProductName');
-    const priceInput = document.getElementById('addStoreProductPrice');
-    const productId = select && select.value ? parseInt(select.value) : null;
-    const name = nameInput ? String(nameInput.value || '').trim() : '';
-    const price = priceInput ? parseFloat(priceInput.value) || 0 : 0;
+    document.getElementById('storeProductName').value = '';
+    document.getElementById('storeProductDesc').value = '';
+    document.getElementById('storeProductPrice').value = '';
+    document.getElementById('storeProductPriceSale').value = '';
 
-    if (!name) { showToast('Укажите наименование для магазина', 'error'); return; }
-    if (price <= 0) { showToast('Укажите цену', 'error'); return; }
+    const productsSnap = await firebase.database().ref('users/' + user.uid + '/storeProducts').once('value');
+    const raw = productsSnap.val();
+    const storeProducts = raw && typeof raw === 'object' ? (Array.isArray(raw) ? raw : Object.values(raw)) : [];
+    const usedIds = new Set(storeProducts.map(sp => sp.productId).filter(Boolean));
+    if (editIndex !== null && storeProducts[editIndex]) usedIds.delete(storeProducts[editIndex].productId);
+    const rootProducts = db.products.filter(p => p.type !== 'Часть составного' && !p.isDraft);
+    let inStock = rootProducts.filter(p => (p.status === 'В наличии полностью' || p.status === 'В наличии частично') && !usedIds.has(p.id));
+    if (editIndex !== null && storeProducts[editIndex]) {
+        const pid = storeProducts[editIndex].productId;
+        if (pid && !inStock.some(p => String(p.id) === String(pid))) {
+            const extra = db.products.find(x => x.id === pid && x.type !== 'Часть составного' && !x.isDraft);
+            if (extra) inStock = [extra, ...inStock];
+        }
+    }
+    window._storeProductLinkedCandidates = inStock;
+    const searchEl = document.getElementById('storeProductLinkedSearch');
+    if (searchEl) {
+        searchEl.value = '';
+        const clearBtn = document.getElementById('storeProductLinkedSearchClear');
+        if (clearBtn) clearBtn.style.visibility = 'hidden';
+    }
+    initStoreProductLinkedSearchFilter();
+    repopulateStoreProductSelectWithFilter('');
+    const selectEl = document.getElementById('storeProductSelect');
+    selectEl.onchange = function() {
+        const id = this.value ? parseInt(this.value, 10) : null;
+        const p = id ? db.products.find(x => x.id === id) : null;
+        const nameEl = document.getElementById('storeProductName');
+        if (p && !String(nameEl.value || '').trim()) {
+            nameEl.value = p.name || '';
+        }
+    };
+
+    document.querySelectorAll('#storeProductPhotosRow .store-photo-slot').forEach((slot) => {
+        slot.classList.remove('has-image');
+        slot.querySelector('.store-photo-preview').src = '';
+        slot.querySelector('input[type="file"]').value = '';
+    });
+
+    renderStoreProductCategoriesCheckboxes(user.uid, []);
+    document.getElementById('storeProductIsPopular').checked = false;
+    document.getElementById('storeProductIsNew').checked = false;
+    const activeEl = document.getElementById('storeProductActive');
+    if (activeEl) activeEl.checked = true;
+
+    if (editIndex !== null && storeProducts[editIndex]) {
+        const sp = storeProducts[editIndex];
+        document.getElementById('storeProductSystemId').textContent = sp.systemId || '—';
+        document.getElementById('storeProductName').value = sp.name || '';
+        document.getElementById('storeProductDesc').value = sp.description || '';
+        document.getElementById('storeProductPrice').value = sp.price != null ? sp.price : '';
+        document.getElementById('storeProductPriceSale').value = (sp.priceSale != null && sp.priceSale !== '') ? sp.priceSale : '';
+        if (sp.productId) document.getElementById('storeProductSelect').value = sp.productId;
+        document.getElementById('storeProductIsPopular').checked = !!sp.isPopular;
+        document.getElementById('storeProductIsNew').checked = !!sp.isNew;
+        if (activeEl) activeEl.checked = isStoreCatalogProductActive(sp);
+        const urls = Array.isArray(sp.imageUrls) ? sp.imageUrls : [];
+        const slots = document.querySelectorAll('#storeProductPhotosRow .store-photo-slot');
+        urls.forEach((url, i) => {
+            const slot = slots[i];
+            if (slot) { slot.classList.add('has-image'); slot.querySelector('.store-photo-preview').src = url; }
+        });
+        renderStoreProductCategoriesCheckboxes(user.uid, Array.isArray(sp.categoryIds) ? sp.categoryIds : []);
+    }
+}
+
+function renderStoreProductCategoriesCheckboxes(uid, selectedIds) {
+    const wrap = document.getElementById('storeProductCategoriesWrap');
+    if (!wrap) return;
+    const sel = new Set(selectedIds);
+    getStoreCategoriesTree(uid).then(roots => {
+        const renderNode = (node, depth) => {
+            if (node.disabled) {
+                return (node.children || []).map(c => renderNode(c, depth)).join('');
+            }
+            const checked = sel.has(node.id) ? 'checked' : '';
+            const kids = (node.children || []).map(c => renderNode(c, depth + 1)).join('');
+            return `<div class="store-product-cat-tree-row" style="padding-left:${depth * 20}px">
+                <label class="store-product-cat-tree-label">
+                    <span class="store-product-cat-tree-cb-wrap"><input type="checkbox" value="${escapeHtml(node.id)}" ${checked}></span>
+                    <span class="store-product-cat-tree-name">${escapeHtml(node.name || '')}</span>
+                </label>
+            </div>${kids}`;
+        };
+        const html = roots.map(n => renderNode(n, 0)).join('');
+        wrap.innerHTML = html || '<p class="text-muted" style="margin:8px;font-size:13px;">Категорий пока нет — добавьте во вкладке «Категории».</p>';
+    });
+}
+
+async function saveStoreProduct(closeAfter = true) {
+    const user = firebase.auth().currentUser;
+    if (!user) return;
+
+    const name = String(document.getElementById('storeProductName').value || '').trim();
+    const price = parseFloat(document.getElementById('storeProductPrice').value) || 0;
+    if (!name) { showToast('Укажите наименование товара', 'error'); return; }
+    if (price <= 0) { showToast('Укажите цену без скидки', 'error'); return; }
+
+    const productId = document.getElementById('storeProductSelect').value ? parseInt(document.getElementById('storeProductSelect').value) : null;
+    const priceSaleVal = document.getElementById('storeProductPriceSale').value;
+    const priceSale = (priceSaleVal !== '' && priceSaleVal != null) ? parseFloat(priceSaleVal) : null;
+    const categoryIds = Array.from(document.querySelectorAll('#storeProductCategoriesWrap input:checked')).map(cb => cb.value);
+
+    const imageUrls = [];
+    document.querySelectorAll('#storeProductPhotosRow .store-photo-slot').forEach((slot) => {
+        if (slot.classList.contains('has-image')) {
+            const img = slot.querySelector('.store-photo-preview');
+            if (img && img.src) imageUrls.push(img.src);
+        }
+    });
 
     const productsRef = firebase.database().ref('users/' + user.uid + '/storeProducts');
     const snap = await productsRef.once('value');
     const raw = snap.val();
     const arr = raw && typeof raw === 'object' ? (Array.isArray(raw) ? raw : Object.values(raw)) : [];
-    const item = { name, price: price, inCatalog: true };
+
+    const wasNew = _storeProductEditIndex === null;
+    const activeEl = document.getElementById('storeProductActive');
+    const item = {
+        name,
+        price,
+        inCatalog: true,
+        active: !!(activeEl ? activeEl.checked : true),
+        description: String(document.getElementById('storeProductDesc').value || '').trim() || null,
+        imageUrls: imageUrls.length ? imageUrls : null,
+        priceSale: priceSale && priceSale > 0 ? priceSale : null,
+        categoryIds: categoryIds.length ? categoryIds : null,
+        isPopular: document.getElementById('storeProductIsPopular').checked,
+        isNew: document.getElementById('storeProductIsNew').checked,
+    };
     if (productId) item.productId = productId;
-    arr.push(item);
+    if (wasNew) {
+        const now = new Date();
+        item.systemId = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
+        arr.push(item);
+    } else {
+        if (arr[_storeProductEditIndex] && arr[_storeProductEditIndex].systemId) item.systemId = arr[_storeProductEditIndex].systemId;
+        arr[_storeProductEditIndex] = item;
+    }
     await productsRef.set(arr);
-    document.getElementById('addStoreProductModal').classList.remove('active');
-    showToast('Товар добавлен в каталог', 'success');
+    if (wasNew && !closeAfter) {
+        _storeProductEditIndex = arr.length - 1;
+        const titleEl = document.getElementById('storeProductModalTitle');
+        if (titleEl) titleEl.textContent = 'Редактировать товар';
+        const sysIdEl = document.getElementById('storeProductSystemId');
+        if (sysIdEl) sysIdEl.textContent = item.systemId || '—';
+    }
+    if (closeAfter) closeStoreProductModal();
+    showToast(wasNew ? 'Товар добавлен' : 'Товар сохранён', 'success');
     fillStoreSettingsPage();
+}
+
+function editStoreProduct(index) { openStoreProductModal(index); }
+
+async function copyStoreProduct(index) {
+    const user = firebase.auth().currentUser;
+    if (!user) return;
+    const productsRef = firebase.database().ref('users/' + user.uid + '/storeProducts');
+    const snap = await productsRef.once('value');
+    const raw = snap.val();
+    const arr = raw && typeof raw === 'object' ? (Array.isArray(raw) ? raw : Object.values(raw)) : [];
+    const src = arr[index];
+    if (!src) return;
+    const now = new Date();
+    const copy = { ...src, systemId: `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}` };
+    arr.push(copy);
+    await productsRef.set(arr);
+    showToast('Товар скопирован', 'success');
+    fillStoreSettingsPage();
+    setTimeout(() => openStoreProductModal(arr.length - 1), 100);
 }
 
 async function removeStoreProduct(index) {
     const user = firebase.auth().currentUser;
     if (!user) return;
-    if (!confirm('Удалить товар из каталога?')) return;
 
     const productsRef = firebase.database().ref('users/' + user.uid + '/storeProducts');
     const snap = await productsRef.once('value');
     const raw = snap.val();
     const arr = raw && typeof raw === 'object' ? (Array.isArray(raw) ? raw : Object.values(raw)) : [];
+    const sp = arr[index];
+    if (!sp) return;
+
+    const ordersSnap = await firebase.database().ref('storeOrders').orderByChild('ownerUid').equalTo(user.uid).once('value');
+    let usedInOrders = false;
+    ordersSnap.forEach((child) => {
+        const o = child.val();
+        const items = Array.isArray(o.items) ? o.items : [];
+        if (items.some((it) => isStoreOrderLineLinkedToStoreProduct(it, sp))) usedInOrders = true;
+    });
+    if (usedInOrders) {
+        showToast('Нельзя удалить: товар используется в заказах.', 'error');
+        return;
+    }
+
+    if (!confirm('Удалить товар из каталога?')) return;
+
     arr.splice(index, 1);
     await productsRef.set(arr);
     showToast('Товар удалён из каталога', 'success');
     fillStoreSettingsPage();
+}
+
+async function getStoreCategoriesMap(uid) {
+    const snap = await firebase.database().ref('users/' + uid + '/storeCategories').once('value');
+    const raw = snap.val();
+    const map = {};
+    if (raw && typeof raw === 'object') {
+        Object.entries(raw).forEach(([id, c]) => { if (c && c.name) map[id] = c.name; });
+    }
+    return map;
+}
+
+async function getStoreCategoriesFlat(uid) {
+    const snap = await firebase.database().ref('users/' + uid + '/storeCategories').once('value');
+    const raw = snap.val();
+    if (!raw || typeof raw !== 'object') return [];
+    return Object.entries(raw).map(([id, c]) => ({ id, ...c }));
+}
+
+async function getStoreCategoriesTree(uid) {
+    const flat = await getStoreCategoriesFlat(uid);
+    const byId = {};
+    flat.forEach(c => { byId[c.id] = { ...c, children: [] }; });
+    const roots = [];
+    flat.forEach(c => {
+        const node = byId[c.id];
+        if (!c.parentId) roots.push(node);
+        else if (byId[c.parentId]) byId[c.parentId].children.push(node);
+        else roots.push(node);
+    });
+    roots.sort((a, b) => (a.order || 0) - (b.order || 0));
+    const sortChildren = (nodes) => { nodes.forEach(n => { n.children.sort((a, b) => (a.order || 0) - (b.order || 0)); sortChildren(n.children); }); };
+    sortChildren(roots);
+    return roots;
+}
+
+async function countProductsInCategory(uid, categoryId) {
+    const productsSnap = await firebase.database().ref('users/' + uid + '/storeProducts').once('value');
+    const raw = productsSnap.val();
+    const arr = raw && typeof raw === 'object' ? (Array.isArray(raw) ? raw : Object.values(raw)) : [];
+    return arr.filter(sp => Array.isArray(sp.categoryIds) && sp.categoryIds.includes(categoryId)).length;
+}
+
+async function renderStoreCategoriesTree(uid) {
+    const treeEl = document.getElementById('storeCategoriesTree');
+    if (!treeEl) return;
+    const tree = await getStoreCategoriesTree(uid);
+    const renderNode = (node, depth = 0) => {
+        return countProductsInCategory(uid, node.id).then(count => {
+            const hasChildren = node.children && node.children.length > 0;
+            let childrenHtml = '';
+            if (hasChildren) {
+                return Promise.all(node.children.map(c => renderNode(c, depth + 1))).then(parts => {
+                    childrenHtml = `<div class="store-category-children">${parts.join('')}</div>`;
+                    return `<div class="store-category-node ${node.disabled ? 'disabled' : ''}" data-id="${node.id}">
+                        <span class="category-toggle ${hasChildren ? '' : 'empty'}">${hasChildren ? '▼' : '○'}</span>
+                        <span class="category-icon">📁</span>
+                        <span class="category-name">${escapeHtml(node.name || '')}</span>
+                        <span class="category-count">(${count})</span>
+                        <span class="category-actions">
+                            <button class="btn-secondary btn-small" onclick="editStoreCategory('${node.id}')">✎</button>
+                            <button class="btn-danger btn-small" onclick="deleteStoreCategory('${node.id}')">✕</button>
+                        </span>
+                    </div>${childrenHtml}`;
+                });
+            }
+            return `<div class="store-category-node ${node.disabled ? 'disabled' : ''}" data-id="${node.id}">
+                <span class="category-toggle empty">○</span>
+                <span class="category-icon">📁</span>
+                <span class="category-name">${escapeHtml(node.name || '')}</span>
+                <span class="category-count">(${count})</span>
+                <span class="category-actions">
+                    <button class="btn-secondary btn-small" onclick="editStoreCategory('${node.id}')">✎</button>
+                    <button class="btn-danger btn-small" onclick="deleteStoreCategory('${node.id}')">✕</button>
+                </span>
+            </div>`;
+        });
+    };
+    const html = await Promise.all(tree.map(n => renderNode(n))).then(parts => parts.join(''));
+    treeEl.innerHTML = html || '<p class="text-muted">Категорий нет. Нажмите «Добавить категорию».</p>';
+}
+
+let _storeCategoryEditId = null;
+
+function clearStoreCategoryValidation() {
+    const msg = document.getElementById('storeCategoryValidationMessage');
+    if (msg) {
+        msg.classList.add('hidden');
+        msg.textContent = 'Укажите наименование категории';
+    }
+    document.querySelectorAll('#storeCategoryModal input.error, #storeCategoryModal select.error, #storeCategoryModal textarea.error').forEach((el) => {
+        el.classList.remove('error');
+    });
+}
+
+function ensureStoreCategoryModalValidationBindings() {
+    const nameEl = document.getElementById('storeCategoryName');
+    if (!nameEl || nameEl.dataset.errClearBound === '1') return;
+    nameEl.dataset.errClearBound = '1';
+    nameEl.addEventListener('input', () => {
+        nameEl.classList.remove('error');
+        const msg = document.getElementById('storeCategoryValidationMessage');
+        if (msg && String(nameEl.value || '').trim()) msg.classList.add('hidden');
+    });
+}
+
+function openAddCategoryModal(parentId = null) {
+    ensureStoreCategoryModalValidationBindings();
+    clearStoreCategoryValidation();
+    _storeCategoryEditId = null;
+    document.getElementById('storeCategoryModalTitle').textContent = 'Добавить категорию';
+    document.getElementById('storeCategoryName').value = '';
+    document.getElementById('storeCategoryDisabled').checked = false;
+    populateStoreCategoryParentSelect(null, parentId);
+    document.getElementById('storeCategoryModal').classList.add('active');
+}
+
+function editStoreCategory(id) {
+    ensureStoreCategoryModalValidationBindings();
+    clearStoreCategoryValidation();
+    _storeCategoryEditId = id;
+    document.getElementById('storeCategoryModalTitle').textContent = 'Редактировать категорию';
+    firebase.database().ref('users/' + firebase.auth().currentUser.uid + '/storeCategories/' + id).once('value').then(snap => {
+        const c = snap.val();
+        if (c) {
+            document.getElementById('storeCategoryName').value = c.name || '';
+            document.getElementById('storeCategoryDisabled').checked = !!c.disabled;
+            populateStoreCategoryParentSelect(id, c.parentId || null);
+        }
+        document.getElementById('storeCategoryModal').classList.add('active');
+    });
+}
+
+async function populateStoreCategoryParentSelect(excludeId, selectedId) {
+    const flat = await getStoreCategoriesFlat(firebase.auth().currentUser.uid);
+    const opts = flat.filter(c => c.id !== excludeId).map(c => `<option value="${c.id}" ${c.id === selectedId ? 'selected' : ''}>${escapeHtml(c.name || '')}</option>`);
+    document.getElementById('storeCategoryParent').innerHTML = '<option value="">— Корневая —</option>' + opts.join('');
+}
+
+function closeStoreCategoryModal() {
+    clearStoreCategoryValidation();
+    document.getElementById('storeCategoryModal').classList.remove('active');
+    _storeCategoryEditId = null;
+}
+
+async function saveStoreCategory() {
+    const user = firebase.auth().currentUser;
+    if (!user) return;
+    clearStoreCategoryValidation();
+    const nameEl = document.getElementById('storeCategoryName');
+    const name = String(nameEl && nameEl.value || '').trim();
+    if (!name) {
+        const msg = document.getElementById('storeCategoryValidationMessage');
+        if (msg) {
+            msg.textContent = 'Укажите наименование категории';
+            msg.classList.remove('hidden');
+        }
+        if (nameEl) nameEl.classList.add('error');
+        return;
+    }
+    const parentId = document.getElementById('storeCategoryParent').value || null;
+    const disabled = document.getElementById('storeCategoryDisabled').checked;
+    const ref = firebase.database().ref('users/' + user.uid + '/storeCategories');
+    if (_storeCategoryEditId) {
+        await ref.child(_storeCategoryEditId).update({ name, parentId, disabled });
+        showToast('Категория обновлена', 'success');
+    } else {
+        const id = ref.push().key;
+        await ref.child(id).set({ name, parentId, disabled, order: Date.now() });
+        showToast('Категория добавлена', 'success');
+    }
+    closeStoreCategoryModal();
+    renderStoreCategoriesTree(user.uid);
+}
+
+async function deleteStoreCategory(id) {
+    if (!confirm('Удалить категорию? Товары не будут удалены.')) return;
+    const user = firebase.auth().currentUser;
+    if (!user) return;
+    await firebase.database().ref('users/' + user.uid + '/storeCategories/' + id).remove();
+    showToast('Категория удалена', 'success');
+    renderStoreCategoriesTree(user.uid);
+}
+
+function initStoreProductPhotoUpload() {
+    document.querySelectorAll('#storeProductPhotosRow .store-photo-slot').forEach(slot => {
+        if (slot.dataset.photoUploadBound === '1') return;
+        slot.dataset.photoUploadBound = '1';
+        const ph = slot.querySelector('.store-photo-placeholder');
+        const input = slot.querySelector('input[type="file"]');
+        const img = slot.querySelector('.store-photo-preview');
+        const delBtn = slot.querySelector('.btn-delete-store-photo');
+        if (ph && input) ph.addEventListener('click', () => input.click());
+        if (input) input.addEventListener('change', async function() {
+            const file = this.files && this.files[0];
+            if (!file || !file.type.startsWith('image/')) return;
+            const result = await uploadFileToCloud(file);
+            if (result && result.url) { slot.classList.add('has-image'); img.src = result.url; }
+            this.value = '';
+        });
+        if (delBtn) delBtn.addEventListener('click', (e) => { e.stopPropagation(); slot.classList.remove('has-image'); img.src = ''; });
+    });
+}
+
+function initStoreProductPhotoDrag() {
+    const row = document.getElementById('storeProductPhotosRow');
+    if (!row || row.dataset.dragInit === '1') return;
+    row.dataset.dragInit = '1';
+    let dragged = null;
+    row.querySelectorAll('.store-photo-slot').forEach(slot => { slot.draggable = true; });
+    row.addEventListener('dragstart', (e) => {
+        if (e.target.closest('.btn-delete-store-photo')) {
+            e.preventDefault();
+            return;
+        }
+        const slot = e.target.closest('.store-photo-slot');
+        if (!slot || !row.contains(slot)) return;
+        dragged = slot;
+        slot.classList.add('store-photo-slot--dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', 'slot'); } catch (_) {}
+    });
+    row.addEventListener('dragend', () => {
+        row.querySelectorAll('.store-photo-slot--dragging').forEach(el => el.classList.remove('store-photo-slot--dragging'));
+        row.querySelectorAll('.store-photo-slot--drop-target').forEach(el => el.classList.remove('store-photo-slot--drop-target'));
+        dragged = null;
+    });
+    row.addEventListener('dragover', (e) => {
+        const slot = e.target.closest('.store-photo-slot');
+        if (!dragged || !slot) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        row.querySelectorAll('.store-photo-slot--drop-target').forEach(el => {
+            if (el !== slot) el.classList.remove('store-photo-slot--drop-target');
+        });
+        if (slot !== dragged) slot.classList.add('store-photo-slot--drop-target');
+    });
+    row.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const slot = e.target.closest('.store-photo-slot');
+        row.querySelectorAll('.store-photo-slot--drop-target').forEach(el => el.classList.remove('store-photo-slot--drop-target'));
+        if (!dragged || !slot || dragged === slot) return;
+        const children = Array.from(row.children);
+        const di = children.indexOf(dragged);
+        const ti = children.indexOf(slot);
+        if (di < 0 || ti < 0) return;
+        if (di < ti) row.insertBefore(dragged, slot.nextSibling);
+        else row.insertBefore(dragged, slot);
+    });
 }
 
 function initProfileCabinetHandlers() {
@@ -1163,6 +2448,10 @@ async function saveData() {
         dataToSave.products.forEach(p => { delete p.imageBlob; delete p.attachedFiles; });
     }
     try {
+        delete dataToSave._backupVersion;
+        delete dataToSave._storeBackup;
+        delete dataToSave._store_backup;
+        delete dataToSave._subscription_backup;
         await dbRef.set(dataToSave);
         const header = document.querySelector('.header-info');
         if(header) {
@@ -1566,7 +2855,101 @@ function showPage(id) {
         if(btn.dataset.page === id) btn.classList.add('active');
     });
     if (id === 'profile') fillProfilePage();
-    if (id === 'myStore') fillStoreSettingsPage();
+    if (id === 'myStore') {
+        fillStoreSettingsPage();
+        if (!window._storeTabsInited) {
+            initStoreTabs();
+            const debouncedStoreProductFilter = debounce(updateStoreProductsTable, 300);
+            document.getElementById('storeProductSearch')?.addEventListener('input', debouncedStoreProductFilter);
+            document.getElementById('storeProductSearch')?.nextElementSibling?.addEventListener('click', () => { document.getElementById('storeProductSearch').value = ''; updateStoreProductsTable(); });
+            document.getElementById('storeProductFilterPopular')?.addEventListener('change', updateStoreProductsTable);
+            document.getElementById('storeProductFilterNew')?.addEventListener('change', updateStoreProductsTable);
+            document.getElementById('storeProductFilterNoCategory')?.addEventListener('change', updateStoreProductsTable);
+            document.getElementById('storeProductFilterShowInactive')?.addEventListener('change', updateStoreProductsTable);
+            document.getElementById('storeProductResetFiltersBtn')?.addEventListener('click', resetStoreProductFilters);
+            if (!window._storeBannerInited) {
+                const bannerSelectBtn = document.getElementById('storeBannerSelectBtn');
+                const bannerInput = document.getElementById('storeBannerInput');
+                const bannerClearBtn = document.getElementById('storeBannerClearBtn');
+                if (bannerSelectBtn && bannerInput) {
+                    bannerSelectBtn.addEventListener('click', () => bannerInput.click());
+                    bannerInput.addEventListener('change', async function() {
+                        const file = this.files && this.files[0];
+                        if (!file || !file.type.startsWith('image/')) return;
+                        const result = await uploadFileToCloud(file);
+                        if (result && result.url) {
+                            document.getElementById('storeBannerUrl').value = result.url;
+                            const img = document.getElementById('storeBannerImg');
+                            const ph = document.getElementById('storeBannerPlaceholder');
+                            if (img) { img.src = result.url; img.style.display = ''; }
+                            if (ph) ph.style.display = 'none';
+                            if (bannerClearBtn) bannerClearBtn.style.display = '';
+                            updateStoreSaveBtn();
+                        }
+                        this.value = '';
+                    });
+                }
+                if (bannerClearBtn) {
+                    bannerClearBtn.addEventListener('click', () => {
+                        document.getElementById('storeBannerUrl').value = '';
+                        const img = document.getElementById('storeBannerImg');
+                        const ph = document.getElementById('storeBannerPlaceholder');
+                        if (img) { img.src = ''; img.style.display = 'none'; }
+                        if (ph) ph.style.display = 'inline';
+                        bannerClearBtn.style.display = 'none';
+                        updateStoreSaveBtn();
+                    });
+                }
+                const logoSelectBtn = document.getElementById('storeLogoSelectBtn');
+                const logoInput = document.getElementById('storeLogoInput');
+                const logoClearBtn = document.getElementById('storeLogoClearBtn');
+                if (logoSelectBtn && logoInput) {
+                    logoSelectBtn.addEventListener('click', () => logoInput.click());
+                    logoInput.addEventListener('change', async function() {
+                        const file = this.files && this.files[0];
+                        if (!file || !file.type.startsWith('image/')) return;
+                        const result = await uploadFileToCloud(file);
+                        if (result && result.url) {
+                            document.getElementById('storeLogoUrl').value = result.url;
+                            const img = document.getElementById('storeLogoImg');
+                            const ph = document.getElementById('storeLogoPlaceholder');
+                            if (img) { img.src = result.url; img.style.display = ''; }
+                            if (ph) ph.style.display = 'none';
+                            if (logoClearBtn) logoClearBtn.style.display = '';
+                            updateStoreSaveBtn();
+                        }
+                        this.value = '';
+                    });
+                }
+                if (logoClearBtn) {
+                    logoClearBtn.addEventListener('click', () => {
+                        document.getElementById('storeLogoUrl').value = '';
+                        const img = document.getElementById('storeLogoImg');
+                        const ph = document.getElementById('storeLogoPlaceholder');
+                        if (img) { img.src = ''; img.style.display = 'none'; }
+                        if (ph) ph.style.display = 'inline';
+                        logoClearBtn.style.display = 'none';
+                        updateStoreSaveBtn();
+                    });
+                }
+                const storeSettingsIds = ['storeSubdomainInput', 'storeTitleInput', 'storeDescInput', 'storeAboutDescInput', 'storeLogoUrl', 'storeEnabledInput', 'storeMinOrderInput', 'storeHeaderColorInput', 'storeFooterColorInput', 'storeHeadingColorInput', 'storeTabsSectionColorInput', 'storeAddToCartColorInput', 'storeAddToCartTextWhiteInput', 'storeBannerDescTextColorInput', 'storeSocialVk', 'storeSocialTelegram', 'storeSocialTiktok', 'storeSocialInstagram', 'storeSocialEmail', 'storeSocialPhone', 'storeSocialWhatsapp', 'storeSellerDetailsInput', 'storeOfferInput', 'storeAboutContactsInput'];
+                storeSettingsIds.forEach(id => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    if (el.type === 'checkbox') {
+                        el.addEventListener('change', updateStoreSaveBtn);
+                    } else if (el.type === 'color') {
+                        el.addEventListener('input', updateStoreSaveBtn);
+                        el.addEventListener('change', updateStoreSaveBtn);
+                    } else {
+                        el.addEventListener('input', updateStoreSaveBtn);
+                    }
+                });
+                window._storeBannerInited = true;
+            }
+            window._storeTabsInited = true;
+        }
+    }
     try { localStorage.setItem('appLastPage', id); } catch (e) {}
 }
 
@@ -1700,6 +3083,109 @@ function getAllCloudinaryUrls(databaseObj) {
     return urls;
 }
 
+/** Cloudinary-URL из витрины (storeProducts), объект или массив. */
+function addCloudinaryUrlsFromStoreProductsToSet(urls, storeProductsVal) {
+    if (!storeProductsVal || typeof storeProductsVal !== 'object') return;
+    const list = Array.isArray(storeProductsVal) ? storeProductsVal : Object.values(storeProductsVal);
+    list.forEach(p => {
+        if (!p || typeof p !== 'object') return;
+        if (p.imageUrl && typeof p.imageUrl === 'string' && p.imageUrl.includes('cloudinary')) urls.add(p.imageUrl);
+        if (Array.isArray(p.imageUrls)) {
+            p.imageUrls.forEach(u => {
+                if (u && typeof u === 'string' && u.includes('cloudinary')) urls.add(u);
+            });
+        }
+    });
+}
+
+/**
+ * Снимок данных ИМ в Firebase (не входят в users/.../data).
+ * storeOrderSeq не включается — общий счётчик для всех магазинов проекта.
+ */
+async function collectStoreBackup(uid) {
+    const rtdb = firebase.database();
+    const [storeSnap, productsSnap, catsSnap, ordersSnap] = await Promise.all([
+        rtdb.ref('users/' + uid + '/store').once('value'),
+        rtdb.ref('users/' + uid + '/storeProducts').once('value'),
+        rtdb.ref('users/' + uid + '/storeCategories').once('value'),
+        rtdb.ref('storeOrders').orderByChild('ownerUid').equalTo(uid).once('value')
+    ]);
+    const store = storeSnap.val();
+    const storeOrders = [];
+    ordersSnap.forEach(child => {
+        storeOrders.push({ id: child.key, ...child.val() });
+    });
+    let storesBySubdomain = null;
+    if (store && store.subdomain) {
+        const subSnap = await rtdb.ref('storesBySubdomain/' + store.subdomain).once('value');
+        const v = subSnap.val();
+        if (v) storesBySubdomain = { [store.subdomain]: v };
+    }
+    return {
+        store,
+        storeProducts: productsSnap.val(),
+        storeCategories: catsSnap.val(),
+        storeOrders,
+        storesBySubdomain
+    };
+}
+
+async function firebaseMultiUpdate(updates) {
+    const entries = Object.entries(updates);
+    if (entries.length === 0) return;
+    const CHUNK = 300;
+    const root = firebase.database().ref();
+    for (let i = 0; i < entries.length; i += CHUNK) {
+        const part = {};
+        entries.slice(i, i + CHUNK).forEach(([k, v]) => { part[k] = v; });
+        await root.update(part);
+    }
+}
+
+/**
+ * Восстанавливает узлы ИМ. Заказы владельца в storeOrders перед записью удаляются (по ownerUid).
+ * ownerUid в каждом заказе принудительно выставляется на текущего пользователя.
+ */
+async function restoreStoreBackup(uid, sb) {
+    if (!sb || typeof sb !== 'object') return;
+    const updates = {};
+    if ('store' in sb) updates['users/' + uid + '/store'] = sb.store;
+    if ('storeProducts' in sb) updates['users/' + uid + '/storeProducts'] = sb.storeProducts;
+    if ('storeCategories' in sb) updates['users/' + uid + '/storeCategories'] = sb.storeCategories;
+
+    const existingSnap = await firebase.database().ref('storeOrders').orderByChild('ownerUid').equalTo(uid).once('value');
+    existingSnap.forEach(c => {
+        updates['storeOrders/' + c.key] = null;
+    });
+
+    const pushRestoredOrder = (orderId, raw) => {
+        if (!orderId || !raw || typeof raw !== 'object') return;
+        const payload = { ...raw };
+        delete payload.id;
+        payload.ownerUid = uid;
+        updates['storeOrders/' + orderId] = payload;
+    };
+
+    if (Array.isArray(sb.storeOrders)) {
+        sb.storeOrders.forEach(o => {
+            if (!o || typeof o !== 'object' || !o.id) return;
+            pushRestoredOrder(o.id, o);
+        });
+    } else if (sb.storeOrders && typeof sb.storeOrders === 'object') {
+        Object.entries(sb.storeOrders).forEach(([orderId, payload]) => pushRestoredOrder(orderId, payload));
+    }
+
+    if (sb.storesBySubdomain && typeof sb.storesBySubdomain === 'object') {
+        Object.entries(sb.storesBySubdomain).forEach(([sub, v]) => {
+            if (!sub) return;
+            const entry = v && typeof v === 'object' ? { ...v, ownerUid: uid } : { ownerUid: uid };
+            updates['storesBySubdomain/' + sub] = entry;
+        });
+    }
+
+    await firebaseMultiUpdate(updates);
+}
+
 
 
 // ==================== V4.0 МИГРАЦИЯ И ИМПОРТ ====================
@@ -1762,11 +3248,27 @@ function importData(input) {
                     const btn = document.getElementById('importBtn');
                     if(btn) { btn.textContent = "♻️ Очистка и загрузка..."; btn.disabled = true; }
 
+                    const rawStoreBackup = loaded._storeBackup || loaded._store_backup;
+                    const storeBackup = rawStoreBackup ? JSON.parse(JSON.stringify(rawStoreBackup)) : null;
+                    let subscriptionBackup;
+                    if (Object.prototype.hasOwnProperty.call(loaded, '_subscription_backup')) {
+                        subscriptionBackup = loaded._subscription_backup;
+                        delete loaded._subscription_backup;
+                    }
+                    const user = firebase.auth().currentUser;
+
                     // === ШАГ 1: ОЧИСТКА МУСОРА (Удаляем файлы, которых нет в бэкапе) ===
                     // ВАЖНО: Если вы переходите с локальной версии 3.7, этот шаг может удалить 
                     // файлы из облака, если они там были. Но для v3.7 это обычно не актуально.
+                    let currentStoreProductsVal = null;
+                    if (user) {
+                        const spSnap = await firebase.database().ref('users/' + user.uid + '/storeProducts').once('value');
+                        currentStoreProductsVal = spSnap.val();
+                    }
                     const currentUrls = getAllCloudinaryUrls(db);
+                    addCloudinaryUrlsFromStoreProductsToSet(currentUrls, currentStoreProductsVal);
                     const newUrls = getAllCloudinaryUrls(loaded);
+                    addCloudinaryUrlsFromStoreProductsToSet(newUrls, storeBackup && storeBackup.storeProducts);
                     
                     console.log(`Анализ файлов: Текущих - ${currentUrls.size}, В бэкапе - ${newUrls.size}`);
                     
@@ -1839,14 +3341,29 @@ function importData(input) {
                         });
                     }
 
+                    delete loaded._backupVersion;
+                    delete loaded._storeBackup;
+                    delete loaded._store_backup;
+
                     Object.assign(db, loaded);
                     // Нормализация массивов, которых могло не быть в старых бэкапах
                     db.serviceExpenses = toArray(db.serviceExpenses);
                     db.serviceTasks = toArray(db.serviceTasks);
                     db.serviceTaskCompletions = toArray(db.serviceTaskCompletions || []);
                     await saveData();
-                    
-                    showToast('База восстановлена! Устаревшие файлы очищены, новые загружены.', 'success');
+
+                    if (user && storeBackup) {
+                        await restoreStoreBackup(user.uid, storeBackup);
+                    }
+                    if (user && subscriptionBackup !== undefined) {
+                        await firebase.database().ref('users/' + user.uid + '/subscription').set(subscriptionBackup);
+                    }
+                    showToast(
+                        storeBackup && !user
+                            ? 'Импорт выполнен. Блок витрины и заказов из файла не записан в облако — войдите в аккаунт и повторите импорт.'
+                            : 'База восстановлена! Устаревшие файлы очищены, новые загружены.',
+                        storeBackup && !user ? 'error' : 'success'
+                    );
                     window.location.reload();
                 }
             }
@@ -1866,17 +3383,35 @@ function importData(input) {
 
 
 /**
- * Экспорт всей базы (db) в JSON-файл для бэкапа. Скачивает файл в браузере.
+ * Экспорт базы (users/uid/data) + снимок ИМ (store, товары, категории, заказы, поддомен).
+ * Большие файлы — через Blob (data:-URL ограничен по длине).
  */
-function exportData() {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db));
-    const dl = document.createElement('a');
-    dl.setAttribute("href", dataStr);
-    const now = new Date();
-    const pad = (n) => String(n).padStart(2, '0');
-    const ts = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}`;
-    dl.setAttribute("download", `3d_filament_backup_${ts}.json`);
-    document.body.appendChild(dl); dl.click(); dl.remove();
+async function exportData() {
+    try {
+        showToast('Формируется резервная копия…', 'success');
+        const user = firebase.auth().currentUser;
+        const payload = JSON.parse(JSON.stringify(db));
+        if (user) {
+            payload._backupVersion = 2;
+            payload._storeBackup = await collectStoreBackup(user.uid);
+        }
+        const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const dl = document.createElement('a');
+        dl.href = url;
+        const now = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        const ts = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}`;
+        dl.download = `3d_filament_backup_${ts}.json`;
+        document.body.appendChild(dl);
+        dl.click();
+        dl.remove();
+        URL.revokeObjectURL(url);
+        showToast('Файл бэкапа сохранён', 'success');
+    } catch (e) {
+        console.error(e);
+        showToast('Ошибка экспорта: ' + (e && e.message ? e.message : e), 'error');
+    }
 }
 
 
