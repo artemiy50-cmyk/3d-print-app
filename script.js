@@ -3253,6 +3253,10 @@ function addCloudinaryUrlsFromStoreNodeToSet(urls, storeVal) {
 /**
  * Снимок данных ИМ в Firebase (не входят в users/.../data).
  * storeOrderSeq не включается — общий счётчик для всех магазинов проекта.
+ *
+ * Узел users/{uid}/store читается целиком (.val()) — все поля попадают в бэкап без перечисления:
+ * в т.ч. SEO (seoTitle, seoDescription, seoOgImage, seoNoindex) и Яндекс
+ * (yandexVerificationMeta, yandexMetricaSnippet), как при «Скачать базу», так и в backup.py.
  */
 async function collectStoreBackup(uid) {
     const rtdb = firebase.database();
@@ -3297,6 +3301,9 @@ async function firebaseMultiUpdate(updates) {
 /**
  * Восстанавливает узлы ИМ. Заказы владельца в storeOrders перед записью удаляются (по ownerUid).
  * ownerUid в каждом заказе принудительно выставляется на текущего пользователя.
+ *
+ * sb.store записывается в users/{uid}/store одним объектом — восстанавливаются все ключи из файла,
+ * включая SEO и фрагменты Яндекса (см. collectStoreBackup).
  */
 async function restoreStoreBackup(uid, sb) {
     if (!sb || typeof sb !== 'object') return;
@@ -3541,6 +3548,7 @@ function importData(input) {
 
 /**
  * Экспорт базы (users/uid/data) + снимок ИМ (store, товары, категории, заказы, поддомен).
+ * store в _storeBackup — полный снимок Firebase-узла (SEO, Метрика и т.д. не отфильтровываются).
  * Большие файлы — через Blob (data:-URL ограничен по длине).
  */
 async function exportData() {
