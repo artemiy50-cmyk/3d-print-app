@@ -5,8 +5,8 @@ name: Refresh Store Sitemaps
 
 on:
   schedule:
-    # 05:00 UTC ежедневно (~08:00 МСК). Поменяйте при необходимости.
-    - cron: '0 5 * * *'
+    # ВРЕМЕННО: каждый час (для проверки срабатывания по расписанию). Потом вернуть: 0 5 * * * и комментарий «05:00 UTC ежедневно (~08:00 МСК)».
+    - cron: '0 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -47,11 +47,11 @@ jobs:
             node ../scripts/generate-store-sitemap.mjs "$SUB" "$DOMAIN" .
 
             git checkout -b main 2>/dev/null || git checkout main
-            git add sitemap.xml robots.txt
+            git add sitemap.xml robots.txt index.html
             if git diff --staged --quiet; then
               echo "No sitemap changes for $REPO"
             else
-              git commit -m "Refresh sitemap and robots.txt [skip ci]"
+              git commit -m "Refresh sitemap, robots.txt, index meta [skip ci]"
               git push -u origin main
             fi
 

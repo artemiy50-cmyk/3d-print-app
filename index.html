@@ -1195,7 +1195,7 @@
                         <div class="form-group">
                             <label>Подтверждение домена для Яндекс Метрики через метатег:</label>
                             <input type="text" id="storeYandexVerificationMetaInput" class="store-yandex-verification-input" autocomplete="off" spellcheck="false" placeholder='&lt;meta name="yandex-verification" content="xxxxxxxxxxxxxxxx" /&gt; или только код из content'>
-                            <span class="form-hint" style="font-size: 11px; color: #64748b;">Нужно при привязке счётчика к домену в интерфейсе Метрики. Тег появляется в &lt;head&gt; витрины после «Сохранить» (как и счётчик — из Firebase, без обязательного Store Sync).</span>
+                            <span class="form-hint" style="font-size: 11px; color: #64748b; display:block; margin-top:4px;">Нужно, если Яндекс Метрика или Яндекс.Вебмастер просят подтвердить сайт через метатег. После «Сохранить» настройки сохраняются, но Яндекс проверяет <strong>код страницы магазина</strong>, который обновляется отдельно: метатег обычно появляется там в течение <strong>суток</strong> (ночное автоматическое обновление). Откройте «Просмотр кода страницы» главной витрины — когда увидите строку с <code>yandex-verification</code>, снова нажмите проверку в Яндексе. Чтобы тег появился быстрее, свяжитесь с <strong>администратором</strong> сервиса (например, через «Связаться» в меню) — обновление можно выполнить вручную.</span>
                         </div>
                         <div class="form-group">
                             <label>Код счётчика Яндекс Метрики (для этой витрины):</label>
