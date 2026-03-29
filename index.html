@@ -1192,6 +1192,16 @@
                             <label class="checkbox-label"><input type="checkbox" id="storeSeoNoindexInput"> Не индексировать витрину (noindex)</label>
                             <span class="form-hint" style="font-size: 11px; color: #64748b; display:block; margin-top:4px;">Включайте для черновых поддоменов. Для проверки на localhost поисковики всё равно не заходят.</span>
                         </div>
+                        <div class="form-group">
+                            <label>Подтверждение домена для Яндекс Метрики через метатег:</label>
+                            <input type="text" id="storeYandexVerificationMetaInput" class="store-yandex-verification-input" autocomplete="off" spellcheck="false" placeholder='&lt;meta name="yandex-verification" content="d92bf21701955a45" /&gt; или только d92bf21701955a45'>
+                            <span class="form-hint" style="font-size: 11px; color: #64748b;">Нужно при привязке счётчика к домену в интерфейсе Метрики. Тег появляется в &lt;head&gt; витрины после «Сохранить» (как и счётчик — из Firebase, без обязательного Store Sync).</span>
+                        </div>
+                        <div class="form-group">
+                            <label>Код счётчика Яндекс Метрики (для этой витрины):</label>
+                            <textarea id="storeYandexMetricaSnippetInput" rows="10" class="store-metrica-snippet-textarea" placeholder="Вставьте сюда блок кода из Метрики (теги &lt;script&gt; и при необходимости &lt;noscript&gt;)"></textarea>
+                            <span class="form-hint" style="font-size: 11px; color: #64748b;">После «Сохранить» код подставляется на витрине при следующей загрузке страницы (данные из Firebase; отдельный Store Sync не обязателен). Создайте в Метрике счётчик на URL магазина. Подробнее — STORE_PRODUCTION_SETUP.md, раздел «Яндекс.Вебмастер и Яндекс.Метрика».</span>
+                        </div>
                         <div class="form-section-title" style="margin-top: 20px;">Ссылки на товары</div>
                         <p class="form-hint" style="font-size: 12px; color: #64748b;">На опубликованной витрине в адресе появляется параметр <code>tovar=транслит-названия</code> (латиница, дефисы; при одинаковых названиях — <code>-2</code>, <code>-3</code>…). Откройте товар на сайте и скопируйте URL из браузера — так можно делиться карточкой.</p>
                     </div>
