@@ -9,6 +9,7 @@ on:
     paths:
       - 'store.html'
       - 'store.js'
+      - 'app-version.js'
       - 'style.css'
       - 'store-deploy-config.json'
       - '.github/workflows/store-sync.yml'
@@ -56,6 +57,7 @@ jobs:
             # Копируем файлы
             cp ../store.html index.html
             cp ../store.js store.js
+            cp ../app-version.js app-version.js
             cp ../style.css style.css
             [ -f ../favicon.ico ] && cp ../favicon.ico favicon.ico || true
 

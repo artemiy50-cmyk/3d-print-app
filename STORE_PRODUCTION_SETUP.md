@@ -3,7 +3,7 @@
 Пошаговая настройка **одного** магазина на **третьем уровне**: `your-shop.example.com`  
 (ниже везде плейсхолдеры — подставьте свой поддомен, домен второго уровня и GitHub-логин.)
 
-**Идея:** код Store в **одном** основном репозитории (`store.html`, `store.js`, `style.css`). Для **каждого** поддомена — **отдельный** небольшой репозиторий под GitHub Pages; workflow **Store Sync** копирует файлы и создаёт `CNAME`.
+**Идея:** код Store в **одном** основном репозитории (`store.html`, `store.js`, `app-version.js`, `style.css`). Для **каждого** поддомена — **отдельный** небольшой репозиторий под GitHub Pages; workflow **Store Sync** копирует файлы и создаёт `CNAME`.
 
 ### Простыми словами
 
@@ -320,7 +320,7 @@ YOUR_SHOP.YOUR_DOMAIN
 
 ## Обновления кода магазина
 
-Изменения в **`store.html`**, **`store.js`**, **`style.css`** в основном репо → push в **`main`** → sync обновит **все** репо из `deployRepos`. Ручной запуск — только в **основном** репо: **Actions** → **Store Sync to Deploy Repos** → **Run workflow** (ветка `main`).
+Изменения в **`store.html`**, **`store.js`**, **`app-version.js`**, **`style.css`** в основном репо → push в **`main`** → sync обновит **все** репо из `deployRepos`. Ручной запуск — только в **основном** репо: **Actions** → **Store Sync to Deploy Repos** → **Run workflow** (ветка `main`).
 
 ---
 
