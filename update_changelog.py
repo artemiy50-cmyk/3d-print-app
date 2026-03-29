@@ -3,6 +3,7 @@
 Объединённый скрипт: обновляет время в console.log и добавляет записи в CHANGELOG_ENTRIES.
 - console.log: только время обновления (без номера версии)
 - CHANGELOG_ENTRIES: вставляет последние N коммитов, версия = верхняя из текущего списка
+- app-version.js: синхронизируется с этой же версией (админка и витрина читают одно число)
 - Не выполняет git add — staging делается вручную
 """
 import os
@@ -11,6 +12,7 @@ import subprocess
 from datetime import datetime, timedelta, timezone
 
 SCRIPT_PATH = "script.js"
+APP_VERSION_JS = "app-version.js"
 UTC_OFFSET = 3
 # Паттерн для console.log — заменим на вывод только времени
 CONSOLE_LOG_PATTERN = re.compile(r"console\.log\([^;]+\);")
@@ -20,8 +22,8 @@ CHANGELOG_START = "const CHANGELOG_ENTRIES = ["
 SEPARATOR = "    // === ниже список существовавших версий ===="
 
 
-def get_first_version_from_script(content):
-    """Берёт верхнюю версию из первой некомментированной записи в CHANGELOG_ENTRIES."""
+def get_first_changelog_version_from_content(content):
+    """Верхняя версия из первой записи в CHANGELOG_ENTRIES (до разделителя)."""
     start = content.find(CHANGELOG_START)
     if start == -1:
         return None
@@ -30,7 +32,6 @@ def get_first_version_from_script(content):
     if end == -1:
         return None
     block = content[block_start:end]
-    # Ищем version только в строках, не являющихся комментариями (первая реальная запись)
     for line in block.split("\n"):
         stripped = line.strip()
         if not stripped or stripped.startswith("//"):
@@ -38,9 +39,42 @@ def get_first_version_from_script(content):
         m = re.search(r"version\s*:\s*['\"]([^'\"]+)['\"]", line)
         if m:
             return m.group(1).strip()
-    m = re.search(r"APP_VERSION_NUMBER\s*=\s*['\"]([^'\"]+)['\"]", content)
-    if m:
-        return m.group(1).strip()
+    return None
+
+
+def read_app_version_file():
+    """Читает window.APP_VERSION из app-version.js."""
+    base = os.path.dirname(os.path.abspath(SCRIPT_PATH))
+    path = os.path.join(base, APP_VERSION_JS)
+    if not os.path.exists(path):
+        return None
+    with open(path, "r", encoding="utf-8") as f:
+        text = f.read()
+    m = re.search(r"window\.APP_VERSION\s*=\s*['\"]([^'\"]+)['\"]", text)
+    return m.group(1).strip() if m else None
+
+
+def write_app_version_file(version):
+    """Записывает app-version.js (одна версия для админки и витрины)."""
+    base = os.path.dirname(os.path.abspath(SCRIPT_PATH))
+    path = os.path.join(base, APP_VERSION_JS)
+    esc = (version or "").replace("\\", "\\\\").replace("'", "\\'")
+    body = (
+        "/** Одна версия для админки и витрины. Синхронизируется update_changelog.py с верхней строкой CHANGELOG. */\n"
+        "window.APP_VERSION = '%s';\n" % esc
+    )
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(body)
+
+
+def get_version_for_release(content):
+    """Версия релиза: сначала верх CHANGELOG, иначе app-version.js, иначе запасной номер."""
+    v = get_first_changelog_version_from_content(content)
+    if v:
+        return v
+    v = read_app_version_file()
+    if v:
+        return v
     return "5.6.0"
 
 
@@ -129,10 +163,8 @@ def main():
         print("В script.js не найден блок CHANGELOG_ENTRIES.")
         return
 
-    version = get_first_version_from_script(content)
-    if not version:
-        version = "5.6.0"
-    print("Верхняя версия в CHANGELOG_ENTRIES: %s" % version)
+    version = get_version_for_release(content)
+    print("Версия релиза (changelog / app-version.js): %s" % version)
 
     try:
         n_str = input("Сколько последних коммитов вывести? (N, 0 — только обновить время): ").strip()
@@ -147,7 +179,9 @@ def main():
     if n == 0:
         with open(SCRIPT_PATH, "w", encoding="utf-8") as f:
             f.write(content)
-        print("Обновлено только время в console.log. Записи в changelog не добавлены.")
+        v = get_version_for_release(content)
+        write_app_version_file(v)
+        print("Обновлено время в console.log. app-version.js → %s" % v)
         return
 
     commits = git_log_n(n)
@@ -174,7 +208,8 @@ def main():
     with open(SCRIPT_PATH, "w", encoding="utf-8") as f:
         f.write(new_content)
 
-    print("Добавлено записей из коммитов: %d. Версия для всех: %s." % (len(commits), version))
+    write_app_version_file(version)
+    print("Добавлено записей из коммитов: %d. Версия для всех: %s. app-version.js обновлён." % (len(commits), version))
 
 
 if __name__ == "__main__":

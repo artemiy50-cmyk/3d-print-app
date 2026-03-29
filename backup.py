@@ -9,7 +9,8 @@
 Зависимости: pip install firebase-admin
 
 Переменные окружения (опционально):
-  FIREBASE_SERVICE_ACCOUNT — JSON сервисного аккаунта одной строкой (или многострочно в CI).
+  FIREBASE_SERVICE_ACCOUNT — JSON сервисного аккаунта (строка). Читается в память, файл в репозитории не создаётся.
+  FIREBASE_KEY_PATH — путь к файлу ключа, если предпочитаете файл (по умолчанию firebase-key.json рядом со скриптом).
 """
 
 from __future__ import annotations
@@ -32,22 +33,36 @@ FIREBASE_DB_URL = os.environ.get(
 )
 
 
-def _ensure_credentials(path: str) -> None:
-    if os.path.exists(path):
-        return
+def _get_firebase_certificate():
+    """Файл ключа или FIREBASE_SERVICE_ACCOUNT (без записи секрета на диск)."""
+    if os.path.exists(FIREBASE_KEY_PATH):
+        return credentials.Certificate(FIREBASE_KEY_PATH)
     key_content = os.environ.get("FIREBASE_SERVICE_ACCOUNT")
-    if key_content:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(key_content)
-        return
-    print("Ошибка: нет файла ключа и переменной FIREBASE_SERVICE_ACCOUNT", file=sys.stderr)
-    sys.exit(1)
+    if not key_content:
+        print(
+            "Ошибка: нет файла "
+            + FIREBASE_KEY_PATH
+            + " и переменной FIREBASE_SERVICE_ACCOUNT",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    try:
+        data = json.loads(key_content)
+    except json.JSONDecodeError as e:
+        print(
+            "Ошибка: FIREBASE_SERVICE_ACCOUNT не является валидным JSON: " + str(e),
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if not isinstance(data, dict):
+        print("Ошибка: JSON в FIREBASE_SERVICE_ACCOUNT должен быть объектом.", file=sys.stderr)
+        sys.exit(1)
+    return credentials.Certificate(data)
 
 
 def _init_firebase() -> None:
-    _ensure_credentials(FIREBASE_KEY_PATH)
     if not firebase_admin._apps:
-        cred = credentials.Certificate(FIREBASE_KEY_PATH)
+        cred = _get_firebase_certificate()
         firebase_admin.initialize_app(cred, {"databaseURL": FIREBASE_DB_URL})
 
 
@@ -107,6 +122,7 @@ def build_user_backup_payload(
         payload["_subscription_backup"] = copy.deepcopy(user_data["subscription"])
 
     store_orders_list = _store_orders_for_owner(full_data, uid)
+    # store — deepcopy целиком: SEO, Яндекс-верификация, Метрика и пр. (как в collectStoreBackup в script.js).
     store_backup = {
         "store": copy.deepcopy(user_data.get("store")),
         "storeProducts": copy.deepcopy(user_data.get("storeProducts")),

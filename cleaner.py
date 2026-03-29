@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
@@ -42,22 +43,36 @@ DELETE_ORPHAN_CLOUDINARY = os.environ.get("DELETE_ORPHAN_CLOUDINARY", "true").lo
 )
 
 
-def _ensure_firebase_key(path: str) -> None:
-    if os.path.exists(path):
-        return
+def _get_firebase_certificate():
+    """Файл ключа или FIREBASE_SERVICE_ACCOUNT (без записи секрета на диск)."""
+    if os.path.exists(FIREBASE_KEY_PATH):
+        return credentials.Certificate(FIREBASE_KEY_PATH)
     key_content = os.environ.get("FIREBASE_SERVICE_ACCOUNT")
-    if key_content:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(key_content)
-        return
-    print("Ошибка: нет файла ключа и переменной FIREBASE_SERVICE_ACCOUNT", file=sys.stderr)
-    sys.exit(1)
+    if not key_content:
+        print(
+            "Ошибка: нет файла "
+            + FIREBASE_KEY_PATH
+            + " и переменной FIREBASE_SERVICE_ACCOUNT",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    try:
+        data = json.loads(key_content)
+    except json.JSONDecodeError as e:
+        print(
+            "Ошибка: FIREBASE_SERVICE_ACCOUNT не является валидным JSON: " + str(e),
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if not isinstance(data, dict):
+        print("Ошибка: JSON в FIREBASE_SERVICE_ACCOUNT должен быть объектом.", file=sys.stderr)
+        sys.exit(1)
+    return credentials.Certificate(data)
 
 
 def _init_firebase() -> None:
-    _ensure_firebase_key(FIREBASE_KEY_PATH)
     if not firebase_admin._apps:
-        cred = credentials.Certificate(FIREBASE_KEY_PATH)
+        cred = _get_firebase_certificate()
         firebase_admin.initialize_app(cred, {"databaseURL": FIREBASE_DB_URL})
 
 
@@ -233,15 +248,10 @@ def _process_store_for_user(
     fixed = 0
     store = user_data.get("store")
     if isinstance(store, dict):
+        # banner, logo, seoOgImage (картинка для соцсетей / og:image в разделе SEO) — те же правила, что у товаров
         for field in ("banner", "logo", "seoOgImage"):
             val = store.get(field)
-            if (
-                val
-                and isinstance(val, str)
-                and _is_cloudinary_url(val)
-                and val in cloud_url_set
-            ):
-                active_urls.add(val)
+            _register_url(val if isinstance(val, str) else None, active_urls, cloud_url_set)
         if FIX_BROKEN_LINKS:
             upd: Dict[str, Any] = {}
             if _fix_store_cloudinary_field(

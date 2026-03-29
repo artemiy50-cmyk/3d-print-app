@@ -45,7 +45,7 @@
 | `CLOUDINARY_API_SECRET` | API Secret (**обязательно**). |
 | `FIREBASE_KEY_PATH` | Путь к JSON ключа (по умолчанию `firebase-key.json`). |
 | `FIREBASE_DB_URL` | URL Realtime Database. |
-| `FIREBASE_SERVICE_ACCOUNT` | Если файла ключа нет — содержимое JSON сервисного аккаунта (как в `backup.py`). |
+| `FIREBASE_SERVICE_ACCOUNT` | Если файла ключа нет — строка с JSON сервисного аккаунта; **в репозиторий не записывается** (парсинг в память, как в `backup.py`). |
 | `FIX_BROKEN_LINKS` | `true` / `false` — править ли битые ссылки в БД (по умолчанию `true`). |
 | `DELETE_ORPHAN_CLOUDINARY` | `true` / `false` — удалять ли «лишние» файлы в Cloudinary (по умолчанию `true`). Удобно для пробного прогона: только отчёт без удаления. |
 
@@ -72,7 +72,7 @@
 
 Это **ключ сервисного аккаунта Google** для проекта Firebase (`service_account`). Внутри — `private_key` и учётные данные робота; с ним можно читать и писать БД в пределах правил и ролей IAM.
 
-**Назначение локально/в CI:** подставлять путь к этому файлу в `FIREBASE_KEY_PATH` или один раз выставить `FIREBASE_SERVICE_ACCOUNT` содержимым файла — как в вашем исходном `cleaner` и в `backup.py`.
+**Назначение локально/в CI:** либо путь к файлу в `FIREBASE_KEY_PATH`, либо содержимое JSON в переменной `FIREBASE_SERVICE_ACCOUNT` (скрипты **не создают** `firebase-key.json` из env — раньше создавали, из‑за этого ключ мог снова появляться в папке клона).
 
 **Безопасность:** файл с реальным ключом **не должен** попадать в публичный репозиторий. Если он когда-либо был закоммичен или отправлен в чат — **перевыпустите ключ** в [Google Cloud Console](https://console.cloud.google.com/) (IAM → Service Accounts → ключи) и обновите секреты в CI. В основном репозитории приложения такой JSON **не хранится** — только `cleaner.py` / `backup.py` и документация.
 

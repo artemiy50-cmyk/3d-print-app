@@ -1,13 +1,21 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
-// Номер версии ведём в формате xx.xx.xx, например 7.7.7
-const APP_VERSION_NUMBER = '6.3.2';
-console.log('2026-03-29 10-30-00');
+// Номер версии — в app-version.js (подключается в index.html перед этим файлом)
+const APP_VERSION_NUMBER =
+    typeof window !== 'undefined' && window.APP_VERSION != null
+        ? String(window.APP_VERSION)
+        : '6.3.3';
+console.log('2026-03-29 14-00-00');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
 
 // === CHANGELOG
 const CHANGELOG_ENTRIES = [
+    {
+        version: '6.3.3', 
+        dateDisplay: '29.03.2026', 
+        description: 'Улучшены адаптивы для мобильных устройств.'
+    },
     {
         version: '6.3.2', 
         dateDisplay: '29.03.2026', 
@@ -2936,8 +2944,31 @@ function attachStoreSettingsInputListeners() {
     });
 }
 
+/** До 768px — боковое меню ИМ как выдвижная панель. */
+function adminNavIsMobile() {
+    return typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 768px)').matches;
+}
+
+function closeAdminMobileDrawer() {
+    document.body.classList.remove('sidebar-drawer-open');
+}
+
+function refreshAdminMenuToggleAria() {
+    const menuBtn = document.getElementById('menuToggle');
+    if (!menuBtn) return;
+    if (adminNavIsMobile()) {
+        menuBtn.setAttribute('aria-expanded', document.body.classList.contains('sidebar-drawer-open') ? 'true' : 'false');
+    } else {
+        menuBtn.setAttribute('aria-expanded', document.body.classList.contains('sidebar-closed') ? 'false' : 'true');
+    }
+}
+
 function showPage(id) {
     if (!id || !VALID_PAGE_IDS.includes(id)) return;
+    closeAdminMobileDrawer();
+    const sb = document.getElementById('sidebarBackdrop');
+    if (sb) sb.setAttribute('aria-hidden', 'true');
+    refreshAdminMenuToggleAria();
     document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
     document.querySelectorAll('.menu-item').forEach(m=>m.classList.remove('active'));
     const pageEl = document.getElementById(id);
@@ -3222,6 +3253,10 @@ function addCloudinaryUrlsFromStoreNodeToSet(urls, storeVal) {
 /**
  * Снимок данных ИМ в Firebase (не входят в users/.../data).
  * storeOrderSeq не включается — общий счётчик для всех магазинов проекта.
+ *
+ * Узел users/{uid}/store читается целиком (.val()) — все поля попадают в бэкап без перечисления:
+ * в т.ч. SEO (seoTitle, seoDescription, seoOgImage, seoNoindex) и Яндекс
+ * (yandexVerificationMeta, yandexMetricaSnippet), как при «Скачать базу», так и в backup.py.
  */
 async function collectStoreBackup(uid) {
     const rtdb = firebase.database();
@@ -3266,6 +3301,9 @@ async function firebaseMultiUpdate(updates) {
 /**
  * Восстанавливает узлы ИМ. Заказы владельца в storeOrders перед записью удаляются (по ownerUid).
  * ownerUid в каждом заказе принудительно выставляется на текущего пользователя.
+ *
+ * sb.store записывается в users/{uid}/store одним объектом — восстанавливаются все ключи из файла,
+ * включая SEO и фрагменты Яндекса (см. collectStoreBackup).
  */
 async function restoreStoreBackup(uid, sb) {
     if (!sb || typeof sb !== 'object') return;
@@ -3510,6 +3548,7 @@ function importData(input) {
 
 /**
  * Экспорт базы (users/uid/data) + снимок ИМ (store, товары, категории, заказы, поддомен).
+ * store в _storeBackup — полный снимок Firebase-узла (SEO, Метрика и т.д. не отфильтровываются).
  * Большие файлы — через Blob (data:-URL ограничен по длине).
  */
 async function exportData() {
@@ -7338,9 +7377,13 @@ async function saveWriteoff(closeAfter) {
         if (type === 'Продажа' || type === 'Подготовлено к продаже') {
             const priceInput = sec.querySelector('.section-price');
             price = parseFloat(priceInput.value);
-            if (type === 'Продажа' && (isNaN(price) || price <= 0)) {
+            if (isNaN(price) || price <= 0) {
                 priceInput.classList.add('error');
                 sectionValid = false;
+                const vm = document.getElementById('writeoffValidationMessage');
+                vm.textContent = type === 'Подготовлено к продаже'
+                    ? 'Для типа «Подготовлено к продаже» укажите цену продажи за 1 шт. (число больше 0).'
+                    : 'Для продажи укажите цену за 1 шт. (число больше 0).';
             }
         }
         
@@ -9290,20 +9333,70 @@ function setupEventListeners() {
     // Обновляем обновление дат, чтобы захватить и serviceDate
     updateAllDates(); 
 
-    // --- SIDEBAR TOGGLE ---
+    // --- SIDEBAR TOGGLE (десктоп: узкая полоса; мобильный: выезжающее меню + затемнение) ---
     const menuBtn = document.getElementById('menuToggle');
+    const sidebarBackdrop = document.getElementById('sidebarBackdrop');
     if (menuBtn) {
+        const applySidebarStateForViewport = () => {
+            if (adminNavIsMobile()) {
+                document.body.classList.remove('sidebar-closed');
+            } else {
+                document.body.classList.remove('sidebar-drawer-open');
+                if (localStorage.getItem('sidebarState') === 'closed') {
+                    document.body.classList.add('sidebar-closed');
+                } else {
+                    document.body.classList.remove('sidebar-closed');
+                }
+            }
+            refreshAdminMenuToggleAria();
+            if (sidebarBackdrop) {
+                sidebarBackdrop.setAttribute('aria-hidden', document.body.classList.contains('sidebar-drawer-open') ? 'false' : 'true');
+            }
+        };
+
         menuBtn.addEventListener('click', () => {
-            document.body.classList.toggle('sidebar-closed');
-            
-            // Опционально: сохраняем состояние в памяти, чтобы при обновлении страницы меню оставалось закрытым
-            const isClosed = document.body.classList.contains('sidebar-closed');
-            localStorage.setItem('sidebarState', isClosed ? 'closed' : 'open');
+            if (adminNavIsMobile()) {
+                document.body.classList.toggle('sidebar-drawer-open');
+            } else {
+                document.body.classList.toggle('sidebar-closed');
+                localStorage.setItem('sidebarState', document.body.classList.contains('sidebar-closed') ? 'closed' : 'open');
+            }
+            refreshAdminMenuToggleAria();
+            if (sidebarBackdrop) {
+                sidebarBackdrop.setAttribute('aria-hidden', document.body.classList.contains('sidebar-drawer-open') ? 'false' : 'true');
+            }
         });
-        
-        // Восстановление состояния при загрузке (можно вынести отдельно в init)
-        if (localStorage.getItem('sidebarState') === 'closed') {
+
+        if (sidebarBackdrop) {
+            sidebarBackdrop.addEventListener('click', () => {
+                closeAdminMobileDrawer();
+                refreshAdminMenuToggleAria();
+                sidebarBackdrop.setAttribute('aria-hidden', 'true');
+            });
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && document.body.classList.contains('sidebar-drawer-open')) {
+                closeAdminMobileDrawer();
+                refreshAdminMenuToggleAria();
+                if (sidebarBackdrop) sidebarBackdrop.setAttribute('aria-hidden', 'true');
+            }
+        });
+
+        let _adminNavResizeTimer;
+        window.addEventListener('resize', () => {
+            clearTimeout(_adminNavResizeTimer);
+            _adminNavResizeTimer = setTimeout(applySidebarStateForViewport, 150);
+        });
+
+        if (adminNavIsMobile()) {
+            document.body.classList.remove('sidebar-closed');
+        } else if (localStorage.getItem('sidebarState') === 'closed') {
             document.body.classList.add('sidebar-closed');
+        }
+        refreshAdminMenuToggleAria();
+        if (sidebarBackdrop) {
+            sidebarBackdrop.setAttribute('aria-hidden', document.body.classList.contains('sidebar-drawer-open') ? 'false' : 'true');
         }
     }
 
@@ -9323,9 +9416,10 @@ function setupEventListeners() {
                     globalTooltip.innerHTML = textEl.innerHTML;
                     globalTooltip.style.display = 'block';
                     if (textEl.id === 'costsDetailTooltip') {
-                        globalTooltip.style.width = '500px';
-                        globalTooltip.style.minWidth = '500px';
-                        globalTooltip.style.maxWidth = '500px';
+                        const tw = window.innerWidth <= 768 ? Math.max(260, Math.min(500, window.innerWidth - 24)) : 500;
+                        globalTooltip.style.width = tw + 'px';
+                        globalTooltip.style.minWidth = tw + 'px';
+                        globalTooltip.style.maxWidth = tw + 'px';
                     } else {
                         globalTooltip.style.width = '';
                         globalTooltip.style.minWidth = '';
