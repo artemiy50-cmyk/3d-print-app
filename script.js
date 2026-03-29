@@ -1,13 +1,18 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
 // Номер версии ведём в формате xx.xx.xx, например 7.7.7
-const APP_VERSION_NUMBER = '6.1.0';
-console.log('2026-03-28 21-00-00');
+const APP_VERSION_NUMBER = '6.2.0';
+console.log('2026-03-29 09-00-00');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
 
 // === CHANGELOG
 const CHANGELOG_ENTRIES = [
+    {
+        version: '6.2.0', 
+        dateDisplay: '29.03.2026', 
+        description: 'В разделе "Мой магазин" добавлен подраздел "SEO и соцсети" для настройки SEO-параметров интернет-магазина. Добавлены другие улучшения для раздела "Мой магазин".' 
+    },
     {
         version: '6.1.0', 
         dateDisplay: '28.03.2026', 
@@ -939,6 +944,24 @@ async function fillStoreSettingsPage() {
         const hc = (store && store.headingColor) || '#1e293b';
         bannerDescTextColorInput.value = (store && store.bannerDescTextColor) || hc;
     }
+    const seoTitleEl = document.getElementById('storeSeoTitleInput');
+    const seoDescEl = document.getElementById('storeSeoDescInput');
+    const seoOgHidden = document.getElementById('storeSeoOgImageUrl');
+    const seoOgImg = document.getElementById('storeSeoOgImagePreview');
+    const seoOgPh = document.getElementById('storeSeoOgImagePlaceholder');
+    const seoOgClearBtn = document.getElementById('storeSeoOgImageClearBtn');
+    const seoOgUrl = (store && store.seoOgImage) || '';
+    const seoNoindexEl = document.getElementById('storeSeoNoindexInput');
+    if (seoTitleEl) seoTitleEl.value = (store && store.seoTitle) || '';
+    if (seoDescEl) seoDescEl.value = (store && store.seoDescription) || '';
+    if (seoOgHidden) seoOgHidden.value = seoOgUrl;
+    if (seoOgImg) {
+        if (seoOgUrl) { seoOgImg.src = seoOgUrl; seoOgImg.style.display = ''; }
+        else { seoOgImg.src = ''; seoOgImg.style.display = 'none'; }
+    }
+    if (seoOgPh) seoOgPh.style.display = seoOgUrl ? 'none' : 'inline';
+    if (seoOgClearBtn) seoOgClearBtn.style.display = seoOgUrl ? '' : 'none';
+    if (seoNoindexEl) seoNoindexEl.checked = !!(store && store.seoNoindex);
     window._storeSettingsOriginal = getStoreSettingsCurrentValues();
     updateStoreSaveBtn();
     const minInput = document.getElementById('storeMinOrderInput');
@@ -1698,7 +1721,11 @@ function getStoreSettingsCurrentValues() {
         addToCartButtonColor: (document.getElementById('storeAddToCartColorInput') && document.getElementById('storeAddToCartColorInput').value) || '#2563eb',
         addToCartButtonTextWhite: document.getElementById('storeAddToCartTextWhiteInput') ? document.getElementById('storeAddToCartTextWhiteInput').checked : true,
         headingColor: (document.getElementById('storeHeadingColorInput') && document.getElementById('storeHeadingColorInput').value) || '#1e293b',
-        bannerDescTextColor: (document.getElementById('storeBannerDescTextColorInput') && document.getElementById('storeBannerDescTextColorInput').value) || ''
+        bannerDescTextColor: (document.getElementById('storeBannerDescTextColorInput') && document.getElementById('storeBannerDescTextColorInput').value) || '',
+        seoTitle: (document.getElementById('storeSeoTitleInput') && document.getElementById('storeSeoTitleInput').value) || '',
+        seoDescription: (document.getElementById('storeSeoDescInput') && document.getElementById('storeSeoDescInput').value) || '',
+        seoOgImage: (document.getElementById('storeSeoOgImageUrl') && document.getElementById('storeSeoOgImageUrl').value) || '',
+        seoNoindex: document.getElementById('storeSeoNoindexInput') ? document.getElementById('storeSeoNoindexInput').checked : false
     };
 }
 
@@ -1715,13 +1742,17 @@ function hasStoreSettingsChanges() {
 }
 
 function updateStoreSaveBtn() {
-    const btn = document.getElementById('storeSaveBtn');
-    if (!btn) return;
     const hasChanges = hasStoreSettingsChanges();
-    btn.disabled = !hasChanges;
-    btn.classList.toggle('btn-primary--dimmed', !hasChanges);
+    ['storeSaveBtn', 'storeSaveBtnSeo'].forEach((id) => {
+        const btn = document.getElementById(id);
+        if (!btn) return;
+        btn.disabled = !hasChanges;
+        btn.classList.toggle('btn-primary--dimmed', !hasChanges);
+    });
     const hint = document.getElementById('storeSaveUnsavedHint');
     if (hint) hint.classList.toggle('hidden', !hasChanges);
+    const hintSeo = document.getElementById('storeSaveUnsavedHintSeo');
+    if (hintSeo) hintSeo.classList.toggle('hidden', !hasChanges);
 }
 
 async function saveStoreSettings() {
@@ -1782,6 +1813,10 @@ async function saveStoreSettings() {
         addToCartButtonTextWhite: document.getElementById('storeAddToCartTextWhiteInput') ? document.getElementById('storeAddToCartTextWhiteInput').checked : true,
         headingColor: (document.getElementById('storeHeadingColorInput') && document.getElementById('storeHeadingColorInput').value) || '#1e293b',
         bannerDescTextColor: (document.getElementById('storeBannerDescTextColorInput') && document.getElementById('storeBannerDescTextColorInput').value) || '',
+        seoTitle: (document.getElementById('storeSeoTitleInput') && document.getElementById('storeSeoTitleInput').value.trim()) || '',
+        seoDescription: (document.getElementById('storeSeoDescInput') && document.getElementById('storeSeoDescInput').value.trim()) || '',
+        seoOgImage: (document.getElementById('storeSeoOgImageUrl') && document.getElementById('storeSeoOgImageUrl').value.trim()) || '',
+        seoNoindex: document.getElementById('storeSeoNoindexInput') ? document.getElementById('storeSeoNoindexInput').checked : false,
         updatedAt: now
     };
     if (!existingStore) storeData.createdAt = now;
@@ -2934,7 +2969,39 @@ function showPage(id) {
                         updateStoreSaveBtn();
                     });
                 }
-                const storeSettingsIds = ['storeSubdomainInput', 'storeTitleInput', 'storeDescInput', 'storeAboutDescInput', 'storeLogoUrl', 'storeEnabledInput', 'storeMinOrderInput', 'storeHeaderColorInput', 'storeFooterColorInput', 'storeHeadingColorInput', 'storeTabsSectionColorInput', 'storeAddToCartColorInput', 'storeAddToCartTextWhiteInput', 'storeBannerDescTextColorInput', 'storeSocialVk', 'storeSocialTelegram', 'storeSocialTiktok', 'storeSocialInstagram', 'storeSocialEmail', 'storeSocialPhone', 'storeSocialWhatsapp', 'storeSellerDetailsInput', 'storeOfferInput', 'storeAboutContactsInput'];
+                const seoOgSelectBtn = document.getElementById('storeSeoOgImageSelectBtn');
+                const seoOgFileInput = document.getElementById('storeSeoOgImageInput');
+                const seoOgClearBtn = document.getElementById('storeSeoOgImageClearBtn');
+                if (seoOgSelectBtn && seoOgFileInput) {
+                    seoOgSelectBtn.addEventListener('click', () => seoOgFileInput.click());
+                    seoOgFileInput.addEventListener('change', async function() {
+                        const file = this.files && this.files[0];
+                        if (!file || !file.type.startsWith('image/')) return;
+                        const result = await uploadFileToCloud(file);
+                        if (result && result.url) {
+                            document.getElementById('storeSeoOgImageUrl').value = result.url;
+                            const img = document.getElementById('storeSeoOgImagePreview');
+                            const ph = document.getElementById('storeSeoOgImagePlaceholder');
+                            if (img) { img.src = result.url; img.style.display = ''; }
+                            if (ph) ph.style.display = 'none';
+                            if (seoOgClearBtn) seoOgClearBtn.style.display = '';
+                            updateStoreSaveBtn();
+                        }
+                        this.value = '';
+                    });
+                }
+                if (seoOgClearBtn) {
+                    seoOgClearBtn.addEventListener('click', () => {
+                        document.getElementById('storeSeoOgImageUrl').value = '';
+                        const img = document.getElementById('storeSeoOgImagePreview');
+                        const ph = document.getElementById('storeSeoOgImagePlaceholder');
+                        if (img) { img.src = ''; img.style.display = 'none'; }
+                        if (ph) ph.style.display = 'inline';
+                        seoOgClearBtn.style.display = 'none';
+                        updateStoreSaveBtn();
+                    });
+                }
+                const storeSettingsIds = ['storeSubdomainInput', 'storeTitleInput', 'storeDescInput', 'storeAboutDescInput', 'storeLogoUrl', 'storeEnabledInput', 'storeMinOrderInput', 'storeHeaderColorInput', 'storeFooterColorInput', 'storeHeadingColorInput', 'storeTabsSectionColorInput', 'storeAddToCartColorInput', 'storeAddToCartTextWhiteInput', 'storeBannerDescTextColorInput', 'storeSocialVk', 'storeSocialTelegram', 'storeSocialTiktok', 'storeSocialInstagram', 'storeSocialEmail', 'storeSocialPhone', 'storeSocialWhatsapp', 'storeSellerDetailsInput', 'storeOfferInput', 'storeAboutContactsInput', 'storeSeoTitleInput', 'storeSeoDescInput', 'storeSeoOgImageUrl', 'storeSeoNoindexInput'];
                 storeSettingsIds.forEach(id => {
                     const el = document.getElementById(id);
                     if (!el) return;
@@ -3097,6 +3164,15 @@ function addCloudinaryUrlsFromStoreProductsToSet(urls, storeProductsVal) {
                 if (u && typeof u === 'string' && u.includes('cloudinary')) urls.add(u);
             });
         }
+    });
+}
+
+/** Cloudinary из узла users/.../store (баннер, логотип, SEO og:image) — чтобы cleaner / импорт не считали их сиротами. */
+function addCloudinaryUrlsFromStoreNodeToSet(urls, storeVal) {
+    if (!storeVal || typeof storeVal !== 'object') return;
+    ['banner', 'logo', 'seoOgImage'].forEach((key) => {
+        const v = storeVal[key];
+        if (v && typeof v === 'string' && v.includes('cloudinary')) urls.add(v);
     });
 }
 
@@ -3263,14 +3339,19 @@ function importData(input) {
                     // ВАЖНО: Если вы переходите с локальной версии 3.7, этот шаг может удалить 
                     // файлы из облака, если они там были. Но для v3.7 это обычно не актуально.
                     let currentStoreProductsVal = null;
+                    let currentStoreVal = null;
                     if (user) {
                         const spSnap = await firebase.database().ref('users/' + user.uid + '/storeProducts').once('value');
                         currentStoreProductsVal = spSnap.val();
+                        const stSnap = await firebase.database().ref('users/' + user.uid + '/store').once('value');
+                        currentStoreVal = stSnap.val();
                     }
                     const currentUrls = getAllCloudinaryUrls(db);
                     addCloudinaryUrlsFromStoreProductsToSet(currentUrls, currentStoreProductsVal);
+                    addCloudinaryUrlsFromStoreNodeToSet(currentUrls, currentStoreVal);
                     const newUrls = getAllCloudinaryUrls(loaded);
                     addCloudinaryUrlsFromStoreProductsToSet(newUrls, storeBackup && storeBackup.storeProducts);
+                    addCloudinaryUrlsFromStoreNodeToSet(newUrls, storeBackup && storeBackup.store);
                     
                     console.log(`Анализ файлов: Текущих - ${currentUrls.size}, В бэкапе - ${newUrls.size}`);
                     

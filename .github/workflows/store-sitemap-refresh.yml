@@ -1,0 +1,62 @@
+# Пересборка только sitemap.xml и robots.txt во всех deploy-репо.
+# Товары в Firebase меняются чаще, чем код витрины — без этого sitemap устаревал бы до следующего Store Sync.
+
+name: Refresh Store Sitemaps
+
+on:
+  schedule:
+    # 05:00 UTC ежедневно (~08:00 МСК). Поменяйте при необходимости.
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup
+        id: cfg
+        run: |
+          if [ ! -f store-deploy-config.json ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "skip=false" >> $GITHUB_OUTPUT
+
+      - name: Regenerate sitemap.xml and robots.txt
+        if: steps.cfg.outputs.skip != 'true'
+        env:
+          PAT: ${{ secrets.STORE_SYNC_TOKEN }}
+        run: |
+          set -e
+          git config --global user.email "store-sync@github-actions"
+          git config --global user.name "Store Sitemap"
+
+          REPOS=$(jq -r '.deployRepos[] | "\(.repo)|\(.subdomain)"' store-deploy-config.json)
+          DOMAIN="my-3d-print.ru"
+
+          for entry in $REPOS; do
+            REPO="${entry%|*}"
+            SUB="${entry#*|}"
+            echo "--- Sitemap: $REPO ($SUB) ---"
+
+            git clone "https://x-access-token:${PAT}@github.com/${REPO}.git" deploy-tmp
+            cd deploy-tmp
+
+            node ../scripts/generate-store-sitemap.mjs "$SUB" "$DOMAIN" .
+
+            git checkout -b main 2>/dev/null || git checkout main
+            git add sitemap.xml robots.txt
+            if git diff --staged --quiet; then
+              echo "No sitemap changes for $REPO"
+            else
+              git commit -m "Refresh sitemap and robots.txt [skip ci]"
+              git push -u origin main
+            fi
+
+            cd ..
+            rm -rf deploy-tmp
+          done
+
+          echo "Sitemap refresh complete."
