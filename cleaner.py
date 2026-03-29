@@ -2,7 +2,7 @@
 Сверка ссылок Cloudinary в Firebase RTDB с реальными ресурсами в Cloudinary,
 опциональное «лечение» битых ссылок и удаление неиспользуемых файлов в облаке.
 
-Учитывает: изделия (users/*/data/products) и ИМ — баннер и товары витрины (users/*/store, storeProducts).
+Учитывает: изделия (users/*/data/products) и ИМ — баннер, логотип, SEO og:image и товары витрины (users/*/store, storeProducts).
 """
 
 from __future__ import annotations
@@ -141,16 +141,20 @@ def _fix_store_product(
     return changed
 
 
-def _fix_store_banner(
-    user_id: str, store: Dict[str, Any], cloud_url_set: set
+def _fix_store_cloudinary_field(
+    user_id: str,
+    store: Dict[str, Any],
+    field: str,
+    label: str,
+    cloud_url_set: set,
 ) -> bool:
-    b = store.get("banner")
-    if not b or not isinstance(b, str) or not _is_cloudinary_url(b):
+    val = store.get(field)
+    if not val or not isinstance(val, str) or not _is_cloudinary_url(val):
         return False
-    if b in cloud_url_set:
+    if val in cloud_url_set:
         return False
-    print(f"   🛠️ ЛЕЧЕНИЕ (ИМ баннер): user={user_id} -> banner очищен")
-    store["banner"] = None
+    print(f"   🛠️ ЛЕЧЕНИЕ (ИМ {label}): user={user_id} -> {field} очищен")
+    store[field] = None
     return True
 
 
@@ -229,12 +233,32 @@ def _process_store_for_user(
     fixed = 0
     store = user_data.get("store")
     if isinstance(store, dict):
-        b = store.get("banner")
-        if b and isinstance(b, str) and _is_cloudinary_url(b) and b in cloud_url_set:
-            active_urls.add(b)
-        if FIX_BROKEN_LINKS and _fix_store_banner(user_id, store, cloud_url_set):
-            db.reference(f"users/{user_id}/store").update({"banner": store.get("banner")})
-            fixed += 1
+        for field in ("banner", "logo", "seoOgImage"):
+            val = store.get(field)
+            if (
+                val
+                and isinstance(val, str)
+                and _is_cloudinary_url(val)
+                and val in cloud_url_set
+            ):
+                active_urls.add(val)
+        if FIX_BROKEN_LINKS:
+            upd: Dict[str, Any] = {}
+            if _fix_store_cloudinary_field(
+                user_id, store, "banner", "баннер", cloud_url_set
+            ):
+                upd["banner"] = store.get("banner")
+            if _fix_store_cloudinary_field(
+                user_id, store, "logo", "логотип", cloud_url_set
+            ):
+                upd["logo"] = store.get("logo")
+            if _fix_store_cloudinary_field(
+                user_id, store, "seoOgImage", "SEO og:image", cloud_url_set
+            ):
+                upd["seoOgImage"] = store.get("seoOgImage")
+            if upd:
+                db.reference(f"users/{user_id}/store").update(upd)
+                fixed += 1
 
     raw_sp = user_data.get("storeProducts")
     for key, sp in _iter_indexed_children(raw_sp):

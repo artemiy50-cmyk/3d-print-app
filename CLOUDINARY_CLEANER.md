@@ -16,7 +16,7 @@
 | Источник | Путь | Поля |
 |----------|------|------|
 | Изделия | `users/{uid}/data/products` | `imageUrl`, вложения `fileUrls[].url` |
-| Настройки витрины | `users/{uid}/store` | `banner` (если это URL Cloudinary) |
+| Настройки витрины | `users/{uid}/store` | `banner`, `logo`, `seoOgImage` (если это URL Cloudinary) |
 | Товары ИМ | `users/{uid}/storeProducts` | `imageUrl`, массив `imageUrls[]` |
 
 Категории магазина (`storeCategories`) в текущей схеме **не** хранят картинки — в обход не берутся.

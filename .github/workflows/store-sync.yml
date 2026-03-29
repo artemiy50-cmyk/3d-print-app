@@ -12,6 +12,7 @@ on:
       - 'style.css'
       - 'store-deploy-config.json'
       - '.github/workflows/store-sync.yml'
+      - 'scripts/generate-store-sitemap.mjs'
   workflow_dispatch:
 
 jobs:
@@ -60,6 +61,9 @@ jobs:
 
             # CNAME для GitHub Pages
             echo "${SUB}.${DOMAIN}" > CNAME
+
+            # SEO: sitemap.xml + robots.txt (главная + ?tovar= для видимых товаров)
+            node ../scripts/generate-store-sitemap.mjs "$SUB" "$DOMAIN" .
 
             # Коммит и пуш (поддержка пустого deploy-репо)
             git checkout -b main 2>/dev/null || git checkout main
