@@ -1,7 +1,7 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
 // Номер версии ведём в формате xx.xx.xx, например 7.7.7
-const APP_VERSION_NUMBER = '6.3.1';
-console.log('2026-03-29 10-00-00');
+const APP_VERSION_NUMBER = '6.3.2';
+console.log('2026-03-29 10-30-00');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
@@ -9,9 +9,14 @@ const APP_BASE_VERSION = APP_VERSION_NUMBER;
 // === CHANGELOG
 const CHANGELOG_ENTRIES = [
     {
+        version: '6.3.2', 
+        dateDisplay: '29.03.2026', 
+        description: 'Обновлены скрипты для автоматической подстановки метатега в index.html.'
+    },
+    {
         version: '6.3.1', 
         dateDisplay: '29.03.2026', 
-        description: 'Обновлен метатег подтверждения домена для Яндекс Метрики и добавлены слушатели для ввода настроек в разделе "Мой магазин".'
+        description: 'Добавлен метатег подтверждения домена для Яндекс Метрики.'
     },
     {
         version: '6.3.0', 

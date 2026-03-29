@@ -8,9 +8,10 @@
  *
  * Вызывается из Store Sync и из workflow «Refresh Store Sitemaps» (ежедневно + вручную).
  * Читает Firebase RTDB без ключа (публичные правила на store / storeProducts / storesBySubdomain).
+ * Подставляет в index.html метатег yandex-verification из store.yandexVerificationMeta (плейсхолдер <!--STORE_YANDEX_VERIFICATION--> в store.html).
  */
 
-import { writeFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 
 const DEFAULT_DB_BASE =
@@ -111,6 +112,51 @@ function escapeXml(s) {
     .replace(/"/g, '&quot;');
 }
 
+/** Значение content для meta yandex-verification (как в Manager / Firebase). */
+function extractYandexVerificationContent(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return '';
+  if (s.includes('<')) {
+    const m1 = s.match(/name\s*=\s*["']yandex-verification["'][^>]*\bcontent\s*=\s*["']([^"']*)["']/i);
+    if (m1) return m1[1].trim();
+    const m2 = s.match(/\bcontent\s*=\s*["']([^"']*)["'][^>]*name\s*=\s*["']yandex-verification["']/i);
+    if (m2) return m2[1].trim();
+    return '';
+  }
+  return s.replace(/^["']|["']$/g, '').trim();
+}
+
+function patchIndexHtmlYandexVerification(outDir, verificationContent) {
+  const indexPath = join(outDir, 'index.html');
+  if (!existsSync(indexPath)) return;
+  let html = readFileSync(indexPath, 'utf8');
+
+  html = html.replace(/\s*<meta\s+[^>]*\bname\s*=\s*["']yandex-verification["'][^>]*>\s*/gi, '\n');
+
+  const metaLine = verificationContent
+    ? `    <meta name="yandex-verification" content="${escapeXml(verificationContent)}" />\n`
+    : '';
+
+  if (html.includes('<!--STORE_YANDEX_VERIFICATION-->')) {
+    html = html.replace('<!--STORE_YANDEX_VERIFICATION-->', metaLine);
+  } else if (verificationContent) {
+    const afterViewport = html.replace(
+      /(<meta\s+name=["']viewport["'][^>]*>\s*\n)/i,
+      `$1${metaLine}`,
+    );
+    if (afterViewport !== html) {
+      html = afterViewport;
+    } else {
+      html = html.replace(/(<head>\s*\n)/i, `$1${metaLine}`);
+    }
+  }
+
+  writeFileSync(indexPath, html, 'utf8');
+  if (verificationContent) {
+    console.log(`[sitemap] ${indexPath}: meta yandex-verification (статически для роботов)`);
+  }
+}
+
 async function fetchJson(url) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`${res.status} ${url}`);
@@ -134,6 +180,7 @@ async function main() {
 
   let seoNoindex = false;
   let productSlugs = [];
+  let yandexVerificationContent = '';
 
   try {
     const subKey = encodeURIComponent(sub);
@@ -146,12 +193,17 @@ async function main() {
         fetchJson(`${dbBase}/users/${uidEnc}/storeProducts.json`).catch(() => null),
       ]);
       if (store && store.seoNoindex === true) seoNoindex = true;
+      yandexVerificationContent = extractYandexVerificationContent(
+        store && store.yandexVerificationMeta,
+      );
       const arr = productsToArray(rawProducts);
       productSlugs = buildTovarSlugs(arr);
     }
   } catch (e) {
     console.warn('[sitemap] Firebase:', e.message || e);
   }
+
+  patchIndexHtmlYandexVerification(outDir, yandexVerificationContent);
 
   const robotsPath = join(outDir, 'robots.txt');
   const sitemapPath = join(outDir, 'sitemap.xml');
