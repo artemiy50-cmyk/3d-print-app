@@ -1,13 +1,18 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
 // Номер версии ведём в формате xx.xx.xx, например 7.7.7
-const APP_VERSION_NUMBER = '6.3.0';
-console.log('2026-03-29 09-45-00');
+const APP_VERSION_NUMBER = '6.3.1';
+console.log('2026-03-29 10-00-00');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
 
 // === CHANGELOG
 const CHANGELOG_ENTRIES = [
+    {
+        version: '6.3.1', 
+        dateDisplay: '29.03.2026', 
+        description: 'Обновлен метатег подтверждения домена для Яндекс Метрики и добавлены слушатели для ввода настроек в разделе "Мой магазин".'
+    },
     {
         version: '6.3.0', 
         dateDisplay: '29.03.2026', 
@@ -1744,7 +1749,8 @@ function hasStoreSettingsChanges() {
     const orig = window._storeSettingsOriginal;
     if (!orig) return true;
     const cur = getStoreSettingsCurrentValues();
-    return Object.keys(orig).some(k => {
+    const keys = new Set([...Object.keys(orig), ...Object.keys(cur)]);
+    return [...keys].some((k) => {
         const o = orig[k];
         const c = cur[k];
         if (typeof o === 'boolean' || typeof c === 'boolean') return o !== c;
@@ -2906,6 +2912,25 @@ function updateAllDates() {
 
 const VALID_PAGE_IDS = ['dashboard', 'products', 'writeoff', 'filament', 'service', 'reports', 'references', 'profile', 'myStore'];
 
+const STORE_SETTINGS_INPUT_IDS = ['storeSubdomainInput', 'storeTitleInput', 'storeDescInput', 'storeAboutDescInput', 'storeLogoUrl', 'storeEnabledInput', 'storeMinOrderInput', 'storeHeaderColorInput', 'storeFooterColorInput', 'storeHeadingColorInput', 'storeTabsSectionColorInput', 'storeAddToCartColorInput', 'storeAddToCartTextWhiteInput', 'storeBannerDescTextColorInput', 'storeSocialVk', 'storeSocialTelegram', 'storeSocialTiktok', 'storeSocialInstagram', 'storeSocialEmail', 'storeSocialPhone', 'storeSocialWhatsapp', 'storeSellerDetailsInput', 'storeOfferInput', 'storeAboutContactsInput', 'storeSeoTitleInput', 'storeSeoDescInput', 'storeSeoOgImageUrl', 'storeSeoNoindexInput', 'storeYandexVerificationMetaInput', 'storeYandexMetricaSnippetInput'];
+
+/** Слушатели для кнопки «Сохранить»; вызывается при каждом открытии «Мой магазин», чтобы новые поля в DOM получили input после обновления HTML без полной перезагрузки вкладки. */
+function attachStoreSettingsInputListeners() {
+    STORE_SETTINGS_INPUT_IDS.forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el || el.dataset.storeSettingsInputBound === '1') return;
+        el.dataset.storeSettingsInputBound = '1';
+        if (el.type === 'checkbox') {
+            el.addEventListener('change', updateStoreSaveBtn);
+        } else if (el.type === 'color') {
+            el.addEventListener('input', updateStoreSaveBtn);
+            el.addEventListener('change', updateStoreSaveBtn);
+        } else {
+            el.addEventListener('input', updateStoreSaveBtn);
+        }
+    });
+}
+
 function showPage(id) {
     if (!id || !VALID_PAGE_IDS.includes(id)) return;
     document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -2919,6 +2944,7 @@ function showPage(id) {
     if (id === 'profile') fillProfilePage();
     if (id === 'myStore') {
         fillStoreSettingsPage();
+        attachStoreSettingsInputListeners();
         if (!window._storeTabsInited) {
             initStoreTabs();
             const debouncedStoreProductFilter = debounce(updateStoreProductsTable, 300);
@@ -3026,19 +3052,6 @@ function showPage(id) {
                         updateStoreSaveBtn();
                     });
                 }
-                const storeSettingsIds = ['storeSubdomainInput', 'storeTitleInput', 'storeDescInput', 'storeAboutDescInput', 'storeLogoUrl', 'storeEnabledInput', 'storeMinOrderInput', 'storeHeaderColorInput', 'storeFooterColorInput', 'storeHeadingColorInput', 'storeTabsSectionColorInput', 'storeAddToCartColorInput', 'storeAddToCartTextWhiteInput', 'storeBannerDescTextColorInput', 'storeSocialVk', 'storeSocialTelegram', 'storeSocialTiktok', 'storeSocialInstagram', 'storeSocialEmail', 'storeSocialPhone', 'storeSocialWhatsapp', 'storeSellerDetailsInput', 'storeOfferInput', 'storeAboutContactsInput', 'storeSeoTitleInput', 'storeSeoDescInput', 'storeSeoOgImageUrl', 'storeSeoNoindexInput', 'storeYandexVerificationMetaInput', 'storeYandexMetricaSnippetInput'];
-                storeSettingsIds.forEach(id => {
-                    const el = document.getElementById(id);
-                    if (!el) return;
-                    if (el.type === 'checkbox') {
-                        el.addEventListener('change', updateStoreSaveBtn);
-                    } else if (el.type === 'color') {
-                        el.addEventListener('input', updateStoreSaveBtn);
-                        el.addEventListener('change', updateStoreSaveBtn);
-                    } else {
-                        el.addEventListener('input', updateStoreSaveBtn);
-                    }
-                });
                 window._storeBannerInited = true;
             }
             window._storeTabsInited = true;
