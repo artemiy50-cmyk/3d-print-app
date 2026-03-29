@@ -1,13 +1,18 @@
 // Показывает дату, когда файл был сохранен (если сервер отдает Last-Modified header)
 // Номер версии ведём в формате xx.xx.xx, например 7.7.7
-const APP_VERSION_NUMBER = '6.2.0';
-console.log('2026-03-29 09-00-00');
+const APP_VERSION_NUMBER = '6.3.0';
+console.log('2026-03-29 09-45-00');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
 
 // === CHANGELOG
 const CHANGELOG_ENTRIES = [
+    {
+        version: '6.3.0', 
+        dateDisplay: '29.03.2026', 
+        description: 'Добавлена возможность добавления кода счетчика Яндекс метрики'
+    },
     {
         version: '6.2.0', 
         dateDisplay: '29.03.2026', 
@@ -962,6 +967,10 @@ async function fillStoreSettingsPage() {
     if (seoOgPh) seoOgPh.style.display = seoOgUrl ? 'none' : 'inline';
     if (seoOgClearBtn) seoOgClearBtn.style.display = seoOgUrl ? '' : 'none';
     if (seoNoindexEl) seoNoindexEl.checked = !!(store && store.seoNoindex);
+    const yandexVerEl = document.getElementById('storeYandexVerificationMetaInput');
+    if (yandexVerEl) yandexVerEl.value = (store && store.yandexVerificationMeta) || '';
+    const metricaEl = document.getElementById('storeYandexMetricaSnippetInput');
+    if (metricaEl) metricaEl.value = (store && store.yandexMetricaSnippet) || '';
     window._storeSettingsOriginal = getStoreSettingsCurrentValues();
     updateStoreSaveBtn();
     const minInput = document.getElementById('storeMinOrderInput');
@@ -1725,7 +1734,9 @@ function getStoreSettingsCurrentValues() {
         seoTitle: (document.getElementById('storeSeoTitleInput') && document.getElementById('storeSeoTitleInput').value) || '',
         seoDescription: (document.getElementById('storeSeoDescInput') && document.getElementById('storeSeoDescInput').value) || '',
         seoOgImage: (document.getElementById('storeSeoOgImageUrl') && document.getElementById('storeSeoOgImageUrl').value) || '',
-        seoNoindex: document.getElementById('storeSeoNoindexInput') ? document.getElementById('storeSeoNoindexInput').checked : false
+        seoNoindex: document.getElementById('storeSeoNoindexInput') ? document.getElementById('storeSeoNoindexInput').checked : false,
+        yandexVerificationMeta: (document.getElementById('storeYandexVerificationMetaInput') && document.getElementById('storeYandexVerificationMetaInput').value) || '',
+        yandexMetricaSnippet: (document.getElementById('storeYandexMetricaSnippetInput') && document.getElementById('storeYandexMetricaSnippetInput').value) || ''
     };
 }
 
@@ -1785,6 +1796,18 @@ async function saveStoreSettings() {
     const minVal = document.getElementById('storeMinOrderInput') ? document.getElementById('storeMinOrderInput').value : '';
     const minOrderAmount = (minVal !== '' && minVal != null) ? parseFloat(minVal) : null;
 
+    const yandexVerRaw = (document.getElementById('storeYandexVerificationMetaInput') && document.getElementById('storeYandexVerificationMetaInput').value) || '';
+    if (yandexVerRaw.length > 2048) {
+        showToast('Метатег подтверждения Яндекса слишком длинный (максимум 2 048 символов).', 'error');
+        return;
+    }
+
+    const metricaRaw = (document.getElementById('storeYandexMetricaSnippetInput') && document.getElementById('storeYandexMetricaSnippetInput').value) || '';
+    if (metricaRaw.length > 24000) {
+        showToast('Код Яндекс Метрики слишком длинный (максимум 24 000 символов).', 'error');
+        return;
+    }
+
     const storeData = {
         subdomain,
         title: (document.getElementById('storeTitleInput') && document.getElementById('storeTitleInput').value) || '',
@@ -1817,6 +1840,8 @@ async function saveStoreSettings() {
         seoDescription: (document.getElementById('storeSeoDescInput') && document.getElementById('storeSeoDescInput').value.trim()) || '',
         seoOgImage: (document.getElementById('storeSeoOgImageUrl') && document.getElementById('storeSeoOgImageUrl').value.trim()) || '',
         seoNoindex: document.getElementById('storeSeoNoindexInput') ? document.getElementById('storeSeoNoindexInput').checked : false,
+        yandexVerificationMeta: yandexVerRaw.trim(),
+        yandexMetricaSnippet: metricaRaw.trim(),
         updatedAt: now
     };
     if (!existingStore) storeData.createdAt = now;
@@ -3001,7 +3026,7 @@ function showPage(id) {
                         updateStoreSaveBtn();
                     });
                 }
-                const storeSettingsIds = ['storeSubdomainInput', 'storeTitleInput', 'storeDescInput', 'storeAboutDescInput', 'storeLogoUrl', 'storeEnabledInput', 'storeMinOrderInput', 'storeHeaderColorInput', 'storeFooterColorInput', 'storeHeadingColorInput', 'storeTabsSectionColorInput', 'storeAddToCartColorInput', 'storeAddToCartTextWhiteInput', 'storeBannerDescTextColorInput', 'storeSocialVk', 'storeSocialTelegram', 'storeSocialTiktok', 'storeSocialInstagram', 'storeSocialEmail', 'storeSocialPhone', 'storeSocialWhatsapp', 'storeSellerDetailsInput', 'storeOfferInput', 'storeAboutContactsInput', 'storeSeoTitleInput', 'storeSeoDescInput', 'storeSeoOgImageUrl', 'storeSeoNoindexInput'];
+                const storeSettingsIds = ['storeSubdomainInput', 'storeTitleInput', 'storeDescInput', 'storeAboutDescInput', 'storeLogoUrl', 'storeEnabledInput', 'storeMinOrderInput', 'storeHeaderColorInput', 'storeFooterColorInput', 'storeHeadingColorInput', 'storeTabsSectionColorInput', 'storeAddToCartColorInput', 'storeAddToCartTextWhiteInput', 'storeBannerDescTextColorInput', 'storeSocialVk', 'storeSocialTelegram', 'storeSocialTiktok', 'storeSocialInstagram', 'storeSocialEmail', 'storeSocialPhone', 'storeSocialWhatsapp', 'storeSellerDetailsInput', 'storeOfferInput', 'storeAboutContactsInput', 'storeSeoTitleInput', 'storeSeoDescInput', 'storeSeoOgImageUrl', 'storeSeoNoindexInput', 'storeYandexVerificationMetaInput', 'storeYandexMetricaSnippetInput'];
                 storeSettingsIds.forEach(id => {
                     const el = document.getElementById(id);
                     if (!el) return;
