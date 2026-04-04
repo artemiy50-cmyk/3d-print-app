@@ -30,8 +30,9 @@
 |--------|------------------|------------|
 | Основная база приложения | `users/{uid}/data` | Изделия, филаменты, настройки и т.д. — объект `db`, как в облаке. |
 | Витрина | `users/{uid}/store` | Настройки магазина, в т.ч. поддомен и оформление. Узел копируется **целиком** — в бэкап входят поля SEO (`seoTitle`, `seoDescription`, `seoOgImage`, `seoNoindex`) и Яндекс (`yandexVerificationMeta`, `yandexMetricaSnippet`) без отдельного списка в коде. |
-| Каталог | `users/{uid}/storeProducts` | Товары витрины. |
+| Каталог | `users/{uid}/storeProducts` | Товары витрины; характеристики для витрины лежат внутри каждого товара в поле **`attributes`** (отдельный узел не нужен). |
 | Категории | `users/{uid}/storeCategories` | Дерево категорий. |
+| Справочник характеристик | `users/{uid}/storeAttributeDefinitions` | Ручные пары «название — значение» из вкладки «Категории»; синхронизируется с `collectStoreBackup` / `restoreStoreBackup` и с `backup.py`. |
 | Заказы ИМ | `storeOrders` | Только заказы с `ownerUid`, совпадающим с текущим пользователем. |
 | Поддомен | `storesBySubdomain/{subdomain}` | Одна запись для поддомена из `store.subdomain`, если он задан. |
 
@@ -73,7 +74,7 @@
 - Копия **`users/{uid}/data`** (`deepcopy`), в том же виде, что ожидает импорт в приложении (корень = поля `db`).
 - При наличии подписки: **`_subscription_backup`** — копия `users/{uid}/subscription` (при импорте уходит в `users/{uid}/subscription`, не в `data`).
 - При наличии данных ИМ или заказов: **`_storeBackup`** (как в `script.js`) с полями:
-  - `store`, `storeProducts`, `storeCategories` — как в Firebase;
+  - `store`, `storeProducts`, `storeCategories`, `storeAttributeDefinitions` — как в Firebase (`storeProducts` уже содержит `attributes` у товаров);
   - `storeOrders` — **массив** объектов `{ "id": "<ключ Firebase>", ...поля заказа }`, как при «Скачать базу»;
   - `storesBySubdomain` — объект `{ subdomain: значение }` для поддомена из `store`, если запись есть в корне.
 

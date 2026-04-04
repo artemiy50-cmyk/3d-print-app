@@ -3,8 +3,8 @@
 const APP_VERSION_NUMBER =
     typeof window !== 'undefined' && window.APP_VERSION != null
         ? String(window.APP_VERSION)
-        : '6.3.3';
-console.log('2026-03-29 14-00-00');
+        : '6.4.0';
+console.log('2026-04-05 08-00-00');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
@@ -12,19 +12,24 @@ const APP_BASE_VERSION = APP_VERSION_NUMBER;
 // === CHANGELOG
 const CHANGELOG_ENTRIES = [
     {
+        version: '6.4.0', 
+        dateDisplay: '05.04.2026', 
+        description: 'Добавлены характеристки для товаров. И некоторые другие улучшения'
+    },
+    {
         version: '6.3.3', 
         dateDisplay: '29.03.2026', 
-        description: 'Улучшены адаптивы для мобильных устройств.'
+        description: 'Улучшены адаптивы для мобильных устройств'
     },
     {
         version: '6.3.2', 
         dateDisplay: '29.03.2026', 
-        description: 'Обновлены скрипты для автоматической подстановки метатега в index.html.'
+        description: 'Обновлены скрипты для автоматической подстановки метатега в index.html'
     },
     {
         version: '6.3.1', 
         dateDisplay: '29.03.2026', 
-        description: 'Добавлен метатег подтверждения домена для Яндекс Метрики.'
+        description: 'Добавлен метатег подтверждения домена для Яндекс Метрики'
     },
     {
         version: '6.3.0', 
@@ -860,8 +865,15 @@ function isStoreOrderLineLinkedToStoreProduct(line, sp) {
     const linePid = item.productId != null && item.productId !== '' ? String(item.productId) : '';
     if (spPid) return linePid === spPid;
     const spName = (sp.name && String(sp.name).trim()) || '';
-    const lineName = (item.name && String(item.name).trim()) || '';
+    const lineName = stripStoreOrderItemNameToBase(item.name);
     return !!(spName && lineName && spName === lineName);
+}
+
+/** Убирает хвост « (Размер: L; …)» у наименования в строке заказа для сопоставления с каталогом. */
+function stripStoreOrderItemNameToBase(name) {
+    const s = String(name || '').trim();
+    if (!s) return '';
+    return s.replace(/\s*\([^)]*\)\s*$/, '').trim() || s;
 }
 
 function validateSubdomain(val) {
@@ -880,10 +892,14 @@ async function fillStoreSettingsPage() {
     const productsRef = firebase.database().ref('users/' + user.uid + '/storeProducts');
 
     const storeSnap = await storeRef.once('value');
-    const productsSnap = await productsRef.once('value');
+    const [productsSnap, attrDefSnap] = await Promise.all([
+        productsRef.once('value'),
+        firebase.database().ref('users/' + user.uid + '/storeAttributeDefinitions').once('value')
+    ]);
     const store = storeSnap.val();
     const raw = productsSnap.val();
     const storeProducts = raw && typeof raw === 'object' ? (Array.isArray(raw) ? raw : Object.values(raw)) : [];
+    window._storeAttributeDefinitionsCache = normalizeStoreAttributeDefinitions(attrDefSnap.val());
 
     const subdomainWrap = document.getElementById('storeSubdomainWrap');
     const subdomainReadonly = document.getElementById('storeSubdomainReadonly');
@@ -1055,6 +1071,7 @@ async function fillStoreSettingsPage() {
 
     loadStoreOrders();
     renderStoreCategoriesTree(user.uid);
+    refreshStoreAttributesCatalogUI();
 }
 
 function updateStoreProductsTable() {
@@ -1139,6 +1156,7 @@ function initStoreTabs() {
             btn.setAttribute('aria-selected', 'true');
             const panel = document.getElementById(tab);
             if (panel) panel.classList.add('active');
+            if (tab === 'storeCategories') refreshStoreAttributesCatalogUI();
         });
     });
 }
@@ -1179,6 +1197,382 @@ function updateStoreOrderStatusHeaderBadge(status) {
     badge.textContent = meta.label;
 }
 
+/** Характеристики витрины: [{ name, values: string[] }]. */
+function normalizeStoreProductAttributes(raw) {
+    if (!raw || !Array.isArray(raw)) return [];
+    const out = [];
+    for (const a of raw) {
+        if (!a || typeof a !== 'object') continue;
+        const name = String(a.name || '').trim();
+        if (!name) continue;
+        let values = [];
+        if (Array.isArray(a.values)) {
+            values = [...new Set(a.values.map((v) => String(v).trim()).filter(Boolean))];
+        } else if (typeof a.values === 'string') {
+            values = [...new Set(a.values.split(/[,;]/).map((s) => s.trim()).filter(Boolean))];
+        }
+        if (!values.length) continue;
+        out.push({ name, values });
+    }
+    return out;
+}
+
+function buildStoreAttributeNamesValuesMapFromProducts(products) {
+    const map = new Map();
+    const arr = Array.isArray(products) ? products : [];
+    for (const p of arr) {
+        for (const { name, values } of normalizeStoreProductAttributes(p.attributes)) {
+            if (!map.has(name)) map.set(name, new Set());
+            const s = map.get(name);
+            values.forEach((v) => s.add(v));
+        }
+    }
+    const names = [...map.keys()].sort((a, b) => a.localeCompare(b, 'ru'));
+    const valuesByName = {};
+    names.forEach((n) => {
+        valuesByName[n] = [...map.get(n)].sort((a, b) => a.localeCompare(b, 'ru'));
+    });
+    return { names, valuesByName };
+}
+
+function buildStoreAttributeCatalogRowsFromProducts(products) {
+    const { names, valuesByName } = buildStoreAttributeNamesValuesMapFromProducts(products);
+    const rows = [];
+    for (const name of names) {
+        for (const value of valuesByName[name] || []) {
+            rows.push({ name, value });
+        }
+    }
+    return rows;
+}
+
+/** Ручные пары «характеристика — значение» в Firebase (users/.../storeAttributeDefinitions). */
+function normalizeStoreAttributeDefinitions(raw) {
+    if (raw == null) return [];
+    const arr = Array.isArray(raw) ? raw : Object.values(raw);
+    const out = [];
+    for (const x of arr) {
+        if (!x || typeof x !== 'object') continue;
+        const name = String(x.name || '').trim();
+        const value = String(x.value != null ? x.value : '').trim();
+        let id = String(x.id || '').trim();
+        if (!id) id = `id_${Date.now()}_${out.length}`;
+        if (name && value) out.push({ id, name, value });
+    }
+    return out;
+}
+
+function buildStoreAttributeNamesValuesMapMerged(products, manualList) {
+    const map = new Map();
+    const arr = Array.isArray(products) ? products : [];
+    for (const p of arr) {
+        for (const { name, values } of normalizeStoreProductAttributes(p.attributes)) {
+            if (!map.has(name)) map.set(name, new Set());
+            values.forEach((v) => map.get(name).add(v));
+        }
+    }
+    const manual = Array.isArray(manualList) ? manualList : [];
+    for (const m of manual) {
+        const n = String(m.name || '').trim();
+        const v = String(m.value != null ? m.value : '').trim();
+        if (!n || !v) continue;
+        if (!map.has(n)) map.set(n, new Set());
+        map.get(n).add(v);
+    }
+    const names = [...map.keys()].sort((a, b) => a.localeCompare(b, 'ru'));
+    const valuesByName = {};
+    names.forEach((n) => {
+        valuesByName[n] = [...map.get(n)].sort((a, b) => a.localeCompare(b, 'ru'));
+    });
+    return { names, valuesByName };
+}
+
+function buildMergedStoreAttributeCatalogDisplayRows() {
+    const products = Array.isArray(window._storeProductsCache) ? window._storeProductsCache : [];
+    const manual = Array.isArray(window._storeAttributeDefinitionsCache) ? window._storeAttributeDefinitionsCache : [];
+    const fromProd = buildStoreAttributeCatalogRowsFromProducts(products);
+    const byKey = new Map();
+    for (const r of fromProd) {
+        const k = `${r.name}\0${r.value}`;
+        if (!byKey.has(k)) byKey.set(k, { name: r.name, value: r.value, manualId: null });
+    }
+    for (const m of manual) {
+        const n = String(m.name || '').trim();
+        const v = String(m.value != null ? m.value : '').trim();
+        if (!n || !v) continue;
+        const k = `${n}\0${v}`;
+        const ex = byKey.get(k);
+        if (ex) ex.manualId = m.id;
+        else byKey.set(k, { name: n, value: v, manualId: m.id });
+    }
+    return [...byKey.values()].sort((a, b) => a.name.localeCompare(b.name, 'ru') || a.value.localeCompare(b.value, 'ru'));
+}
+
+function isStoreAttributePairUsedInProducts(charName, charValue, products) {
+    const n = String(charName || '').trim();
+    const v = String(charValue || '').trim();
+    if (!n || !v) return false;
+    const arr = Array.isArray(products) ? products : [];
+    for (const p of arr) {
+        for (const a of normalizeStoreProductAttributes(p.attributes)) {
+            if (a.name !== n) continue;
+            if (a.values.some((x) => String(x).trim() === v)) return true;
+        }
+    }
+    return false;
+}
+
+async function addStoreAttributeCatalogEntry() {
+    const user = firebase.auth().currentUser;
+    if (!user) return;
+    const nameInp = document.getElementById('storeAttrCatalogNameInput');
+    const valInp = document.getElementById('storeAttrCatalogValueInput');
+    const name = String(nameInp && nameInp.value || '').trim();
+    const value = String(valInp && valInp.value || '').trim();
+    if (!name) { showToast('Укажите название характеристики.', 'error'); return; }
+    if (!value) { showToast('Укажите значение.', 'error'); return; }
+    try {
+        const ref = firebase.database().ref('users/' + user.uid + '/storeAttributeDefinitions');
+        const snap = await ref.once('value');
+        let list = normalizeStoreAttributeDefinitions(snap.val());
+        const dup = list.some((x) => x.name.trim() === name && String(x.value).trim() === value);
+        if (dup) { showToast('Такая запись уже есть в справочнике.', 'error'); return; }
+        const id = `${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+        list.push({ id, name, value });
+        await ref.set(list);
+        window._storeAttributeDefinitionsCache = list;
+        if (valInp) valInp.value = '';
+        updateStoreAttrDatalistsFromProducts();
+        refreshStoreAttributesCatalogUI();
+        showToast('Добавлено в справочник', 'success');
+    } catch (e) {
+        showToast('Ошибка: ' + (e && e.message ? e.message : String(e)), 'error');
+    }
+}
+
+async function removeStoreAttributeCatalogRow(rowIndex) {
+    const user = firebase.auth().currentUser;
+    const rows = window._storeAttrCatalogRowsCache;
+    if (!user || !Array.isArray(rows) || rowIndex < 0 || rowIndex >= rows.length) return;
+    const row = rows[rowIndex];
+    const prods = window._storeProductsCache || [];
+    if (isStoreAttributePairUsedInProducts(row.name, row.value, prods)) {
+        showToast('Нельзя удалить: используется в товаре.', 'error');
+        return;
+    }
+    if (!row.manualId) {
+        showToast('Эта пара задаётся только в карточке товара. Удалите её там.', 'error');
+        return;
+    }
+    if (!confirm(`Удалить из справочника: «${row.name}» — «${row.value}»?`)) return;
+    try {
+        const ref = firebase.database().ref('users/' + user.uid + '/storeAttributeDefinitions');
+        const snap = await ref.once('value');
+        let list = normalizeStoreAttributeDefinitions(snap.val());
+        list = list.filter((x) => x.id !== row.manualId);
+        await ref.set(list);
+        window._storeAttributeDefinitionsCache = list;
+        updateStoreAttrDatalistsFromProducts();
+        refreshStoreAttributesCatalogUI();
+        showToast('Запись удалена', 'success');
+    } catch (e) {
+        showToast('Ошибка: ' + (e && e.message ? e.message : String(e)), 'error');
+    }
+}
+
+function formatStoreOrderItemAttributesSuffix(selectedAttributes) {
+    if (!selectedAttributes || typeof selectedAttributes !== 'object') return '';
+    const keys = Object.keys(selectedAttributes).filter((k) => String(selectedAttributes[k] || '').trim());
+    if (!keys.length) return '';
+    keys.sort((a, b) => a.localeCompare(b, 'ru'));
+    const parts = keys.map((k) => `${k}: ${String(selectedAttributes[k]).trim()}`);
+    return ` (${parts.join('; ')})`;
+}
+
+function formatStoreOrderItemDisplayName(it) {
+    const raw = (it && it.name) ? String(it.name) : 'Товар';
+    const sa = it && it.selectedAttributes;
+    const hasSel = sa && typeof sa === 'object' && Object.keys(sa).some((k) => String(sa[k] || '').trim());
+    const base = hasSel ? (stripStoreOrderItemNameToBase(raw) || raw) : raw;
+    return base + formatStoreOrderItemAttributesSuffix(sa);
+}
+
+function refreshStoreAttributesCatalogUI() {
+    const el = document.getElementById('storeAttributesCatalogBody');
+    if (!el) return;
+    const rows = buildMergedStoreAttributeCatalogDisplayRows();
+    window._storeAttrCatalogRowsCache = rows;
+    if (!rows.length) {
+        el.innerHTML = '<tr><td colspan="3" class="text-muted" style="padding:10px;">Пока нет записей. Добавьте вручную или задайте характеристики в карточке товара.</td></tr>';
+        return;
+    }
+    el.innerHTML = rows.map((r, i) => `<tr>
+            <td class="store-attr-cat-td-name">${escapeHtml(r.name)}</td>
+            <td class="store-attr-cat-td-value">${escapeHtml(r.value)}</td>
+            <td class="store-attr-cat-td-actions"><button type="button" class="btn-danger btn-small" data-store-attr-row-idx="${i}" title="Удалить">✕</button></td>
+        </tr>`).join('');
+    el.querySelectorAll('button[data-store-attr-row-idx]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const idx = parseInt(btn.getAttribute('data-store-attr-row-idx'), 10);
+            removeStoreAttributeCatalogRow(idx);
+        });
+    });
+}
+
+function updateStoreAttrDatalistsFromProducts() {
+    const nameDl = document.getElementById('storeAttrNameDatalist');
+    const valDl = document.getElementById('storeAttrValuesDatalist');
+    const products = Array.isArray(window._storeProductsCache) ? window._storeProductsCache : [];
+    const manual = Array.isArray(window._storeAttributeDefinitionsCache) ? window._storeAttributeDefinitionsCache : [];
+    const { names, valuesByName } = buildStoreAttributeNamesValuesMapMerged(products, manual);
+    if (nameDl) nameDl.innerHTML = names.map((n) => `<option value="${escapeHtml(n)}"></option>`).join('');
+    if (valDl) {
+        const allVals = new Set();
+        names.forEach((n) => (valuesByName[n] || []).forEach((v) => allVals.add(v)));
+        valDl.innerHTML = [...allVals].sort((a, b) => a.localeCompare(b, 'ru')).map((v) => `<option value="${escapeHtml(v)}"></option>`).join('');
+    }
+    window._storeAttrValuesByNameCache = valuesByName;
+}
+
+function refreshStoreAttrValuesDatalistForCharacteristicName(charName) {
+    const valDl = document.getElementById('storeAttrValuesDatalist');
+    if (!valDl) return;
+    const n = String(charName || '').trim();
+    const map = window._storeAttrValuesByNameCache || {};
+    if (!n) {
+        const allVals = new Set();
+        Object.values(map).forEach((setOrArr) => {
+            const arr = Array.isArray(setOrArr) ? setOrArr : [...setOrArr];
+            arr.forEach((v) => allVals.add(v));
+        });
+        valDl.innerHTML = [...allVals].sort((a, b) => a.localeCompare(b, 'ru')).map((v) => `<option value="${escapeHtml(v)}"></option>`).join('');
+        return;
+    }
+    const vals = map[n] || [];
+    const list = Array.isArray(vals) ? vals : [...vals];
+    valDl.innerHTML = list.sort((a, b) => a.localeCompare(b, 'ru')).map((v) => `<option value="${escapeHtml(v)}"></option>`).join('');
+}
+
+/** Повторное открытие нативного списка datalist при клике по полю, уже в фокусе и с текстом (стрелка в Chrome). */
+function wireInputDatalistPickerReopen(input, onBeforeRefocus) {
+    input.addEventListener('mousedown', (e) => {
+        if (document.activeElement !== input || !String(input.value || '').trim()) return;
+        e.preventDefault();
+        input.blur();
+        setTimeout(() => {
+            onBeforeRefocus?.();
+            input.focus({ preventScroll: true });
+        }, 0);
+    });
+}
+
+function bindStoreProductAttrRow(row) {
+    const nameInp = row.querySelector('.store-product-attr-name');
+    const valInp = row.querySelector('.store-product-attr-value');
+    if (!nameInp || !valInp) return;
+    const syncValueDatalist = () => {
+        const n = String(nameInp.value || '').trim();
+        if (n) {
+            valInp.setAttribute('list', 'storeAttrValuesDatalist');
+            refreshStoreAttrValuesDatalistForCharacteristicName(n);
+        } else {
+            valInp.removeAttribute('list');
+        }
+    };
+    nameInp.addEventListener('input', () => {
+        nameInp.classList.remove('error');
+        syncValueDatalist();
+    });
+    nameInp.addEventListener('focus', syncValueDatalist);
+    valInp.addEventListener('input', () => valInp.classList.remove('error'));
+    valInp.addEventListener('focus', syncValueDatalist);
+    wireInputDatalistPickerReopen(nameInp, syncValueDatalist);
+    wireInputDatalistPickerReopen(valInp, syncValueDatalist);
+    syncValueDatalist();
+}
+
+function appendStoreProductAttributeRow(nameStr, valueStr) {
+    const wrap = document.getElementById('storeProductAttributesWrap');
+    if (!wrap) return;
+    const row = document.createElement('div');
+    row.className = 'store-product-attr-row';
+    row.innerHTML = `
+        <input type="text" class="store-product-attr-name" list="storeAttrNameDatalist" placeholder="Название (например, Размер)" value="${escapeHtml(nameStr || '')}">
+        <input type="text" class="store-product-attr-value" placeholder="Значение" value="${escapeHtml(valueStr || '')}">
+        <button type="button" class="btn-remove-enrichment store-product-attr-remove" title="Удалить">✕</button>`;
+    wrap.appendChild(row);
+    bindStoreProductAttrRow(row);
+    row.querySelector('.store-product-attr-remove')?.addEventListener('click', () => {
+        row.remove();
+    });
+}
+
+function renderStoreProductAttributesEditor(attrs) {
+    const wrap = document.getElementById('storeProductAttributesWrap');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    updateStoreAttrDatalistsFromProducts();
+    const list = normalizeStoreProductAttributes(attrs);
+    if (!list.length) return;
+    for (const a of list) {
+        const vals = Array.isArray(a.values) && a.values.length ? a.values.map((v) => String(v).trim()).filter(Boolean) : [];
+        if (vals.length) {
+            vals.forEach((v) => appendStoreProductAttributeRow(a.name, v));
+        } else {
+            appendStoreProductAttributeRow(a.name, '');
+        }
+    }
+}
+
+/**
+ * Строки характеристик: либо пустой блок, либо в каждой строке заполнены имя и значение.
+ * @returns {{ ok: true } | { ok: false, message: string }}
+ */
+function validateStoreProductAttributesForm() {
+    const wrap = document.getElementById('storeProductAttributesWrap');
+    if (!wrap) return { ok: true };
+    const rows = wrap.querySelectorAll('.store-product-attr-row');
+    if (!rows.length) return { ok: true };
+    let firstMsg = null;
+    rows.forEach((row, i) => {
+        const nameInp = row.querySelector('.store-product-attr-name');
+        const valInp = row.querySelector('.store-product-attr-value');
+        const name = nameInp ? String(nameInp.value || '').trim() : '';
+        const val = valInp ? String(valInp.value || '').trim() : '';
+        nameInp?.classList.remove('error');
+        valInp?.classList.remove('error');
+        if (!name || !val) {
+            if (!name && nameInp) nameInp.classList.add('error');
+            if (!val && valInp) valInp.classList.add('error');
+            if (!firstMsg) {
+                const n = i + 1;
+                if (!name && !val) {
+                    firstMsg = `Строка ${n}: укажите название и значение характеристики или удалите строку.`;
+                } else if (!name) {
+                    firstMsg = `Строка ${n}: укажите название характеристики.`;
+                } else {
+                    firstMsg = `Строка ${n}: укажите значение для «${name}».`;
+                }
+            }
+        }
+    });
+    return firstMsg ? { ok: false, message: firstMsg } : { ok: true };
+}
+
+function collectStoreProductAttributesFromForm() {
+    const wrap = document.getElementById('storeProductAttributesWrap');
+    if (!wrap) return [];
+    const byName = new Map();
+    wrap.querySelectorAll('.store-product-attr-row').forEach((row) => {
+        const name = row.querySelector('.store-product-attr-name')?.value?.trim();
+        const val = row.querySelector('.store-product-attr-value')?.value?.trim();
+        if (!name || !val) return;
+        if (!byName.has(name)) byName.set(name, new Set());
+        byName.get(name).add(val);
+    });
+    return [...byName.entries()].map(([n, set]) => ({ name: n, values: [...set] }));
+}
+
 function getStoreCatalogProductsForOrders() {
     const list = Array.isArray(window._storeProductsCache) ? window._storeProductsCache : [];
     return list.map((p, idx) => ({
@@ -1188,7 +1582,8 @@ function getStoreCatalogProductsForOrders() {
         price: (p.priceSale != null && p.priceSale !== '' && parseFloat(p.priceSale) > 0)
             ? parseFloat(p.priceSale)
             : (parseFloat(p.price) || 0),
-        imageUrl: p.imageUrl || (Array.isArray(p.imageUrls) && p.imageUrls.length ? p.imageUrls[0] : '')
+        imageUrl: p.imageUrl || (Array.isArray(p.imageUrls) && p.imageUrls.length ? p.imageUrls[0] : ''),
+        attributes: normalizeStoreProductAttributes(p.attributes)
     })).filter((row) => isStoreCatalogProductActive(list[row.idx]));
 }
 
@@ -1205,16 +1600,37 @@ function resolveStoreOrderLineCatalogSelectValue(it, catalog) {
         const pid = String(it.productId);
         if (catalog.some((q) => String(q.productId) === pid)) return pid;
     }
-    const want = (it.name || '').trim();
+    const want = stripStoreOrderItemNameToBase(it.name);
     if (!want) return '';
     const byName = catalog.find((q) => (q.name || '').trim() === want);
     return byName ? storeCatalogRowOptionValue(byName) : '';
+}
+
+/** Строка каталога для черновика заказа (цена, характеристики). */
+function getStoreCatalogRowForOrderDraftRow(row, catalog) {
+    if (!row || !Array.isArray(catalog) || !catalog.length) return null;
+    if (row.productId != null && row.productId !== '') {
+        const pid = String(row.productId);
+        const byPid = catalog.find((q) => String(q.productId) === pid);
+        if (byPid) return byPid;
+    }
+    const base = stripStoreOrderItemNameToBase(row.name);
+    if (base) {
+        const byName = catalog.find((q) => (q.name || '').trim() === base);
+        if (byName) return byName;
+    }
+    if (typeof row._catalogIdx === 'number' && catalog[row._catalogIdx]) {
+        return catalog[row._catalogIdx];
+    }
+    return null;
 }
 
 function applyPickedStoreCatalogRowToOrderDraftRow(row, picked) {
     if (!picked) return;
     row.name = picked.name;
     row.productId = (picked.productId != null && picked.productId !== '') ? picked.productId : null;
+    row._catalogIdx = typeof picked.idx === 'number' ? picked.idx : null;
+    row.selectedAttributes = {};
 }
 
 function getOrderItemPreviewUrl(item) {
@@ -1223,7 +1639,8 @@ function getOrderItemPreviewUrl(item) {
         const byPid = list.find(p => String(p.productId) === String(item.productId));
         if (byPid?.imageUrl) return byPid.imageUrl;
     }
-    const byName = list.find(p => (p.name || '').trim() === (item.name || '').trim());
+    const want = stripStoreOrderItemNameToBase(item.name);
+    const byName = list.find(p => (p.name || '').trim() === want);
     return byName?.imageUrl || '';
 }
 
@@ -1263,12 +1680,14 @@ function normalizeStoreOrderItems(items) {
     return list.map((x) => {
         const qty = Math.max(1, parseFloat(x.qty) || 1);
         const price = Math.max(0, parseFloat(x.price) || 0);
+        const sel = x.selectedAttributes && typeof x.selectedAttributes === 'object' ? { ...x.selectedAttributes } : {};
         return {
             name: x.name || 'Товар',
             qty,
             price,
             total: Math.round((price * qty) * 100) / 100,
-            productId: x.productId || null
+            productId: x.productId || null,
+            selectedAttributes: sel
         };
     });
 }
@@ -1327,6 +1746,17 @@ function syncStoreOrderItemsDraftFromDom() {
             const v = parseFloat(totalEl.value);
             row.total = Number.isFinite(v) ? Math.max(0, v) : 0;
         }
+        const pickedSync = catalog.find((p) => storeCatalogRowOptionValue(p) === String((sel && sel.value) || ''));
+        const attrsSync = pickedSync && Array.isArray(pickedSync.attributes) ? pickedSync.attributes : [];
+        wrap.querySelectorAll(`select[data-field="orderAttr"][data-index="${idx}"]`).forEach((el) => {
+            const j = parseInt(el.getAttribute('data-attr-idx'), 10);
+            if (!Number.isFinite(j) || !attrsSync[j] || !_storeOrderItemsDraft[idx]) return;
+            const attrName = attrsSync[j].name;
+            if (!_storeOrderItemsDraft[idx].selectedAttributes) _storeOrderItemsDraft[idx].selectedAttributes = {};
+            const v = String(el.value || '').trim();
+            if (v) _storeOrderItemsDraft[idx].selectedAttributes[attrName] = v;
+            else delete _storeOrderItemsDraft[idx].selectedAttributes[attrName];
+        });
     });
 }
 
@@ -1336,24 +1766,32 @@ function validateStoreOrderForm() {
     const emailEl = document.getElementById('storeOrderBuyerEmailInput');
     const msgEl = document.getElementById('storeOrderValidationMessage');
     let valid = true;
+    let firstMsg = null;
 
     const email = emailEl && emailEl.value ? String(emailEl.value).trim() : '';
     const emailOk = email.length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     if (!emailOk) {
         valid = false;
         if (emailEl) emailEl.classList.add('error');
+        firstMsg = 'Укажите корректный email покупателя.';
     }
 
     const rowEls = wrap ? wrap.querySelectorAll('.store-order-item-edit-row') : [];
     if (!rowEls.length) {
         valid = false;
+        if (!firstMsg) firstMsg = 'Добавьте хотя бы одну позицию заказа.';
     }
+
+    const catalog = getStoreCatalogProductsForOrders();
 
     rowEls.forEach((rowEl) => {
         const sel = rowEl.querySelector('select[data-field="productId"]');
         const priceEl = rowEl.querySelector('input[data-field="price"]');
         const qtyEl = rowEl.querySelector('input[data-field="qty"]');
         const totalEl = rowEl.querySelector('input[data-field="total"]');
+        const idx = sel ? parseInt(sel.dataset.index, 10) : NaN;
+        const lineStr = Number.isFinite(idx) ? String(idx + 1) : '?';
+
         const productOk = sel && String(sel.value || '').trim() !== '';
         const p = priceEl ? parseFloat(priceEl.value) : NaN;
         const q = qtyEl ? parseFloat(qtyEl.value) : NaN;
@@ -1367,10 +1805,38 @@ function validateStoreOrderForm() {
         if (!qtyOk && qtyEl) qtyEl.classList.add('error');
         if (!totalOk && totalEl) totalEl.classList.add('error');
         if (!productOk || !priceOk || !qtyOk || !totalOk) valid = false;
+
+        if (!productOk) {
+            if (!firstMsg) firstMsg = `Строка ${lineStr}: выберите товар.`;
+        } else {
+            if (!priceOk) {
+                if (!firstMsg) firstMsg = `Строка ${lineStr}: укажите цену больше нуля.`;
+            } else if (!qtyOk) {
+                if (!firstMsg) firstMsg = `Строка ${lineStr}: укажите количество не меньше 1.`;
+            } else if (!totalOk) {
+                if (!firstMsg) firstMsg = `Строка ${lineStr}: укажите стоимость позиции больше нуля.`;
+            }
+        }
+
+        const block = rowEl.closest('.store-order-item-edit-block');
+        if (productOk && block && !Number.isNaN(idx)) {
+            const picked = catalog.find((p) => storeCatalogRowOptionValue(p) === String(sel.value || ''));
+            const attrs = picked && Array.isArray(picked.attributes) ? picked.attributes : [];
+            attrs.forEach((attr, attrIdx) => {
+                const aSel = block.querySelector(`select[data-field="orderAttr"][data-index="${idx}"][data-attr-idx="${attrIdx}"]`);
+                if (!aSel) return;
+                const okAttr = String(aSel.value || '').trim() !== '';
+                if (!okAttr) {
+                    valid = false;
+                    aSel.classList.add('error');
+                    if (!firstMsg) firstMsg = `Строка ${lineStr}: выберите «${attr.name}».`;
+                }
+            });
+        }
     });
 
     if (!valid && msgEl) {
-        msgEl.textContent = 'Укажите корректный email покупателя. В каждой строке выберите товар и заполните цену, количество и стоимость (числа больше нуля).';
+        msgEl.textContent = firstMsg || 'Проверьте заполнение формы.';
         msgEl.classList.remove('hidden');
     }
     return valid;
@@ -1405,7 +1871,7 @@ function renderStoreOrdersList() {
         const itemsRows = items.map((i, lineIdx) => `<div class="store-order-item-row">
             <div class="store-order-item-line-num">${lineIdx + 1}</div>
             <div class="store-order-item-name-cell">
-                <span class="store-order-item-name-linklike">${escapeHtml(i.name || 'Товар')}</span>
+                <span class="store-order-item-name-linklike">${escapeHtml(formatStoreOrderItemDisplayName(i))}</span>
                 ${getOrderItemPreviewUrl(i) ? `<span class="store-order-item-preview"><img src="${escapeHtml(getOrderItemPreviewUrl(i))}" alt=""></span>` : ''}
             </div>
             <div>${(i.price || 0).toFixed(0)} ₽</div>
@@ -1490,12 +1956,32 @@ function renderStoreOrderItemsEditor() {
     const wrap = document.getElementById('storeOrderItemsEditor');
     if (!wrap) return;
     if (!_storeOrderItemsDraft.length) {
-        _storeOrderItemsDraft.push({ name: '', price: 0, qty: 1, total: 0 });
+        _storeOrderItemsDraft.push({ name: '', price: 0, qty: 1, total: 0, selectedAttributes: {} });
     }
     const catalog = getStoreCatalogProductsForOrders();
     wrap.innerHTML = _storeOrderItemsDraft.map((it, i) => {
         const resolvedVal = resolveStoreOrderLineCatalogSelectValue(it, catalog);
+        const catRow = getStoreCatalogRowForOrderDraftRow(it, catalog);
+        const attrs = catRow && Array.isArray(catRow.attributes) ? catRow.attributes : [];
+        const selMap = it.selectedAttributes && typeof it.selectedAttributes === 'object' ? it.selectedAttributes : {};
+        const attrsHtml = attrs.map((attr, attrIdx) => {
+            const cur = String(selMap[attr.name] || '').trim();
+            const opts = (attr.values || []).map((v) => {
+                const vs = String(v);
+                const sel = cur === vs ? ' selected' : '';
+                return `<option value="${escapeHtml(vs)}"${sel}>${escapeHtml(vs)}</option>`;
+            }).join('');
+            const ph = `Выберите (${attr.name})`;
+            return `<div class="store-order-attr-line">
+                <span class="store-order-attr-label">${escapeHtml(attr.name)}</span>
+                <select data-field="orderAttr" data-index="${i}" data-attr-idx="${attrIdx}" class="store-order-attr-select">
+                    <option value="">${escapeHtml(ph)}</option>
+                    ${opts}
+                </select>
+            </div>`;
+        }).join('');
         return `
+        <div class="store-order-item-edit-block" data-line-index="${i}">
         <div class="store-order-item-edit-row">
             <div class="store-order-item-line-num store-order-item-line-num--edit" aria-hidden="true">${i + 1}</div>
             <div class="store-order-item-pick-wrap">
@@ -1514,6 +2000,8 @@ function renderStoreOrderItemsEditor() {
             <input type="number" value="${it.total || 0}" min="0" step="1" data-field="total" data-index="${i}">
             <button type="button" class="btn-remove-enrichment store-order-item-remove" onclick="removeStoreOrderItemRow(${i})" aria-label="Удалить строку" title="Удалить строку">✕</button>
         </div>
+        ${attrs.length ? `<div class="store-order-item-attrs-editor">${attrsHtml}</div>` : ''}
+        </div>
     `;
     }).join('');
     wrap.querySelectorAll('select[data-field="productId"]').forEach((sel) => {
@@ -1528,11 +2016,27 @@ function renderStoreOrderItemsEditor() {
                 if (!row.price || row.price <= 0) row.price = picked.price || 0;
             } else if (!sel.value) {
                 row.productId = null;
+                row.selectedAttributes = {};
             }
             if (row.qty >= 1) {
                 row.total = Math.round((row.price * row.qty) * 100) / 100;
             }
             renderStoreOrderItemsEditor();
+        });
+    });
+    wrap.querySelectorAll('select[data-field="orderAttr"]').forEach((el) => {
+        el.addEventListener('change', () => {
+            el.classList.remove('error');
+            const idx = parseInt(el.dataset.index, 10);
+            const j = parseInt(el.getAttribute('data-attr-idx'), 10);
+            if (Number.isNaN(idx) || !_storeOrderItemsDraft[idx]) return;
+            const picked = getStoreCatalogRowForOrderDraftRow(_storeOrderItemsDraft[idx], catalog);
+            const attrs = picked && Array.isArray(picked.attributes) ? picked.attributes : [];
+            if (!Number.isFinite(j) || !attrs[j]) return;
+            if (!_storeOrderItemsDraft[idx].selectedAttributes) _storeOrderItemsDraft[idx].selectedAttributes = {};
+            const v = String(el.value || '').trim();
+            if (v) _storeOrderItemsDraft[idx].selectedAttributes[attrs[j].name] = v;
+            else delete _storeOrderItemsDraft[idx].selectedAttributes[attrs[j].name];
         });
     });
     wrap.querySelectorAll('input[data-field="price"], input[data-field="qty"], input[data-field="total"]').forEach((inp) => {
@@ -1548,7 +2052,7 @@ function renderStoreOrderItemsEditor() {
 }
 
 function addStoreOrderItemRow() {
-    _storeOrderItemsDraft.push({ name: '', price: 0, qty: 1, total: 0 });
+    _storeOrderItemsDraft.push({ name: '', price: 0, qty: 1, total: 0, selectedAttributes: {} });
     renderStoreOrderItemsEditor();
 }
 
@@ -1651,7 +2155,7 @@ async function saveStoreOrder(closeAfter = true) {
     if (!items.length) {
         const msgEl = document.getElementById('storeOrderValidationMessage');
         if (msgEl) {
-            msgEl.textContent = 'Не удалось сформировать позиции заказа. Проверьте выбор товара в каждой строке.';
+            msgEl.textContent = 'В каждой строке выберите товар из списка.';
             msgEl.classList.remove('hidden');
         }
         return;
@@ -1663,7 +2167,14 @@ async function saveStoreOrder(closeAfter = true) {
     }
     const payload = {
         ownerUid: user.uid,
-        items: items.map(i => ({ name: i.name, price: i.price, qty: i.qty, productId: i.productId || null })),
+        items: items.map((i) => {
+            const baseName = stripStoreOrderItemNameToBase(i.name) || i.name;
+            const out = { name: baseName, price: i.price, qty: i.qty, productId: i.productId || null };
+            const sa = i.selectedAttributes && typeof i.selectedAttributes === 'object' ? i.selectedAttributes : {};
+            const keys = Object.keys(sa).filter((k) => String(sa[k] || '').trim());
+            if (keys.length) out.selectedAttributes = keys.reduce((acc, k) => { acc[k] = String(sa[k]).trim(); return acc; }, {});
+            return out;
+        }),
         total: calcStoreOrderTotal(items),
         buyerName: buyerName || '',
         buyerEmail: buyerEmail || '',
@@ -1952,9 +2463,20 @@ function initStoreProductLinkedSearchFilter() {
     if (clearEl) clearEl.addEventListener('click', () => clearStoreProductLinkedSearch());
 }
 
+function resetStoreProductModalValidation() {
+    const msgEl = document.getElementById('storeProductValidationMessage');
+    if (msgEl) {
+        msgEl.classList.add('hidden');
+        msgEl.textContent = 'Не все обязательные поля заполнены';
+    }
+    document.querySelectorAll('#storeProductModal input.error, #storeProductModal select.error, #storeProductModal textarea.error').forEach((el) => el.classList.remove('error'));
+}
+
 async function clearStoreProductForm(editIndex) {
     const user = firebase.auth().currentUser;
     if (!user) return;
+
+    resetStoreProductModalValidation();
 
     document.getElementById('storeProductName').value = '';
     document.getElementById('storeProductDesc').value = '';
@@ -2024,6 +2546,9 @@ async function clearStoreProductForm(editIndex) {
             if (slot) { slot.classList.add('has-image'); slot.querySelector('.store-photo-preview').src = url; }
         });
         renderStoreProductCategoriesCheckboxes(user.uid, Array.isArray(sp.categoryIds) ? sp.categoryIds : []);
+        renderStoreProductAttributesEditor(sp.attributes);
+    } else {
+        renderStoreProductAttributesEditor([]);
     }
 }
 
@@ -2054,10 +2579,37 @@ async function saveStoreProduct(closeAfter = true) {
     const user = firebase.auth().currentUser;
     if (!user) return;
 
-    const name = String(document.getElementById('storeProductName').value || '').trim();
-    const price = parseFloat(document.getElementById('storeProductPrice').value) || 0;
-    if (!name) { showToast('Укажите наименование товара', 'error'); return; }
-    if (price <= 0) { showToast('Укажите цену без скидки', 'error'); return; }
+    resetStoreProductModalValidation();
+
+    const nameEl = document.getElementById('storeProductName');
+    const priceEl = document.getElementById('storeProductPrice');
+    const msgEl = document.getElementById('storeProductValidationMessage');
+    const name = String(nameEl.value || '').trim();
+    const price = parseFloat(priceEl.value) || 0;
+    if (!name) {
+        nameEl.classList.add('error');
+        if (msgEl) {
+            msgEl.textContent = 'Укажите наименование товара.';
+            msgEl.classList.remove('hidden');
+        }
+        return;
+    }
+    if (price <= 0) {
+        priceEl.classList.add('error');
+        if (msgEl) {
+            msgEl.textContent = 'Укажите цену без скидки больше нуля.';
+            msgEl.classList.remove('hidden');
+        }
+        return;
+    }
+    const attrCheck = validateStoreProductAttributesForm();
+    if (!attrCheck.ok) {
+        if (msgEl) {
+            msgEl.textContent = attrCheck.message;
+            msgEl.classList.remove('hidden');
+        }
+        return;
+    }
 
     const productId = document.getElementById('storeProductSelect').value ? parseInt(document.getElementById('storeProductSelect').value) : null;
     const priceSaleVal = document.getElementById('storeProductPriceSale').value;
@@ -2091,6 +2643,8 @@ async function saveStoreProduct(closeAfter = true) {
         isPopular: document.getElementById('storeProductIsPopular').checked,
         isNew: document.getElementById('storeProductIsNew').checked,
     };
+    const attrs = collectStoreProductAttributesFromForm();
+    if (attrs.length) item.attributes = attrs;
     if (productId) item.productId = productId;
     if (wasNew) {
         const now = new Date();
@@ -2101,6 +2655,7 @@ async function saveStoreProduct(closeAfter = true) {
         arr[_storeProductEditIndex] = item;
     }
     await productsRef.set(arr);
+    resetStoreProductModalValidation();
     if (wasNew && !closeAfter) {
         _storeProductEditIndex = arr.length - 1;
         const titleEl = document.getElementById('storeProductModalTitle');
@@ -2991,6 +3546,25 @@ function showPage(id) {
             document.getElementById('storeProductFilterNoCategory')?.addEventListener('change', updateStoreProductsTable);
             document.getElementById('storeProductFilterShowInactive')?.addEventListener('change', updateStoreProductsTable);
             document.getElementById('storeProductResetFiltersBtn')?.addEventListener('click', resetStoreProductFilters);
+            document.getElementById('storeProductAddAttrBtn')?.addEventListener('click', () => appendStoreProductAttributeRow('', ''));
+            document.getElementById('storeAttrCatalogAddBtn')?.addEventListener('click', () => addStoreAttributeCatalogEntry());
+            const spName = document.getElementById('storeProductName');
+            const spPrice = document.getElementById('storeProductPrice');
+            if (spName && spName.dataset.validationClearBound !== '1') {
+                spName.dataset.validationClearBound = '1';
+                spName.addEventListener('input', () => spName.classList.remove('error'));
+            }
+            if (spPrice && spPrice.dataset.validationClearBound !== '1') {
+                spPrice.dataset.validationClearBound = '1';
+                spPrice.addEventListener('input', () => spPrice.classList.remove('error'));
+            }
+            const catAttrNameInp = document.getElementById('storeAttrCatalogNameInput');
+            if (catAttrNameInp && catAttrNameInp.dataset.valHintBound !== '1') {
+                catAttrNameInp.dataset.valHintBound = '1';
+                const syncCatAttrValHints = () => refreshStoreAttrValuesDatalistForCharacteristicName(catAttrNameInp.value);
+                catAttrNameInp.addEventListener('focus', syncCatAttrValHints);
+                catAttrNameInp.addEventListener('input', syncCatAttrValHints);
+            }
             if (!window._storeBannerInited) {
                 const bannerSelectBtn = document.getElementById('storeBannerSelectBtn');
                 const bannerInput = document.getElementById('storeBannerInput');
@@ -3260,10 +3834,11 @@ function addCloudinaryUrlsFromStoreNodeToSet(urls, storeVal) {
  */
 async function collectStoreBackup(uid) {
     const rtdb = firebase.database();
-    const [storeSnap, productsSnap, catsSnap, ordersSnap] = await Promise.all([
+    const [storeSnap, productsSnap, catsSnap, attrDefSnap, ordersSnap] = await Promise.all([
         rtdb.ref('users/' + uid + '/store').once('value'),
         rtdb.ref('users/' + uid + '/storeProducts').once('value'),
         rtdb.ref('users/' + uid + '/storeCategories').once('value'),
+        rtdb.ref('users/' + uid + '/storeAttributeDefinitions').once('value'),
         rtdb.ref('storeOrders').orderByChild('ownerUid').equalTo(uid).once('value')
     ]);
     const store = storeSnap.val();
@@ -3281,6 +3856,7 @@ async function collectStoreBackup(uid) {
         store,
         storeProducts: productsSnap.val(),
         storeCategories: catsSnap.val(),
+        storeAttributeDefinitions: attrDefSnap.val(),
         storeOrders,
         storesBySubdomain
     };
@@ -3311,6 +3887,7 @@ async function restoreStoreBackup(uid, sb) {
     if ('store' in sb) updates['users/' + uid + '/store'] = sb.store;
     if ('storeProducts' in sb) updates['users/' + uid + '/storeProducts'] = sb.storeProducts;
     if ('storeCategories' in sb) updates['users/' + uid + '/storeCategories'] = sb.storeCategories;
+    if ('storeAttributeDefinitions' in sb) updates['users/' + uid + '/storeAttributeDefinitions'] = sb.storeAttributeDefinitions;
 
     const existingSnap = await firebase.database().ref('storeOrders').orderByChild('ownerUid').equalTo(uid).once('value');
     existingSnap.forEach(c => {

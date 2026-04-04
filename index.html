@@ -998,7 +998,7 @@
                 <div class="store-tabs my-store-tabs" role="tablist">
                     <button type="button" class="store-tab active" data-tab="storeOrders" role="tab" aria-selected="true">Заказы</button>
                     <button type="button" class="store-tab" data-tab="storeProducts" role="tab" aria-selected="false">Товары</button>
-                    <button type="button" class="store-tab" data-tab="storeCategories" role="tab" aria-selected="false">Категории</button>
+                    <button type="button" class="store-tab" data-tab="storeCategories" role="tab" aria-selected="false">Категории и Характеристики</button>
                     <button type="button" class="store-tab" data-tab="storeSettings" role="tab" aria-selected="false">Настройки</button>
                     <button type="button" class="store-tab" data-tab="storeSeo" role="tab" aria-selected="false">SEO и соцсети</button>
                 </div>
@@ -1293,15 +1293,34 @@
                 </div>
 
                 <div id="storeCategories" class="store-tab-panel">
-                    <div class="card">
-                        <div class="form-section-title">Категории каталога</div>
-                        <div class="controls" style="margin-bottom: 12px;">
-                            <div class="controls-left store-categories-toolbar">
-                                <button type="button" class="btn-primary" id="storeAddCategoryBtn" onclick="openAddCategoryModal()">➕ Добавить категорию</button>
-                                <p class="form-hint store-categories-toolbar-hint">Иерархия категорий для группировки товаров в магазине. Товар может принадлежать нескольким категориям.</p>
+                    <div class="store-categories-attrs-two-col">
+                        <div class="card store-categories-catalog-card">
+                            <div class="form-section-title">Категории каталога</div>
+                            <div class="controls" style="margin-bottom: 12px;">
+                                <div class="controls-left store-categories-toolbar">
+                                    <button type="button" class="btn-primary" id="storeAddCategoryBtn" onclick="openAddCategoryModal()">➕ Добавить категорию</button>
+                                    <p class="form-hint store-categories-toolbar-hint">Иерархия категорий для группировки товаров в магазине. Товар может принадлежать нескольким категориям.</p>
+                                </div>
+                            </div>
+                            <div id="storeCategoriesTree" class="store-categories-tree" style="margin-top: 0;"></div>
+                        </div>
+                        <div class="card store-attributes-catalog-card">
+                            <div class="form-section-title">Справочник характеристик</div>
+                            <p class="form-hint" style="font-size: 12px; margin-bottom: 12px;">Строки из карточек товаров попадают сюда автоматически. Ниже можно добавить пару «название — значение» вручную (как в товаре: подсказки из списка или свой текст). Удалить запись можно, если такая пара не используется ни в одном товаре.</p>
+                            <div class="store-attr-catalog-add-row" style="margin-bottom: var(--spacing);">
+                                <div class="store-attr-catalog-inputs-row">
+                                    <input type="text" id="storeAttrCatalogNameInput" class="store-attr-catalog-input" list="storeAttrNameDatalist" placeholder="Название характеристики" autocomplete="off">
+                                    <input type="text" id="storeAttrCatalogValueInput" class="store-attr-catalog-input" list="storeAttrValuesDatalist" placeholder="Значение (обязательно)" autocomplete="off">
+                                </div>
+                                <button type="button" class="btn-primary" id="storeAttrCatalogAddBtn" style="width: 100%;">Добавить</button>
+                            </div>
+                            <div class="store-attributes-catalog-table-wrap">
+                                <table class="store-attributes-catalog-table">
+                                    <thead><tr><th>Характеристика</th><th>Значение</th><th class="store-attributes-catalog-th-actions"></th></tr></thead>
+                                    <tbody id="storeAttributesCatalogBody"></tbody>
+                                </table>
                             </div>
                         </div>
-                        <div id="storeCategoriesTree" class="store-categories-tree" style="margin-top: 0;"></div>
                     </div>
                 </div>
 
@@ -1977,6 +1996,7 @@
                         <input type="checkbox" id="storeProductActive" checked>Товар активен
                     </label>
                 </div>
+                <div id="storeProductValidationMessage" class="validation-message hidden" style="position: absolute; bottom: 8px; left: 24px; margin: 0; padding: 0;">Не все обязательные поля заполнены</div>
                 <div class="system-id-block" style="position: absolute; bottom: 8px; right: 24px; font-size: 12px; color: #64748b;">Системный ID: <span id="storeProductSystemId">—</span></div>
             </div>
             <div class="header-divider"></div>
@@ -2003,6 +2023,12 @@
                     <label>Описание товара:</label>
                     <textarea id="storeProductDesc" rows="3" placeholder="Описание для каталога"></textarea>
                 </div>
+                <div class="form-section-title">Характеристики для витрины</div>
+                <p class="form-hint" style="font-size: 12px; color: #64748b;">В каждой строке — одна характеристика и одно значение. Подсказки для значения появляются после ввода названия характеристики. На витрине покупатель выберет по одному значению каждого типа.</p>
+                <div id="storeProductAttributesWrap" class="store-product-attributes-wrap"></div>
+                <button type="button" class="btn-secondary" id="storeProductAddAttrBtn" style="margin-bottom: 16px;">+ Добавить характеристику</button>
+                <datalist id="storeAttrNameDatalist"></datalist>
+                <datalist id="storeAttrValuesDatalist"></datalist>
                 <div class="form-section-title">ФОТО ТОВАРА (до 5 шт., первое — главное)</div>
                 <div class="store-product-photos-block">
                     <p class="form-hint store-product-photos-hint">Перетащите миниатюры, чтобы изменить порядок. Первое слева — главное в каталоге.</p>
