@@ -108,7 +108,8 @@ def build_user_backup_payload(
     """
     raw_data = user_data.get("data")
     has_im = any(
-        user_data.get(k) is not None for k in ("store", "storeProducts", "storeCategories")
+        user_data.get(k) is not None
+        for k in ("store", "storeProducts", "storeCategories", "storeAttributeDefinitions")
     )
 
     if raw_data is not None:
@@ -127,6 +128,7 @@ def build_user_backup_payload(
         "store": copy.deepcopy(user_data.get("store")),
         "storeProducts": copy.deepcopy(user_data.get("storeProducts")),
         "storeCategories": copy.deepcopy(user_data.get("storeCategories")),
+        "storeAttributeDefinitions": copy.deepcopy(user_data.get("storeAttributeDefinitions")),
         "storeOrders": store_orders_list,
         "storesBySubdomain": _stores_by_subdomain_for_user(full_data, user_data),
     }

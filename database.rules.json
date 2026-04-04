@@ -21,6 +21,10 @@
         "storeCategories": {
           ".read": true,
           ".write": "auth != null && auth.uid === $uid"
+        },
+        "storeAttributeDefinitions": {
+          ".read": true,
+          ".write": "auth != null && auth.uid === $uid"
         }
       }
     },
