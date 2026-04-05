@@ -3,14 +3,19 @@
 const APP_VERSION_NUMBER =
     typeof window !== 'undefined' && window.APP_VERSION != null
         ? String(window.APP_VERSION)
-        : '6.4.0';
-console.log('2026-04-05 08-00-00');
+        : '6.5.0';
+console.log('2026-04-05 09-00-00');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
 
 // === CHANGELOG
 const CHANGELOG_ENTRIES = [
+    {
+        version: '6.5.0', 
+        dateDisplay: '05.04.2026', 
+        description: 'Создание продажи из подготовленного списания одним кликом по кнопке в табличной части.'
+    },
     {
         version: '6.4.0', 
         dateDisplay: '05.04.2026', 
@@ -8084,58 +8089,107 @@ async function saveWriteoff(closeAfter) {
 
 
 
-async function deleteWriteoff(systemId) {
+/** Нормализация узла writeoffs из Firebase (массив или объект с индексами) в плотный массив. */
+function normalizeWriteoffsArray(val) {
+    if (val == null) return [];
+    if (Array.isArray(val)) return val.filter((x) => x != null && x !== false);
+    if (typeof val === 'object') {
+        return Object.keys(val)
+            .sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
+            .map((k) => val[k])
+            .filter((x) => x != null && x !== false);
+    }
+    return [];
+}
+
+/**
+ * Удаление одной строки таблицы списаний. Если в документе одна строка — фактически удаляется весь документ.
+ * Возврат на склад — для типов, отличных от «Подготовлено к продаже» (пересчёт через recalculateAllProductStock).
+ */
+async function deleteWriteoffRow(rowId) {
+    const item = (db.writeoffs || []).find((w) => w && (w.id == rowId || String(w.id) === String(rowId)));
+    if (!item) {
+        showToast('Запись не найдена в базе. Обновите страницу (F5).', 'error');
+        return;
+    }
+    if (item.id == null && item.id !== 0) {
+        if (!confirm('У этой строки нет уникального номера (старый бэкап). Удалить весь документ по системному ID?')) return;
+        return deleteWriteoffBySystemId(item.systemId);
+    }
+    const systemIdStr = String(item.systemId || '').trim();
+    const sameDoc = (db.writeoffs || []).filter((w) => w && String(w.systemId || '').trim() === systemIdStr);
+    const isLastRow = sameDoc.length <= 1;
+    const msg = isLastRow
+        ? 'Удалить документ списания? Изделия будут возвращены на склад (кроме типа «Подготовлено к продаже»).'
+        : 'Удалить эту строку из документа? Для типов «Продажа», «Использовано», «Брак» количество вернётся на склад; «Подготовлено к продаже» склад не меняет.';
+    if (!confirm(msg)) return;
+
+    const idTarget = item.id;
+    try {
+        await dbRef.child('writeoffs').transaction((currentList) => {
+            const arr = normalizeWriteoffsArray(currentList);
+            const next = arr.filter((w) => w && w.id != idTarget);
+            return next.length === arr.length ? undefined : next;
+        });
+        db.writeoffs = (db.writeoffs || []).filter((w) => !w || w.id != idTarget);
+        recalculateAllProductStock();
+        const stockUpdates = {};
+        db.products.forEach((p, idx) => {
+            stockUpdates[`products/${idx}/inStock`] = p.inStock;
+            stockUpdates[`products/${idx}/status`] = p.status;
+            stockUpdates[`products/${idx}/availability`] = p.availability;
+        });
+        if (Object.keys(stockUpdates).length > 0) {
+            await dbRef.update(stockUpdates);
+        }
+        if (dbRef && dbRef.parent) {
+            const snapshot = await dbRef.parent.once('value');
+            if (typeof window.updateAppFromSnapshot === 'function') window.updateAppFromSnapshot(snapshot);
+        }
+        showToast(isLastRow ? 'Документ удалён.' : 'Строка удалена.', 'success');
+    } catch (e) {
+        console.error('Ошибка удаления строки списания:', e);
+        showToast('Не удалось удалить: ' + e.message, 'error');
+    }
+}
+
+/** Удаление всех строк документа с указанным systemId (внутренний/legacy). */
+async function deleteWriteoffBySystemId(systemId) {
     if (!systemId || String(systemId).trim() === '') {
         showToast('Ошибка: не удалось определить идентификатор списания.', 'error');
         return;
     }
     if (!confirm('Удалить списание? Изделия будут возвращены на склад (кроме статуса "Подготовлено к продаже").')) return;
 
-    // --- ПЕРЕСЧЕТ ОСТАТКОВ ---
     const systemIdStr = String(systemId).trim();
-    const itemsToDelete = (db.writeoffs || []).filter(w => w && (String(w.systemId || '') === systemIdStr || w.systemId === systemId));
+    const itemsToDelete = (db.writeoffs || []).filter((w) => w && (String(w.systemId || '') === systemIdStr || w.systemId === systemId));
 
     if (itemsToDelete.length === 0) {
         showToast('Списание не найдено в базе. Возможно, данные устарели — обновите страницу (F5).', 'error');
         return;
     }
 
-    // Сначала готовим обновления для остатков, чтобы не потерять данные
     const stockUpdates = {};
-
-    itemsToDelete.forEach(item => {
-        // Пропускаем возврат на склад для "Подготовлено к продаже"
-        if (item.type === 'Подготовлено к продаже') {
-            return; 
-        }
-
-        const p = db.products.find(x => x.id === item.productId);
-
-        if(p) {
+    itemsToDelete.forEach((delItem) => {
+        if (delItem.type === 'Подготовлено к продаже') return;
+        const p = db.products.find((x) => x.id === delItem.productId);
+        if (p) {
             const productIndex = db.products.indexOf(p);
-
-            // Мы должны увеличить остаток, так как отменяем списание
-            p.inStock += item.qty; 
-
-            // Формируем пути для обновления в Firebase
+            p.inStock += delItem.qty;
             stockUpdates[`products/${productIndex}/inStock`] = p.inStock;
             stockUpdates[`products/${productIndex}/status`] = determineProductStatus(p);
             stockUpdates[`products/${productIndex}/availability`] = determineProductStatus(p);
         }
     });
-
-    // Применяем изменения к остаткам
     if (Object.keys(stockUpdates).length > 0) {
         await dbRef.update(stockUpdates);
     }
 
-    // --- УДАЛЕНИЕ ЗАПИСЕЙ ---
-    // Используем фактические ключи Firebase (индексы массива могут не совпадать при разреженной структуре)
     const writeoffsSnap = await dbRef.child('writeoffs').once('value');
     const writeoffsVal = writeoffsSnap.val();
     const keysToRemove = [];
     if (writeoffsVal && typeof writeoffsVal === 'object') {
-        Object.keys(writeoffsVal).forEach(key => {
+        Object.keys(writeoffsVal).forEach((key) => {
             const w = writeoffsVal[key];
             if (w && (String(w.systemId || '') === systemIdStr || w.systemId === systemId)) {
                 keysToRemove.push(key);
@@ -8148,12 +8202,10 @@ async function deleteWriteoff(systemId) {
             await dbRef.child('writeoffs').child(key).remove();
         }
         if (keysToRemove.length === 0 && itemsToDelete.length > 0) {
-            // Локальные данные есть, но в Firebase не совпадают — обновляем локально и сохраняем
-            db.writeoffs = (db.writeoffs || []).filter(w => !w || (String(w.systemId || '') !== systemIdStr && w.systemId !== systemId));
+            db.writeoffs = (db.writeoffs || []).filter((w) => !w || (String(w.systemId || '') !== systemIdStr && w.systemId !== systemId));
             recalculateAllProductStock();
             await saveData();
         }
-        // Явное обновление данных после удаления (слушатель может пропустить обновление, если модалка открыта)
         if (dbRef && dbRef.parent) {
             const snapshot = await dbRef.parent.once('value');
             if (typeof window.updateAppFromSnapshot === 'function') window.updateAppFromSnapshot(snapshot);
@@ -8162,6 +8214,97 @@ async function deleteWriteoff(systemId) {
     } catch (e) {
         console.error('Ошибка удаления списания:', e);
         showToast('Не удалось удалить списание: ' + e.message, 'error');
+    }
+}
+
+/**
+ * Строка «Подготовлено к продаже» → отдельный документ «Продажа»: новый systemId, текущая дата, комплектующие и суммы сохраняются.
+ */
+async function convertPreparedWriteoffRowToSale(rowId) {
+    const item = (db.writeoffs || []).find((w) => w && (w.id == rowId || String(w.id) === String(rowId)));
+    if (!item) {
+        showToast('Запись не найдена.', 'error');
+        return;
+    }
+    if (item.type !== 'Подготовлено к продаже') {
+        showToast('Доступно только для типа «Подготовлено к продаже».', 'error');
+        return;
+    }
+    if (item.id == null && item.id !== 0) {
+        showToast('У строки нет уникального ID. Откройте документ в редакторе и сохраните заново.', 'error');
+        return;
+    }
+    if (!confirm('Оформить продажу по этой строке? Будет создан отдельный документ «Продажа», строка исчезнет из «Подготовлено». Со склада спишется указанное количество.')) return;
+
+    const now = new Date();
+    const newSystemId = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+    const dateInput = formatDateOnly(mergeDateWithTime(null));
+    const finalDate = mergeDateWithTime(dateInput, null);
+    const enrichmentCosts = Array.isArray(item.enrichmentCosts)
+        ? item.enrichmentCosts.map((x) => ({ name: String(x.name || ''), cost: parseFloat(x.cost) || 0 })).filter((x) => x.name && x.cost > 0)
+        : [];
+    const trail = `Создано из Подготовленного списания ${formatDateOnly(item.date)}, ${item.systemId}.`;
+    const baseNote = (item.note && String(item.note).trim()) ? String(item.note).trim() + '\n' : '';
+    const newNote = baseNote + trail;
+
+    const qtyN = Number(item.qty) || 0;
+    const priceN = Number(item.price) || 0;
+    const totalN = item.total != null && !isNaN(Number(item.total)) ? Number(item.total) : qtyN * priceN;
+    const newItem = {
+        id: Date.now(),
+        systemId: newSystemId,
+        date: finalDate,
+        productId: item.productId,
+        productName: item.productName,
+        type: 'Продажа',
+        qty: qtyN,
+        price: priceN,
+        total: totalN,
+        note: newNote,
+        enrichmentCosts
+    };
+
+    const idTarget = item.id;
+    try {
+        await dbRef.child('writeoffs').transaction((currentList) => {
+            const arr = normalizeWriteoffsArray(currentList);
+            const without = arr.filter((w) => w && w.id != idTarget);
+            if (without.length === arr.length) return undefined;
+            without.push(newItem);
+            return without;
+        });
+        db.writeoffs = (db.writeoffs || []).filter((w) => !w || w.id != idTarget);
+        db.writeoffs.push(newItem);
+
+        const updates = {};
+        newItem.enrichmentCosts.forEach((comp) => {
+            const existingComp = db.components.find((c) => c.name.toLowerCase() === comp.name.toLowerCase());
+            if (!existingComp) {
+                const newCompIndex = db.components.length;
+                updates[`components/${newCompIndex}`] = { name: comp.name, price: comp.cost };
+                db.components.push({ name: comp.name, price: comp.cost });
+            } else if (Math.abs(existingComp.price - comp.cost) > 0.01) {
+                const cIndex = db.components.indexOf(existingComp);
+                updates[`components/${cIndex}/price`] = comp.cost;
+            }
+        });
+        recalculateAllProductStock();
+        db.products.forEach((p, idx) => {
+            updates[`products/${idx}/inStock`] = p.inStock;
+            updates[`products/${idx}/status`] = p.status;
+            updates[`products/${idx}/availability`] = p.availability;
+        });
+        if (Object.keys(updates).length > 0) {
+            await dbRef.update(updates);
+        }
+        if (dbRef && dbRef.parent) {
+            const snapshot = await dbRef.parent.once('value');
+            if (typeof window.updateAppFromSnapshot === 'function') window.updateAppFromSnapshot(snapshot);
+        }
+        showToast('Создан документ продажи ' + newSystemId + '.', 'success');
+    } catch (e) {
+        console.error('Ошибка конвертации подготовленного в продажу:', e);
+        showToast('Не удалось выполнить: ' + e.message, 'error');
     }
 }
 
@@ -8231,6 +8374,9 @@ function updateWriteoffTable() {
         const actualCost = product ? (product.costPer1Actual || 0).toFixed(2) : '0.00';
 
         const docColor = systemIdToColor[w.systemId || ''] ?? 0;
+        const rowIdNum = w.id;
+        const rowIdOk = rowIdNum != null && rowIdNum !== '';
+        const rowIdAttr = rowIdOk ? String(rowIdNum) : '';
 
         // --- ИЗМЕНЕНИЕ: Добавлены обработчики событий для превью картинки ---
         const nameEvents = w.productId ? `onmouseenter="showProductImagePreview(this, ${w.productId})" onmousemove="moveProductImagePreview(event)" onmouseleave="hideProductImagePreview(this)" onclick="editWriteoff('${escapeHtml(String(w.systemId || ''))}')"` : `onclick="editWriteoff('${escapeHtml(String(w.systemId || ''))}')"`;
@@ -8247,9 +8393,12 @@ function updateWriteoffTable() {
             <td>${escapeHtml(w.note || '')}</td>
             <td class="text-center">
                 <div class="action-buttons">
-                    <button class="btn-secondary btn-small" title="Редактировать группу" data-writeoff-id="${escapeHtml(String(w.systemId || ''))}" onclick="editWriteoff(this.getAttribute('data-writeoff-id'))">✎</button>
-                    <button class="btn-secondary btn-small" title="Копировать строку" onclick="copyWriteoffItem(${w.id})">❐</button>
-                    <button class="btn-danger btn-small" title="Удалить группу" data-writeoff-id="${escapeHtml(String(w.systemId || ''))}" onclick="deleteWriteoff(this.getAttribute('data-writeoff-id'))">✕</button>
+                    ${w.type === 'Подготовлено к продаже' && rowIdOk ? `<button type="button" class="btn-secondary btn-small" title="Оформить продажу отдельным документом" onclick="convertPreparedWriteoffRowToSale(${rowIdAttr})">₽</button>` : ''}
+                    <button class="btn-secondary btn-small" title="Редактировать документ" data-writeoff-id="${escapeHtml(String(w.systemId || ''))}" onclick="editWriteoff(this.getAttribute('data-writeoff-id'))">✎</button>
+                    ${rowIdOk
+                        ? `<button class="btn-secondary btn-small" title="Копировать строку" onclick="copyWriteoffItem(${rowIdAttr})">❐</button>`
+                        : `<button type="button" class="btn-secondary btn-small" disabled style="opacity:0.45" title="Нет ID строки — откройте документ и сохраните">❐</button>`}
+                    <button class="btn-danger btn-small" title="${rowIdOk ? 'Удалить строку (весь документ, если строка одна)' : 'Удалить весь документ (старая запись без ID строки)'}" ${rowIdOk ? `onclick="deleteWriteoffRow(${rowIdAttr})"` : `onclick="deleteWriteoffBySystemId('${escapeHtml(String(w.systemId || ''))}')"`}>✕</button>
                 </div>
             </td>
         </tr>`;
