@@ -3,14 +3,19 @@
 const APP_VERSION_NUMBER =
     typeof window !== 'undefined' && window.APP_VERSION != null
         ? String(window.APP_VERSION)
-        : '6.5.1';
-console.log('2026-04-06 09-00-00');
+        : '6.5.2';
+console.log('2026-04-06 12-00-00');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
 
 // === CHANGELOG
 const CHANGELOG_ENTRIES = [
+    {
+        version: '6.5.2', 
+        dateDisplay: '06.04.2026', 
+        description: 'Добавлена сортировка категорий в справочнике категорий ИМ'
+    },
     {
         version: '6.5.1', 
         dateDisplay: '06.04.2026', 
@@ -2774,12 +2779,14 @@ async function renderStoreCategoriesTree(uid) {
     const treeEl = document.getElementById('storeCategoriesTree');
     if (!treeEl) return;
     const tree = await getStoreCategoriesTree(uid);
-    const renderNode = (node, depth = 0) => {
+    const renderNode = (node, depth = 0, siblings = [], idxInSiblings = 0) => {
         return countProductsInCategory(uid, node.id).then(count => {
             const hasChildren = node.children && node.children.length > 0;
+            const canMoveUp = idxInSiblings > 0;
+            const canMoveDown = idxInSiblings < (siblings.length - 1);
             let childrenHtml = '';
             if (hasChildren) {
-                return Promise.all(node.children.map(c => renderNode(c, depth + 1))).then(parts => {
+                return Promise.all(node.children.map((c, i) => renderNode(c, depth + 1, node.children, i))).then(parts => {
                     childrenHtml = `<div class="store-category-children">${parts.join('')}</div>`;
                     return `<div class="store-category-node ${node.disabled ? 'disabled' : ''}" data-id="${node.id}">
                         <span class="category-toggle ${hasChildren ? '' : 'empty'}">${hasChildren ? '▼' : '○'}</span>
@@ -2787,6 +2794,10 @@ async function renderStoreCategoriesTree(uid) {
                         <span class="category-name">${escapeHtml(node.name || '')}</span>
                         <span class="category-count">(${count})</span>
                         <span class="category-actions">
+                            <span class="sort-buttons" title="Перемещение в рамках текущего уровня">
+                                <button class="btn-sort" onclick="moveStoreCategory('${node.id}', -1)" ${canMoveUp ? '' : 'disabled'}>▲</button>
+                                <button class="btn-sort" onclick="moveStoreCategory('${node.id}', 1)" ${canMoveDown ? '' : 'disabled'}>▼</button>
+                            </span>
                             <button class="btn-secondary btn-small" onclick="editStoreCategory('${node.id}')">✎</button>
                             <button class="btn-danger btn-small" onclick="deleteStoreCategory('${node.id}')">✕</button>
                         </span>
@@ -2799,13 +2810,17 @@ async function renderStoreCategoriesTree(uid) {
                 <span class="category-name">${escapeHtml(node.name || '')}</span>
                 <span class="category-count">(${count})</span>
                 <span class="category-actions">
+                    <span class="sort-buttons" title="Перемещение в рамках текущего уровня">
+                        <button class="btn-sort" onclick="moveStoreCategory('${node.id}', -1)" ${canMoveUp ? '' : 'disabled'}>▲</button>
+                        <button class="btn-sort" onclick="moveStoreCategory('${node.id}', 1)" ${canMoveDown ? '' : 'disabled'}>▼</button>
+                    </span>
                     <button class="btn-secondary btn-small" onclick="editStoreCategory('${node.id}')">✎</button>
                     <button class="btn-danger btn-small" onclick="deleteStoreCategory('${node.id}')">✕</button>
                 </span>
             </div>`;
         });
     };
-    const html = await Promise.all(tree.map(n => renderNode(n))).then(parts => parts.join(''));
+    const html = await Promise.all(tree.map((n, i) => renderNode(n, 0, tree, i))).then(parts => parts.join(''));
     treeEl.innerHTML = html || '<p class="text-muted">Категорий нет. Нажмите «Добавить категорию».</p>';
 }
 
@@ -2909,6 +2924,53 @@ async function deleteStoreCategory(id) {
     await firebase.database().ref('users/' + user.uid + '/storeCategories/' + id).remove();
     showToast('Категория удалена', 'success');
     renderStoreCategoriesTree(user.uid);
+}
+
+/**
+ * Перемещение категории вверх/вниз только среди соседей (один parentId).
+ * Вложенность не нарушается: перемещаем лишь порядок внутри текущего родителя.
+ */
+async function moveStoreCategory(categoryId, direction) {
+    const user = firebase.auth().currentUser;
+    if (!user) return;
+    const dir = Number(direction);
+    if (dir !== -1 && dir !== 1) return;
+
+    const ref = firebase.database().ref('users/' + user.uid + '/storeCategories');
+    const snap = await ref.once('value');
+    const raw = snap.val();
+    if (!raw || typeof raw !== 'object') return;
+
+    const flat = Object.entries(raw).map(([id, c]) => ({ id, ...(c || {}) }));
+    const current = flat.find((c) => c.id === categoryId);
+    if (!current) return;
+    const parentIdNorm = current.parentId || null;
+
+    const siblings = flat
+        .filter((c) => (c.parentId || null) === parentIdNorm)
+        .sort((a, b) => {
+            const ao = Number(a.order || 0);
+            const bo = Number(b.order || 0);
+            if (ao !== bo) return ao - bo;
+            return String(a.id || '').localeCompare(String(b.id || ''));
+        });
+
+    const ix = siblings.findIndex((c) => c.id === categoryId);
+    if (ix === -1) return;
+    const targetIx = ix + dir;
+    if (targetIx < 0 || targetIx >= siblings.length) return;
+
+    const tmp = siblings[ix];
+    siblings[ix] = siblings[targetIx];
+    siblings[targetIx] = tmp;
+
+    const updates = {};
+    siblings.forEach((c, i) => {
+        updates[c.id + '/order'] = i + 1;
+    });
+    await ref.update(updates);
+    await renderStoreCategoriesTree(user.uid);
+    showToast('Порядок категорий обновлён', 'success');
 }
 
 function initStoreProductPhotoUpload() {
