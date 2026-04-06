@@ -3,8 +3,8 @@
 const APP_VERSION_NUMBER =
     typeof window !== 'undefined' && window.APP_VERSION != null
         ? String(window.APP_VERSION)
-        : '6.5.0';
-console.log('2026-04-05 09-00-00');
+        : '6.5.1';
+console.log('2026-04-06 09-00-00');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
@@ -12,9 +12,14 @@ const APP_BASE_VERSION = APP_VERSION_NUMBER;
 // === CHANGELOG
 const CHANGELOG_ENTRIES = [
     {
+        version: '6.5.1', 
+        dateDisplay: '06.04.2026', 
+        description: 'Из подготовленной к продаже строке теперь можно делать частичную продажу количества'
+    },
+    {
         version: '6.5.0', 
         dateDisplay: '05.04.2026', 
-        description: 'Создание продажи из подготовленного списания одним кликом по кнопке в табличной части.'
+        description: 'Создание продажи из подготовленного списания одним кликом по кнопке в табличной части'
     },
     {
         version: '6.4.0', 
@@ -8217,10 +8222,56 @@ async function deleteWriteoffBySystemId(systemId) {
     }
 }
 
+let _writeoffPreparedSaleOutsideCloser = null;
+
+function closeWriteoffPreparedSaleMenus() {
+    if (_writeoffPreparedSaleOutsideCloser) {
+        document.removeEventListener('click', _writeoffPreparedSaleOutsideCloser, true);
+        _writeoffPreparedSaleOutsideCloser = null;
+    }
+    document.querySelectorAll('.writeoff-prepared-sale-menu').forEach((m) => {
+        m.classList.add('hidden');
+        m.style.left = '';
+        m.style.top = '';
+        m.style.position = '';
+        m.style.minWidth = '';
+    });
+}
+
+/** Открыть/закрыть меню выбора количества для кнопки ₽ (только при qty > 1 вызывается из таблицы). */
+function toggleWriteoffPreparedSaleMenu(ev, trigger) {
+    if (ev && ev.stopPropagation) ev.stopPropagation();
+    const wrap = trigger && trigger.closest('.writeoff-prepared-sale-dropdown');
+    const menu = wrap && wrap.querySelector('.writeoff-prepared-sale-menu');
+    if (!menu) return;
+    const willOpen = menu.classList.contains('hidden');
+    closeWriteoffPreparedSaleMenus();
+    if (!willOpen) return;
+    menu.classList.remove('hidden');
+    menu.style.position = 'fixed';
+    const r = trigger.getBoundingClientRect();
+    const mw = 220;
+    let left = r.right - mw;
+    if (left < 8) left = 8;
+    if (left + mw > window.innerWidth - 8) left = Math.max(8, window.innerWidth - mw - 8);
+    menu.style.left = `${left}px`;
+    menu.style.top = `${r.bottom + 4}px`;
+    menu.style.minWidth = `${mw}px`;
+    setTimeout(() => {
+        _writeoffPreparedSaleOutsideCloser = (e) => {
+            if (e.target.closest('.writeoff-prepared-sale-dropdown')) return;
+            closeWriteoffPreparedSaleMenus();
+        };
+        document.addEventListener('click', _writeoffPreparedSaleOutsideCloser, true);
+    }, 0);
+}
+
 /**
- * Строка «Подготовлено к продаже» → отдельный документ «Продажа»: новый systemId, текущая дата, комплектующие и суммы сохраняются.
+ * Строка «Подготовлено к продаже» → документ «Продажа» на выбранное количество.
+ * При sellQty < исходного qty строка «Подготовлено» сохраняется с уменьшенным количеством.
  */
-async function convertPreparedWriteoffRowToSale(rowId) {
+async function convertPreparedWriteoffRowToSaleWithQty(rowId, sellQty) {
+    closeWriteoffPreparedSaleMenus();
     const item = (db.writeoffs || []).find((w) => w && (w.id == rowId || String(w.id) === String(rowId)));
     if (!item) {
         showToast('Запись не найдена.', 'error');
@@ -8234,7 +8285,21 @@ async function convertPreparedWriteoffRowToSale(rowId) {
         showToast('У строки нет уникального ID. Откройте документ в редакторе и сохраните заново.', 'error');
         return;
     }
-    if (!confirm('Оформить продажу по этой строке? Будет создан отдельный документ «Продажа», строка исчезнет из «Подготовлено». Со склада спишется указанное количество.')) return;
+    const maxQty = Math.max(0, Math.floor(Number(item.qty)) || 0);
+    if (maxQty < 1) {
+        showToast('Некорректное количество в строке.', 'error');
+        return;
+    }
+    const sq = Math.min(maxQty, Math.max(1, Math.floor(Number(sellQty)) || 0));
+    if (sq < 1 || sq > maxQty) {
+        showToast('Некорректное количество для продажи.', 'error');
+        return;
+    }
+    const partial = sq < maxQty;
+    const msg = partial
+        ? `Оформить продажу: ${sq} шт. из ${maxQty}? Остаток останется в «Подготовлено». Со склада спишется ${sq} шт.`
+        : 'Оформить продажу по всей строке? Будет создан отдельный документ «Продажа», строка исчезнет из «Подготовлено». Со склада спишется указанное количество.';
+    if (!confirm(msg)) return;
 
     const now = new Date();
     const newSystemId = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
@@ -8244,40 +8309,61 @@ async function convertPreparedWriteoffRowToSale(rowId) {
         ? item.enrichmentCosts.map((x) => ({ name: String(x.name || ''), cost: parseFloat(x.cost) || 0 })).filter((x) => x.name && x.cost > 0)
         : [];
     const trail = `Создано из Подготовленного списания ${formatDateOnly(item.date)}, ${item.systemId}.`;
-    const baseNote = (item.note && String(item.note).trim()) ? String(item.note).trim() + '\n' : '';
-    const newNote = baseNote + trail;
 
-    const qtyN = Number(item.qty) || 0;
-    const priceN = Number(item.price) || 0;
-    const totalN = item.total != null && !isNaN(Number(item.total)) ? Number(item.total) : qtyN * priceN;
-    const newItem = {
-        id: Date.now(),
-        systemId: newSystemId,
-        date: finalDate,
-        productId: item.productId,
-        productName: item.productName,
-        type: 'Продажа',
-        qty: qtyN,
-        price: priceN,
-        total: totalN,
-        note: newNote,
-        enrichmentCosts
-    };
-
+    const saleId = Date.now();
     const idTarget = item.id;
     try {
         await dbRef.child('writeoffs').transaction((currentList) => {
             const arr = normalizeWriteoffsArray(currentList);
-            const without = arr.filter((w) => w && w.id != idTarget);
-            if (without.length === arr.length) return undefined;
-            without.push(newItem);
-            return without;
+            const i = arr.findIndex((w) => w && w.id == idTarget);
+            if (i === -1) return undefined;
+            const row = arr[i];
+            if (row.type !== 'Подготовлено к продаже') return undefined;
+            const rowMax = Math.max(0, Math.floor(Number(row.qty)) || 0);
+            if (rowMax < 1) return undefined;
+            const sell = Math.min(rowMax, Math.max(1, Math.floor(Number(sellQty)) || 0));
+            if (sell < 1) return undefined;
+            const rowPrice = Number(row.price) || 0;
+            const enr = Array.isArray(row.enrichmentCosts)
+                ? row.enrichmentCosts
+                      .map((x) => ({ name: String(x.name || ''), cost: parseFloat(x.cost) || 0 }))
+                      .filter((x) => x.name && x.cost > 0)
+                : [];
+            const noteBase = row.note && String(row.note).trim() ? String(row.note).trim() + '\n' : '';
+            const saleRow = {
+                id: saleId,
+                systemId: newSystemId,
+                date: finalDate,
+                productId: row.productId,
+                productName: row.productName,
+                type: 'Продажа',
+                qty: sell,
+                price: rowPrice,
+                total: sell * rowPrice,
+                note: noteBase + trail,
+                enrichmentCosts: enr.map((x) => ({ name: x.name, cost: x.cost }))
+            };
+            if (sell >= rowMax) {
+                const next = arr.filter((w, j) => j !== i);
+                next.push(saleRow);
+                return next;
+            }
+            const remaining = rowMax - sell;
+            const updatedPrepared = {
+                ...row,
+                qty: remaining,
+                total: remaining * rowPrice,
+                enrichmentCosts: Array.isArray(row.enrichmentCosts)
+                    ? row.enrichmentCosts.map((x) => ({ name: x.name, cost: x.cost }))
+                    : []
+            };
+            const next = arr.map((w, j) => (j === i ? updatedPrepared : w));
+            next.push(saleRow);
+            return next;
         });
-        db.writeoffs = (db.writeoffs || []).filter((w) => !w || w.id != idTarget);
-        db.writeoffs.push(newItem);
 
         const updates = {};
-        newItem.enrichmentCosts.forEach((comp) => {
+        enrichmentCosts.forEach((comp) => {
             const existingComp = db.components.find((c) => c.name.toLowerCase() === comp.name.toLowerCase());
             if (!existingComp) {
                 const newCompIndex = db.components.length;
@@ -8301,7 +8387,7 @@ async function convertPreparedWriteoffRowToSale(rowId) {
             const snapshot = await dbRef.parent.once('value');
             if (typeof window.updateAppFromSnapshot === 'function') window.updateAppFromSnapshot(snapshot);
         }
-        showToast('Создан документ продажи ' + newSystemId + '.', 'success');
+        showToast('Создан документ продажи ' + newSystemId + ` (${sq} шт.).`, 'success');
     } catch (e) {
         console.error('Ошибка конвертации подготовленного в продажу:', e);
         showToast('Не удалось выполнить: ' + e.message, 'error');
@@ -8377,6 +8463,24 @@ function updateWriteoffTable() {
         const rowIdNum = w.id;
         const rowIdOk = rowIdNum != null && rowIdNum !== '';
         const rowIdAttr = rowIdOk ? String(rowIdNum) : '';
+        const prepQty = w.type === 'Подготовлено к продаже' ? Math.max(0, Math.floor(Number(w.qty)) || 0) : 0;
+        const preparedSaleControl =
+            w.type === 'Подготовлено к продаже' && rowIdOk && prepQty >= 1
+                ? prepQty > 1
+                    ? `<div class="writeoff-prepared-sale-dropdown">
+                        <button type="button" class="btn-secondary btn-small" title="Оформить продажу отдельным документом" onclick="toggleWriteoffPreparedSaleMenu(event, this)">₽</button>
+                        <div class="writeoff-prepared-sale-menu hidden" role="menu">
+                            <div class="writeoff-prepared-sale-menu-label">Кол-во в продажу</div>
+                            ${Array.from({ length: prepQty }, (_, k) => k + 1)
+                                .map(
+                                    (n) =>
+                                        `<button type="button" role="menuitem" class="writeoff-prepared-sale-option" onclick="event.stopPropagation(); convertPreparedWriteoffRowToSaleWithQty(${rowIdAttr}, ${n})">${n}</button>`
+                                )
+                                .join('')}
+                        </div>
+                    </div>`
+                    : `<button type="button" class="btn-secondary btn-small" title="Оформить продажу отдельным документом" onclick="convertPreparedWriteoffRowToSaleWithQty(${rowIdAttr}, 1)">₽</button>`
+                : '';
 
         // --- ИЗМЕНЕНИЕ: Добавлены обработчики событий для превью картинки ---
         const nameEvents = w.productId ? `onmouseenter="showProductImagePreview(this, ${w.productId})" onmousemove="moveProductImagePreview(event)" onmouseleave="hideProductImagePreview(this)" onclick="editWriteoff('${escapeHtml(String(w.systemId || ''))}')"` : `onclick="editWriteoff('${escapeHtml(String(w.systemId || ''))}')"`;
@@ -8393,7 +8497,7 @@ function updateWriteoffTable() {
             <td>${escapeHtml(w.note || '')}</td>
             <td class="text-center">
                 <div class="action-buttons">
-                    ${w.type === 'Подготовлено к продаже' && rowIdOk ? `<button type="button" class="btn-secondary btn-small" title="Оформить продажу отдельным документом" onclick="convertPreparedWriteoffRowToSale(${rowIdAttr})">₽</button>` : ''}
+                    ${preparedSaleControl}
                     <button class="btn-secondary btn-small" title="Редактировать документ" data-writeoff-id="${escapeHtml(String(w.systemId || ''))}" onclick="editWriteoff(this.getAttribute('data-writeoff-id'))">✎</button>
                     ${rowIdOk
                         ? `<button class="btn-secondary btn-small" title="Копировать строку" onclick="copyWriteoffItem(${rowIdAttr})">❐</button>`
