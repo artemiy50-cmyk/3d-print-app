@@ -987,6 +987,18 @@ async function fillStoreSettingsPage() {
     if (tabsSectionColorInput) {
         tabsSectionColorInput.value = (store && (store.tabsSectionColor || store.swimlaneNewColor || store.swimlaneColor)) || '#e0f2fe';
     }
+    const popularBadgeColorInput = document.getElementById('storePopularBadgeColorInput');
+    if (popularBadgeColorInput) {
+        popularBadgeColorInput.value = (store && store.popularBadgeColor) || '#16a34a';
+    }
+    const newBadgeColorInput = document.getElementById('storeNewBadgeColorInput');
+    if (newBadgeColorInput) {
+        newBadgeColorInput.value = (store && store.newBadgeColor) || '#2563eb';
+    }
+    const discountBadgeColorInput = document.getElementById('storeDiscountBadgeColorInput');
+    if (discountBadgeColorInput) {
+        discountBadgeColorInput.value = (store && store.discountBadgeColor) || '#ef4444';
+    }
     const addToCartColorInput = document.getElementById('storeAddToCartColorInput');
     if (addToCartColorInput) addToCartColorInput.value = (store && store.addToCartButtonColor) || '#2563eb';
     const addToCartTextWhiteInput = document.getElementById('storeAddToCartTextWhiteInput');
@@ -2271,6 +2283,9 @@ function getStoreSettingsCurrentValues() {
         headerColor: (document.getElementById('storeHeaderColorInput') && document.getElementById('storeHeaderColorInput').value) || '#ffffff',
         footerColor: (document.getElementById('storeFooterColorInput') && document.getElementById('storeFooterColorInput').value) || '#f1f5f9',
         tabsSectionColor: (document.getElementById('storeTabsSectionColorInput') && document.getElementById('storeTabsSectionColorInput').value) || '#e0f2fe',
+        popularBadgeColor: (document.getElementById('storePopularBadgeColorInput') && document.getElementById('storePopularBadgeColorInput').value) || '#16a34a',
+        newBadgeColor: (document.getElementById('storeNewBadgeColorInput') && document.getElementById('storeNewBadgeColorInput').value) || '#2563eb',
+        discountBadgeColor: (document.getElementById('storeDiscountBadgeColorInput') && document.getElementById('storeDiscountBadgeColorInput').value) || '#ef4444',
         addToCartButtonColor: (document.getElementById('storeAddToCartColorInput') && document.getElementById('storeAddToCartColorInput').value) || '#2563eb',
         addToCartButtonTextWhite: document.getElementById('storeAddToCartTextWhiteInput') ? document.getElementById('storeAddToCartTextWhiteInput').checked : true,
         headingColor: (document.getElementById('storeHeadingColorInput') && document.getElementById('storeHeadingColorInput').value) || '#1e293b',
@@ -2377,6 +2392,9 @@ async function saveStoreSettings() {
         headerColor: (document.getElementById('storeHeaderColorInput') && document.getElementById('storeHeaderColorInput').value) || '#ffffff',
         footerColor: (document.getElementById('storeFooterColorInput') && document.getElementById('storeFooterColorInput').value) || '#f1f5f9',
         tabsSectionColor: (document.getElementById('storeTabsSectionColorInput') && document.getElementById('storeTabsSectionColorInput').value) || '#e0f2fe',
+        popularBadgeColor: (document.getElementById('storePopularBadgeColorInput') && document.getElementById('storePopularBadgeColorInput').value) || '#16a34a',
+        newBadgeColor: (document.getElementById('storeNewBadgeColorInput') && document.getElementById('storeNewBadgeColorInput').value) || '#2563eb',
+        discountBadgeColor: (document.getElementById('storeDiscountBadgeColorInput') && document.getElementById('storeDiscountBadgeColorInput').value) || '#ef4444',
         addToCartButtonColor: (document.getElementById('storeAddToCartColorInput') && document.getElementById('storeAddToCartColorInput').value) || '#2563eb',
         addToCartButtonTextWhite: document.getElementById('storeAddToCartTextWhiteInput') ? document.getElementById('storeAddToCartTextWhiteInput').checked : true,
         headingColor: (document.getElementById('storeHeadingColorInput') && document.getElementById('storeHeadingColorInput').value) || '#1e293b',
@@ -3552,7 +3570,7 @@ function updateAllDates() {
 
 const VALID_PAGE_IDS = ['dashboard', 'products', 'writeoff', 'filament', 'service', 'reports', 'references', 'profile', 'myStore'];
 
-const STORE_SETTINGS_INPUT_IDS = ['storeSubdomainInput', 'storeTitleInput', 'storeDescInput', 'storeAboutDescInput', 'storeLogoUrl', 'storeEnabledInput', 'storeMinOrderInput', 'storeHeaderColorInput', 'storeFooterColorInput', 'storeHeadingColorInput', 'storeTabsSectionColorInput', 'storeAddToCartColorInput', 'storeAddToCartTextWhiteInput', 'storeBannerDescTextColorInput', 'storeSocialVk', 'storeSocialTelegram', 'storeSocialTiktok', 'storeSocialInstagram', 'storeSocialEmail', 'storeSocialPhone', 'storeSocialWhatsapp', 'storeSellerDetailsInput', 'storeOfferInput', 'storeAboutContactsInput', 'storeSeoTitleInput', 'storeSeoDescInput', 'storeSeoOgImageUrl', 'storeSeoNoindexInput', 'storeYandexVerificationMetaInput', 'storeYandexMetricaSnippetInput'];
+const STORE_SETTINGS_INPUT_IDS = ['storeSubdomainInput', 'storeTitleInput', 'storeDescInput', 'storeAboutDescInput', 'storeLogoUrl', 'storeEnabledInput', 'storeMinOrderInput', 'storeHeaderColorInput', 'storeFooterColorInput', 'storeHeadingColorInput', 'storeTabsSectionColorInput', 'storePopularBadgeColorInput', 'storeNewBadgeColorInput', 'storeDiscountBadgeColorInput', 'storeAddToCartColorInput', 'storeAddToCartTextWhiteInput', 'storeBannerDescTextColorInput', 'storeSocialVk', 'storeSocialTelegram', 'storeSocialTiktok', 'storeSocialInstagram', 'storeSocialEmail', 'storeSocialPhone', 'storeSocialWhatsapp', 'storeSellerDetailsInput', 'storeOfferInput', 'storeAboutContactsInput', 'storeSeoTitleInput', 'storeSeoDescInput', 'storeSeoOgImageUrl', 'storeSeoNoindexInput', 'storeYandexVerificationMetaInput', 'storeYandexMetricaSnippetInput'];
 
 /** Слушатели для кнопки «Сохранить»; вызывается при каждом открытии «Мой магазин», чтобы новые поля в DOM получили input после обновления HTML без полной перезагрузки вкладки. */
 function attachStoreSettingsInputListeners() {
