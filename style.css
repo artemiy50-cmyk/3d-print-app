@@ -3408,7 +3408,33 @@ body.store-page #storeRoot {
         gap: 0;
     }
     body.store-page .store-catalog-tiles {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+    /* На мобильном скрываем описание, оставляя только заголовок и блок цены/кнопки */
+    body.store-page .store-card-desc-area,
+    body.store-page .store-card-desc,
+    body.store-page .store-card-spacer {
+        display: none !important;
+    }
+    /* Фиксируем визуальную высоту блока названия для ровного выравнивания карточек */
+    body.store-page .store-card-title {
+        margin-bottom: 8px;
+        line-height: 1.25;
+        min-height: calc(1.25em * 2);
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    /* Размер и отступы карточек в секции табов — как у каталога ниже (2 карточки в ряд) */
+    body.store-page .store-section-tabs .store-carousel-inner-4 {
+        gap: 10px;
+    }
+    body.store-page .store-section-tabs .store-carousel-inner-4 .store-card {
+        flex: 0 0 calc((100% - 10px) / 2);
+        min-width: calc((100% - 10px) / 2);
+        width: calc((100% - 10px) / 2);
     }
     body.store-page .store-section-tabs .store-tabs-nav .store-tab,
     body.store-page .store-section-tabs .store-tabs-nav .store-tab-active {
