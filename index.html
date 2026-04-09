@@ -1078,6 +1078,11 @@
                                 <input type="number" id="storeMinOrderInput" placeholder="Не ограничено" min="0" step="1">
                                 <span class="form-hint" style="font-size: 11px; color: #64748b;">Оставьте пустым — без ограничения</span>
                             </div>
+                            <div class="form-group">
+                                <label>Скидка на первый заказ (%):</label>
+                                <input type="number" id="storeFirstOrderDiscountPercentInput" placeholder="Не использовать" min="0" max="100" step="1">
+                                <span class="form-hint" style="font-size: 11px; color: #64748b;">Если указано, применяется только к первому заказу покупателя (заказы со статусом «Отменен» не учитываются).</span>
+                            </div>
                             <div id="storeLinkWrap" class="form-group hidden" style="margin-top: 12px;">
                                 <label>Ссылка на магазин:</label>
                                 <a id="storeLink" href="#" target="_blank" rel="noopener" style="color: var(--color-primary);">—</a>
@@ -1231,13 +1236,28 @@
                     <div class="card">
                         <div class="form-section-title">Товары в каталоге</div>
                         <div class="controls" style="margin-bottom: 12px;">
-                            <div class="controls-left">
+                            <div class="controls-left store-products-controls-left">
+                                <div class="store-products-controls-row store-products-controls-row-top">
                                 <button type="button" class="btn-primary" id="storeAddProductBtn" onclick="openStoreProductModal()">➕ Добавить товар</button>
                                 <div class="search-container">
                                     <input type="text" class="search-input" id="storeProductSearch" placeholder="Поиск по названию...">
                                     <span class="search-clear">&times;</span>
                                 </div>
-                                <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+                                </div>
+                                <div class="store-products-controls-row store-products-controls-row-bottom">
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <label style="margin: 0;">Сортировать по:</label>
+                                        <select id="storeProductSortBy" style="padding: 8px 12px; border: 1px solid var(--color-border); border-radius: var(--radius); font-size: 14px; width: 240px;">
+                                            <option value="systemId-desc">Системный ID (новые)</option>
+                                            <option value="systemId-asc">Системный ID (старые)</option>
+                                            <option value="price-desc">Цена (убывание)</option>
+                                            <option value="price-asc">Цена (возрастание)</option>
+                                            <option value="discount-desc">Скидка (убывание)</option>
+                                            <option value="discount-asc">Скидка (возрастание)</option>
+                                            <option value="category">Категория</option>
+                                            <option value="active">Активность</option>
+                                        </select>
+                                    </div>
                                     <div style="display: flex; align-items: center; gap: 8px;">
                                         <label style="margin: 0;">Выбрать:</label>
                                         <label class="checkbox-label" style="margin: 0;"><input type="checkbox" id="storeProductFilterPopular"> Популярные</label>

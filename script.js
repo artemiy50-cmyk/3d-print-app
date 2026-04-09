@@ -3,14 +3,24 @@
 const APP_VERSION_NUMBER =
     typeof window !== 'undefined' && window.APP_VERSION != null
         ? String(window.APP_VERSION)
-        : '6.5.2';
-console.log('2026-04-06 12-00-00');
+        : '6.7.0';
+console.log('2026-04-09 19-30-00');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
 
 // === CHANGELOG
 const CHANGELOG_ENTRIES = [
+    {
+        version: '6.7.0', 
+        dateDisplay: '09.04.2026', 
+        description: 'Добавлена скидка на первый заказ, сортировка товаров в админке и изменена сортировка в ИМ, перемещены бейджи на фото карточки товара'
+    },
+    {
+        version: '6.6.0', 
+        dateDisplay: '08.04.2026', 
+        description: 'Добавлены настройки цветов бейджей и табов "Популярные", "Новинки", "Скидки". В мобильной версии по горизонтали отображаются две товарных карточки'
+    },
     {
         version: '6.5.2', 
         dateDisplay: '06.04.2026', 
@@ -899,6 +909,55 @@ function validateSubdomain(val) {
     return { ok: true, subdomain: s };
 }
 
+function getStoreProductDiscountPercent(sp) {
+    const price = parseFloat(sp && sp.price != null ? sp.price : '') || 0;
+    const priceSale = parseFloat(sp && sp.priceSale != null ? sp.priceSale : '');
+    if (!(price > 0) || !(priceSale > 0) || !(priceSale < price)) return 0;
+    return ((price - priceSale) / price) * 100;
+}
+
+function sortStoreProductsForAdmin(list, categoriesMap, sortBy) {
+    const arr = Array.isArray(list) ? list.slice() : [];
+    const mode = String(sortBy || 'systemId-desc');
+    arr.sort((a, b) => {
+        const sidA = String((a && a.systemId) || '');
+        const sidB = String((b && b.systemId) || '');
+        if (mode === 'systemId-desc') return sidB.localeCompare(sidA);
+        if (mode === 'systemId-asc') return sidA.localeCompare(sidB);
+        if (mode === 'price-desc' || mode === 'price-asc') {
+            const pa = parseFloat(a && a.price != null ? a.price : '') || 0;
+            const pb = parseFloat(b && b.price != null ? b.price : '') || 0;
+            if (pa !== pb) return mode === 'price-desc' ? pb - pa : pa - pb;
+            return sidB.localeCompare(sidA);
+        }
+        if (mode === 'discount-desc' || mode === 'discount-asc') {
+            const da = getStoreProductDiscountPercent(a);
+            const db = getStoreProductDiscountPercent(b);
+            if (da !== db) return mode === 'discount-desc' ? db - da : da - db;
+            return sidB.localeCompare(sidA);
+        }
+        if (mode === 'category') {
+            const na = (Array.isArray(a && a.categoryIds) ? a.categoryIds : [])
+                .map((id) => (categoriesMap && categoriesMap[id]) || String(id || ''))
+                .sort((x, y) => x.localeCompare(y, 'ru'))[0] || '';
+            const nb = (Array.isArray(b && b.categoryIds) ? b.categoryIds : [])
+                .map((id) => (categoriesMap && categoriesMap[id]) || String(id || ''))
+                .sort((x, y) => x.localeCompare(y, 'ru'))[0] || '';
+            const catCmp = na.localeCompare(nb, 'ru');
+            if (catCmp !== 0) return catCmp;
+            return sidB.localeCompare(sidA);
+        }
+        if (mode === 'active') {
+            const aa = isStoreCatalogProductActive(a) ? 1 : 0;
+            const ab = isStoreCatalogProductActive(b) ? 1 : 0;
+            if (aa !== ab) return ab - aa; // активные сверху
+            return sidB.localeCompare(sidA);
+        }
+        return sidB.localeCompare(sidA);
+    });
+    return arr;
+}
+
 async function fillStoreSettingsPage() {
     const user = firebase.auth().currentUser;
     if (!user) return;
@@ -1036,11 +1095,14 @@ async function fillStoreSettingsPage() {
     updateStoreSaveBtn();
     const minInput = document.getElementById('storeMinOrderInput');
     if (minInput) minInput.value = (store && store.minOrderAmount != null && store.minOrderAmount !== '') ? store.minOrderAmount : '';
+    const firstOrderDiscountInput = document.getElementById('storeFirstOrderDiscountPercentInput');
+    if (firstOrderDiscountInput) firstOrderDiscountInput.value = (store && store.firstOrderDiscountPercent != null && store.firstOrderDiscountPercent !== '') ? store.firstOrderDiscountPercent : '';
 
     const tbody = document.querySelector('#storeProductsTable tbody');
     const categoriesMap = await getStoreCategoriesMap(user.uid);
 
     const term = (document.getElementById('storeProductSearch')?.value || '').toLowerCase();
+    const sortBy = document.getElementById('storeProductSortBy')?.value || 'systemId-desc';
     const filterPopular = document.getElementById('storeProductFilterPopular')?.checked;
     const filterNew = document.getElementById('storeProductFilterNew')?.checked;
     const filterNoCategory = document.getElementById('storeProductFilterNoCategory')?.checked;
@@ -1058,6 +1120,7 @@ async function fillStoreSettingsPage() {
     if (filterNoCategory) filtered = filtered.filter(sp => !Array.isArray(sp.categoryIds) || sp.categoryIds.length === 0);
     if (!filterShowInactive) filtered = filtered.filter(sp => isStoreCatalogProductActive(sp));
 
+    filtered = sortStoreProductsForAdmin(filtered, categoriesMap, sortBy);
     const origIndices = filtered.map(sp => storeProducts.indexOf(sp));
 
     tbody.innerHTML = filtered.map((sp, i) => {
@@ -1108,6 +1171,7 @@ function updateStoreProductsTable() {
     if (!tbody) return;
 
     const term = (document.getElementById('storeProductSearch')?.value || '').toLowerCase();
+    const sortBy = document.getElementById('storeProductSortBy')?.value || 'systemId-desc';
     const filterPopular = document.getElementById('storeProductFilterPopular')?.checked;
     const filterNew = document.getElementById('storeProductFilterNew')?.checked;
     const filterNoCategory = document.getElementById('storeProductFilterNoCategory')?.checked;
@@ -1125,6 +1189,7 @@ function updateStoreProductsTable() {
     if (filterNoCategory) filtered = filtered.filter(sp => !Array.isArray(sp.categoryIds) || sp.categoryIds.length === 0);
     if (!filterShowInactive) filtered = filtered.filter(sp => isStoreCatalogProductActive(sp));
 
+    filtered = sortStoreProductsForAdmin(filtered, categoriesMap, sortBy);
     const origIndices = filtered.map(sp => storeProducts.indexOf(sp));
 
     tbody.innerHTML = filtered.map((sp, i) => {
@@ -1165,11 +1230,13 @@ function resetStoreProductFilters() {
     const newEl = document.getElementById('storeProductFilterNew');
     const noCategoryEl = document.getElementById('storeProductFilterNoCategory');
     const showInactiveEl = document.getElementById('storeProductFilterShowInactive');
+    const sortEl = document.getElementById('storeProductSortBy');
     if (searchEl) searchEl.value = '';
     if (popularEl) popularEl.checked = false;
     if (newEl) newEl.checked = false;
     if (noCategoryEl) noCategoryEl.checked = false;
     if (showInactiveEl) showInactiveEl.checked = true;
+    if (sortEl) sortEl.value = 'systemId-desc';
     updateStoreProductsTable();
 }
 
@@ -1723,6 +1790,16 @@ function calcStoreOrderTotal(items) {
     return Math.round(normalizeStoreOrderItems(items).reduce((s, i) => s + i.total, 0) * 100) / 100;
 }
 
+function formatStoreOrderTotalWithDiscount(orderLike, baseTotal) {
+    const totalVal = Number.isFinite(baseTotal) ? baseTotal : (parseFloat(orderLike && orderLike.total) || 0);
+    const pct = parseFloat(orderLike && orderLike.discountPercent);
+    const amt = parseFloat(orderLike && orderLike.discountAmount);
+    if (Number.isFinite(pct) && pct > 0 && Number.isFinite(amt) && amt > 0) {
+        return `ИТОГО: ${totalVal.toFixed(0)} ₽, с учетом предоставленной скидки ${pct.toFixed(0)}% (${amt.toFixed(0)} руб).`;
+    }
+    return `ИТОГО: ${totalVal.toFixed(0)} ₽`;
+}
+
 function ensureStoreOrderModalBindings() {
     const modal = document.getElementById('storeOrderModal');
     if (!modal || modal.dataset.bound === '1') return;
@@ -1927,7 +2004,7 @@ function renderStoreOrdersList() {
                 <div>№</div><div>Наименование</div><div>Цена</div><div>Кол-во</div><div>Стоимость</div>
             </div>
             <div class="store-order-items-grid store-order-items-grid--list">${itemsRows}</div>
-            <div class="store-order-list-total">ИТОГО: ${(o.total || 0).toFixed(0)} ₽</div>
+            <div class="store-order-list-total">${escapeHtml(formatStoreOrderTotalWithDiscount(o))}</div>
             ${o.adminComment ? `<div class="store-order-admin-comment">Комментарий администратора: ${escapeHtml(o.adminComment)}</div>` : ''}
         </div>`;
     }).join('');
@@ -1942,7 +2019,16 @@ function clearStoreOrdersSearch() {
 function updateStoreOrderItemsTotalPreview() {
     const total = calcStoreOrderTotal(_storeOrderItemsDraft);
     const totalEl = document.getElementById('storeOrderTotalPreview');
-    if (totalEl) totalEl.textContent = `ИТОГО: ${total.toFixed(0)} ₽`;
+    if (!totalEl) return;
+    const source = _storeOrderEditingId ? _storeOrdersCache.find(x => x.id === _storeOrderEditingId) : null;
+    if (source && Number.isFinite(parseFloat(source.discountPercent)) && parseFloat(source.discountPercent) > 0) {
+        const pct = parseFloat(source.discountPercent);
+        const discountAmount = Math.round((total * pct / 100) * 100) / 100;
+        const finalTotal = Math.max(0, total - discountAmount);
+        totalEl.textContent = formatStoreOrderTotalWithDiscount({ total: finalTotal, discountPercent: pct, discountAmount }, finalTotal);
+        return;
+    }
+    totalEl.textContent = `ИТОГО: ${total.toFixed(0)} ₽`;
 }
 
 /**
@@ -2192,6 +2278,13 @@ async function saveStoreOrder(closeAfter = true) {
     } else if (!number || number === 'Генерация...' || number === 'Будет присвоен при сохранении') {
         number = await getNextGlobalStoreOrderNumber('АДМ');
     }
+    const sourceOrder = _storeOrderEditingId ? _storeOrdersCache.find(x => x.id === _storeOrderEditingId) : null;
+    const baseTotal = calcStoreOrderTotal(items);
+    const sourceDiscountPct = parseFloat(sourceOrder && sourceOrder.discountPercent);
+    const keepDiscount = Number.isFinite(sourceDiscountPct) && sourceDiscountPct > 0;
+    const discountAmount = keepDiscount ? (Math.round((baseTotal * sourceDiscountPct / 100) * 100) / 100) : 0;
+    const finalTotal = Math.max(0, baseTotal - discountAmount);
+
     const payload = {
         ownerUid: user.uid,
         items: items.map((i) => {
@@ -2202,7 +2295,7 @@ async function saveStoreOrder(closeAfter = true) {
             if (keys.length) out.selectedAttributes = keys.reduce((acc, k) => { acc[k] = String(sa[k]).trim(); return acc; }, {});
             return out;
         }),
-        total: calcStoreOrderTotal(items),
+        total: finalTotal,
         buyerName: buyerName || '',
         buyerEmail: buyerEmail || '',
         buyerUid: null,
@@ -2213,6 +2306,17 @@ async function saveStoreOrder(closeAfter = true) {
         status: status || 'new',
         updatedAt: new Date().toISOString()
     };
+    if (keepDiscount) {
+        payload.discountPercent = sourceDiscountPct;
+        payload.discountAmount = discountAmount;
+        payload.totalBeforeDiscount = baseTotal;
+        payload.firstOrderDiscountApplied = true;
+    } else {
+        payload.discountPercent = null;
+        payload.discountAmount = null;
+        payload.totalBeforeDiscount = null;
+        payload.firstOrderDiscountApplied = null;
+    }
     if (_storeOrderEditingId) {
         await firebase.database().ref('storeOrders/' + _storeOrderEditingId).update(payload);
     } else {
@@ -2267,6 +2371,7 @@ function getStoreSettingsCurrentValues() {
         description: (document.getElementById('storeDescInput') && document.getElementById('storeDescInput').value) || '',
         enabled: document.getElementById('storeEnabledInput') ? document.getElementById('storeEnabledInput').checked : true,
         minOrderAmount: (document.getElementById('storeMinOrderInput') && document.getElementById('storeMinOrderInput').value) || '',
+        firstOrderDiscountPercent: (document.getElementById('storeFirstOrderDiscountPercentInput') && document.getElementById('storeFirstOrderDiscountPercentInput').value) || '',
         banner: (document.getElementById('storeBannerUrl') && document.getElementById('storeBannerUrl').value) || '',
         logo: (document.getElementById('storeLogoUrl') && document.getElementById('storeLogoUrl').value) || '',
         aboutDesc: (document.getElementById('storeAboutDescInput') && document.getElementById('storeAboutDescInput').value) || '',
@@ -2355,6 +2460,11 @@ async function saveStoreSettings() {
     const now = new Date().toISOString();
     const minVal = document.getElementById('storeMinOrderInput') ? document.getElementById('storeMinOrderInput').value : '';
     const minOrderAmount = (minVal !== '' && minVal != null) ? parseFloat(minVal) : null;
+    const firstDiscountVal = document.getElementById('storeFirstOrderDiscountPercentInput') ? document.getElementById('storeFirstOrderDiscountPercentInput').value : '';
+    const firstOrderDiscountPercentRaw = (firstDiscountVal !== '' && firstDiscountVal != null) ? parseFloat(firstDiscountVal) : null;
+    const firstOrderDiscountPercent = (firstOrderDiscountPercentRaw != null && !isNaN(firstOrderDiscountPercentRaw) && firstOrderDiscountPercentRaw > 0)
+        ? Math.min(100, firstOrderDiscountPercentRaw)
+        : null;
 
     const yandexVerRaw = (document.getElementById('storeYandexVerificationMetaInput') && document.getElementById('storeYandexVerificationMetaInput').value) || '';
     if (yandexVerRaw.length > 2048) {
@@ -2376,6 +2486,7 @@ async function saveStoreSettings() {
         contactEmail: (document.getElementById('storeSocialEmail') && document.getElementById('storeSocialEmail').value) || '',
         contactTelegram: (document.getElementById('storeSocialTelegram') && document.getElementById('storeSocialTelegram').value) || '',
         minOrderAmount: (minOrderAmount != null && !isNaN(minOrderAmount) && minOrderAmount > 0) ? minOrderAmount : null,
+        firstOrderDiscountPercent: firstOrderDiscountPercent,
         banner: (document.getElementById('storeBannerUrl') && document.getElementById('storeBannerUrl').value) || '',
         logo: (document.getElementById('storeLogoUrl') && document.getElementById('storeLogoUrl').value) || '',
         aboutDesc: (document.getElementById('storeAboutDescInput') && document.getElementById('storeAboutDescInput').value) || '',
@@ -3570,7 +3681,7 @@ function updateAllDates() {
 
 const VALID_PAGE_IDS = ['dashboard', 'products', 'writeoff', 'filament', 'service', 'reports', 'references', 'profile', 'myStore'];
 
-const STORE_SETTINGS_INPUT_IDS = ['storeSubdomainInput', 'storeTitleInput', 'storeDescInput', 'storeAboutDescInput', 'storeLogoUrl', 'storeEnabledInput', 'storeMinOrderInput', 'storeHeaderColorInput', 'storeFooterColorInput', 'storeHeadingColorInput', 'storeTabsSectionColorInput', 'storePopularBadgeColorInput', 'storeNewBadgeColorInput', 'storeDiscountBadgeColorInput', 'storeAddToCartColorInput', 'storeAddToCartTextWhiteInput', 'storeBannerDescTextColorInput', 'storeSocialVk', 'storeSocialTelegram', 'storeSocialTiktok', 'storeSocialInstagram', 'storeSocialEmail', 'storeSocialPhone', 'storeSocialWhatsapp', 'storeSellerDetailsInput', 'storeOfferInput', 'storeAboutContactsInput', 'storeSeoTitleInput', 'storeSeoDescInput', 'storeSeoOgImageUrl', 'storeSeoNoindexInput', 'storeYandexVerificationMetaInput', 'storeYandexMetricaSnippetInput'];
+const STORE_SETTINGS_INPUT_IDS = ['storeSubdomainInput', 'storeTitleInput', 'storeDescInput', 'storeAboutDescInput', 'storeLogoUrl', 'storeEnabledInput', 'storeMinOrderInput', 'storeFirstOrderDiscountPercentInput', 'storeHeaderColorInput', 'storeFooterColorInput', 'storeHeadingColorInput', 'storeTabsSectionColorInput', 'storePopularBadgeColorInput', 'storeNewBadgeColorInput', 'storeDiscountBadgeColorInput', 'storeAddToCartColorInput', 'storeAddToCartTextWhiteInput', 'storeBannerDescTextColorInput', 'storeSocialVk', 'storeSocialTelegram', 'storeSocialTiktok', 'storeSocialInstagram', 'storeSocialEmail', 'storeSocialPhone', 'storeSocialWhatsapp', 'storeSellerDetailsInput', 'storeOfferInput', 'storeAboutContactsInput', 'storeSeoTitleInput', 'storeSeoDescInput', 'storeSeoOgImageUrl', 'storeSeoNoindexInput', 'storeYandexVerificationMetaInput', 'storeYandexMetricaSnippetInput'];
 
 /** Слушатели для кнопки «Сохранить»; вызывается при каждом открытии «Мой магазин», чтобы новые поля в DOM получили input после обновления HTML без полной перезагрузки вкладки. */
 function attachStoreSettingsInputListeners() {
@@ -3635,6 +3746,7 @@ function showPage(id) {
             document.getElementById('storeProductFilterNew')?.addEventListener('change', updateStoreProductsTable);
             document.getElementById('storeProductFilterNoCategory')?.addEventListener('change', updateStoreProductsTable);
             document.getElementById('storeProductFilterShowInactive')?.addEventListener('change', updateStoreProductsTable);
+            document.getElementById('storeProductSortBy')?.addEventListener('change', updateStoreProductsTable);
             document.getElementById('storeProductResetFiltersBtn')?.addEventListener('click', resetStoreProductFilters);
             document.getElementById('storeProductAddAttrBtn')?.addEventListener('click', () => appendStoreProductAttributeRow('', ''));
             document.getElementById('storeAttrCatalogAddBtn')?.addEventListener('click', () => addStoreAttributeCatalogEntry());
