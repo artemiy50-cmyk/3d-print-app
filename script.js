@@ -3,14 +3,19 @@
 const APP_VERSION_NUMBER =
     typeof window !== 'undefined' && window.APP_VERSION != null
         ? String(window.APP_VERSION)
-        : '6.7.0';
-console.log('2026-04-09 19-30-00');
+        : '6.7.1';
+console.log('2026-04-12 09-00-00');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
 
 // === CHANGELOG
 const CHANGELOG_ENTRIES = [
+    {
+        version: '6.7.1', 
+        dateDisplay: '12.04.2026', 
+        description: 'Увеличен лимит размера загружаемых фотографий до 10 МБ. Сделано подробное описание ошибки failed to fetch'
+    },
     {
         version: '6.7.0', 
         dateDisplay: '09.04.2026', 
