@@ -245,7 +245,7 @@ const CHANGELOG_ENTRIES = [
 const APP_CONFIG = {
     limits: { 
         maxStorageBytes: 1024 * 1024 * 1024, 
-        maxFileSizeBytes: 5 * 1024 * 1024, 
+        maxFileSizeBytes: 10 * 1024 * 1024, 
         maxCloudFiles: 1000 },
     toast: { 
         errorDurationMs: 6000, 
@@ -3205,6 +3205,26 @@ function initProfileCabinetHandlers() {
 // ==================== CLOUD & DATA ====================
 // Загрузка файлов выполняется через Cloudinary (см. uploadFileToCloud ниже).
 
+/** Сообщение для пользователя вместо сырого «Failed to fetch» (VPN, файрвол, блокировка и т.д.) */
+function formatCloudinaryUploadErrorMessage(error) {
+    const raw = (error && error.message != null) ? String(error.message).trim() : '';
+    const lower = raw.toLowerCase();
+    const looksLikeNetwork =
+        error instanceof TypeError ||
+        lower === 'failed to fetch' ||
+        lower === 'load failed' ||
+        lower.includes('networkerror') ||
+        lower.includes('network request failed') ||
+        lower.includes('fetch resource');
+    if (looksLikeNetwork) {
+        return 'Фото не загрузилось: браузер не смог связаться с сервером загрузки (Cloudinary). '
+            + 'Частые причины: VPN или прокси, корпоративный файрвол, блокировка провайдером, нестабильный интернет. '
+            + 'Попробуйте отключить VPN, сменить сеть или Wi‑Fi и повторить. Если не помогает — проверьте доступ к api.cloudinary.com.';
+    }
+    if (raw) return 'Ошибка загрузки: ' + raw;
+    return 'Ошибка загрузки: не удалось выполнить запрос.';
+}
+
 async function uploadFileToCloud(file) {
     if (!file) return null;
 
@@ -3216,7 +3236,8 @@ async function uploadFileToCloud(file) {
     
     // --- ПРОВЕРКА РАЗМЕРА ФАЙЛА (Client side check) ---
     if (file.size > APP_CONFIG.limits.maxFileSizeBytes) {
-        showToast(`Файл слишком большой! Максимум ${APP_CONFIG.limits.maxFileSizeBytes / 1024 / 1024} МБ.`, "error");
+        const maxMb = APP_CONFIG.limits.maxFileSizeBytes / (1024 * 1024);
+        showToast(`Файл слишком большой для загрузки. Максимальный размер одного файла: ${maxMb} МБ.`, "error");
         return null;
     }
 
@@ -3230,7 +3251,15 @@ async function uploadFileToCloud(file) {
         formData.append("upload_preset", cloudinaryConfig.uploadPreset);
 
         const response = await fetch(url, { method: "POST", body: formData });
-        const data = await response.json();
+        let data;
+        try {
+            data = await response.json();
+        } catch (parseErr) {
+            if (!response.ok) {
+                throw new Error(`Сервер ответил с кодом ${response.status}, тело ответа не JSON.`);
+            }
+            throw new Error('Некорректный ответ сервера при загрузке.');
+        }
 
         if (data.secure_url) {
             console.log('Uploaded:', data.bytes, 'bytes');
@@ -3246,11 +3275,13 @@ async function uploadFileToCloud(file) {
                 size: data.bytes, 
                 public_id: data.public_id 
             }; 
-        } else {
-            throw new Error(data.error?.message || 'Unknown error');
         }
+        const apiMsg = data.error && (data.error.message || data.error);
+        throw new Error(
+            (typeof apiMsg === 'string' && apiMsg) ? apiMsg : (!response.ok ? `Ошибка сервера (${response.status})` : 'Неизвестная ошибка Cloudinary')
+        );
     } catch (error) {
-        showToast("Ошибка загрузки: " + error.message, "error");
+        showToast(formatCloudinaryUploadErrorMessage(error), "error");
         return null;
     }
 }
@@ -4874,9 +4905,10 @@ function renderProductImage() {
 function handleImageUpload(input) { 
     const file = input.files[0]; 
     if(file) { 
-        // Проверка размера (10 МБ)
-        if (file.size > 10 * 1024 * 1024) {
-            showToast("Файл изображения слишком большой! Максимум: 10 МБ.", "error");
+        const maxBytes = APP_CONFIG.limits.maxFileSizeBytes;
+        const maxMb = maxBytes / (1024 * 1024);
+        if (file.size > maxBytes) {
+            showToast(`Файл изображения слишком большой. Максимальный размер: ${maxMb} МБ.`, "error");
             input.value = '';
             return;
         }
