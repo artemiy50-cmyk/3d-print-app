@@ -22,3 +22,4 @@ Manager (приложение) и Store (публичные магазины н�
 - **store.html**, **store.js** — Store SPA (test-shop.my-3d-print.ru и др.)
 - **store-deploy-config.json** — конфиг deploy-репо для GitHub Actions
 - **firebase.json**, **database.rules.json** — Firebase
+
