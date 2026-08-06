@@ -23,3 +23,4 @@ Manager (приложение) и Store (публичные магазины н�
 - **store-deploy-config.json** — конфиг deploy-репо для GitHub Actions
 - **firebase.json**, **database.rules.json** — Firebase
 
+- 
