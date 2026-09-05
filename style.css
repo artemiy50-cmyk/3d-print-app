@@ -2227,16 +2227,16 @@ td:nth-last-child(2) {
 #writeoffTableBody td:nth-child(5) { text-align: left; }
 
 /* Кол-во, Цена продажи — сдвиг влево на 40px */
-#writeoffTableHead th:nth-child(6),
 #writeoffTableHead th:nth-child(7),
-#writeoffTableBody td:nth-child(6),
-#writeoffTableBody td:nth-child(7) { padding-left: 0; transform: translateX(-40px); }
-/* Сумма — сдвиг влево на 40px */
 #writeoffTableHead th:nth-child(8),
+#writeoffTableBody td:nth-child(7),
 #writeoffTableBody td:nth-child(8) { padding-left: 0; transform: translateX(-40px); }
-/* Примечание — сдвиг влево на 60px */
+/* Сумма — сдвиг влево на 40px */
 #writeoffTableHead th:nth-child(9),
-#writeoffTableBody td:nth-child(9) { padding-left: 0; transform: translateX(-60px); }
+#writeoffTableBody td:nth-child(9) { padding-left: 0; transform: translateX(-40px); }
+/* Примечание — сдвиг влево на 60px */
+#writeoffTableHead th:nth-child(10),
+#writeoffTableBody td:nth-child(10) { padding-left: 0; transform: translateX(-60px); }
 #writeoffTableHead th.th-sebest { text-align: left; white-space: normal; line-height: 1.25; }
 #writeoffTableBody td:last-child { padding: 8px; text-align: right; width: auto !important; min-width: 0; overflow: visible !important; }
 
@@ -6268,3 +6268,64 @@ body.store-page #storeRoot {
         font-size: 18px;
     }
 }
+
+/* ПО УМОЛЧАНИЮ (Режим скрыт — ячейки физически сжимаются в 0 пикселей) */
+
+th.selection-column,
+td.selection-column {
+    display: table-cell !important; /* всегда держим тип ячейки */
+    width: 0px !important;
+    min-width: 0px !important;
+    max-width: 0px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: hidden !important; /* прячем всё, что не влезает в 0 пикселей */
+    border: none !important; /* убираем границы, чтобы они не занимали 1-2 пикселя */
+}
+
+/* Полностью выключаем отображение самого чекбокса внутри */
+.selection-column input[type="checkbox"] {
+    display: none !important;
+}
+
+
+/* ПРИ НАЖАТИИ КНОПКИ (Режим активен — ячейки плавно или жестко раскрываются до 35px) */
+
+.show-selection th.selection-column,
+.show-selection td.selection-column {
+    width: 35px !important;
+    min-width: 35px !important;
+    max-width: 35px !important;
+    text-align: center !important;
+    vertical-align: middle !important;
+    padding: 0 !important;
+    background: transparent !important;
+    /* Возвращаем стандартную границу таблицы, если она у вас есть (например, снизу или сбоку) */
+    border-bottom: 1px solid #dee2e6 !important; 
+}
+
+/* Показываем красивые и аккуратные чекбоксы */
+.show-selection .selection-column input[type="checkbox"] {
+    display: inline-block !important;
+    width: 16px !important;
+    height: 16px !important;
+    min-width: 16px !important;
+    max-width: 16px !important;
+    padding: 0 !important;
+    margin: 0 auto !important;
+    appearance: checkbox !important;
+    -webkit-appearance: checkbox !important;
+    box-shadow: none !important;
+}
+
+/* Очистка от мусора */
+.selection-column input[type="checkbox"]::before,
+.selection-column input[type="checkbox"]::after {
+    display: none !important;
+    content: none !important;
+}
+
+/* ===
+
+
+

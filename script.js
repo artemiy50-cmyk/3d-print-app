@@ -8714,7 +8714,10 @@ function updateWriteoffTable() {
         // --- ИЗМЕНЕНИЕ: Добавлены обработчики событий для превью картинки ---
         const nameEvents = w.productId ? `onmouseenter="showProductImagePreview(this, ${w.productId})" onmousemove="moveProductImagePreview(event)" onmouseleave="hideProductImagePreview(this)" onclick="editWriteoff('${escapeHtml(String(w.systemId || ''))}')"` : `onclick="editWriteoff('${escapeHtml(String(w.systemId || ''))}')"`;
 
-        return `<tr data-doc-group="${docColor}">
+        return `<tr data-doc-group="${docColor}" data-writeoff-row-id="${rowIdAttr}">
+            <td class="selection-column">
+                <input type="checkbox" class="row-checkbox" data-writeoff-id="${rowIdAttr}" ${!rowIdOk ? 'disabled' : ''}>
+            </td>
             <td><span class="writeoff-doc-badge writeoff-doc-badge--${docColor}">${escapeHtml(formatDateOnly(w.date))}</span></td>
             <td class="writeoff-id-cell" data-system-id="${escapeHtml(String(w.systemId || ''))}" onclick="editWriteoff(this.getAttribute('data-system-id'))" title="Открыть в режиме редактирования"><span class="writeoff-doc-badge writeoff-doc-badge--${docColor}">${escapeHtml(w.systemId)}</span></td>
             <td ${nameEvents} style="cursor:pointer"><strong>${escapeHtml(w.productName)}</strong></td>
@@ -8737,6 +8740,116 @@ function updateWriteoffTable() {
         </tr>`;
     }).join('');
 
+    // После обновления таблицы, обновляем обработчики чекбоксов
+    updateSelectionEventHandlers();
+}
+
+// ==================== СИСТЕМА ВЫДЕЛЕНИЯ СТРОК ====================
+
+function toggleSelectionMode() {
+    const table = document.getElementById('writeoffTableBody');
+    const exportBtn = document.getElementById('exportXlsBtn');
+    const selectBtn = document.getElementById('selectRowsBtn');
+    
+    if (!table) return;
+    
+    const isSelectionMode = table.classList.contains('show-selection');
+    
+    if (isSelectionMode) {
+        // Выключаем режим выделения
+        table.classList.remove('show-selection');
+        table.parentElement.parentElement.classList.remove('show-selection'); // добавляем класс и на родительский контейнер
+        selectBtn.textContent = 'Выделить строки';
+        
+        // Скрываем кнопку экспорта
+        exportBtn.style.opacity = '0';
+        exportBtn.style.visibility = 'hidden';
+        
+        // Снимаем все выделения
+        clearAllSelections();
+    } else {
+        // Включаем режим выделения
+        table.classList.add('show-selection');
+        table.parentElement.parentElement.classList.add('show-selection'); // добавляем класс и на родительский контейнер
+        selectBtn.textContent = 'Отменить выделение';
+    }
+}
+
+function updateSelectionEventHandlers() {
+    // Добавляем обработчики событий для всех чекбоксов строк
+    document.querySelectorAll('.row-checkbox').forEach(checkbox => {
+        checkbox.removeEventListener('change', handleRowCheckboxChange); // Удаляем старые обработчики
+        checkbox.addEventListener('change', handleRowCheckboxChange);
+    });
+}
+
+function handleSelectAllCheckboxes() {
+    const selectAllCheckbox = document.getElementById('selectAllCheckboxes');
+    const rowCheckboxes = document.querySelectorAll('.row-checkbox:not(:disabled)');
+    
+    rowCheckboxes.forEach(checkbox => {
+        checkbox.checked = selectAllCheckbox.checked;
+    });
+    
+    updateExportButtonVisibility();
+}
+
+function handleRowCheckboxChange() {
+    updateSelectAllCheckboxState();
+    updateExportButtonVisibility();
+}
+
+function updateSelectAllCheckboxState() {
+    const selectAllCheckbox = document.getElementById('selectAllCheckboxes');
+    const rowCheckboxes = document.querySelectorAll('.row-checkbox:not(:disabled)');
+    const checkedCheckboxes = document.querySelectorAll('.row-checkbox:not(:disabled):checked');
+    
+    if (rowCheckboxes.length === 0) {
+        selectAllCheckbox.indeterminate = false;
+        selectAllCheckbox.checked = false;
+    } else if (checkedCheckboxes.length === rowCheckboxes.length) {
+        selectAllCheckbox.indeterminate = false;
+        selectAllCheckbox.checked = true;
+    } else if (checkedCheckboxes.length > 0) {
+        selectAllCheckbox.indeterminate = true;
+        selectAllCheckbox.checked = false;
+    } else {
+        selectAllCheckbox.indeterminate = false;
+        selectAllCheckbox.checked = false;
+    }
+}
+
+function updateExportButtonVisibility() {
+    const exportBtn = document.getElementById('exportXlsBtn');
+    const checkedCheckboxes = document.querySelectorAll('.row-checkbox:not(:disabled):checked');
+    const table = document.getElementById('writeoffTableBody');
+    
+    if (!table || !exportBtn) return;
+    
+    const isSelectionMode = table.classList.contains('show-selection');
+    const hasCheckedItems = checkedCheckboxes.length > 0;
+    
+    if (isSelectionMode && hasCheckedItems) {
+        exportBtn.style.opacity = '1';
+        exportBtn.style.visibility = 'visible';
+    } else {
+        exportBtn.style.opacity = '0';
+        exportBtn.style.visibility = 'hidden';
+    }
+}
+
+function clearAllSelections() {
+    const selectAllCheckbox = document.getElementById('selectAllCheckboxes');
+    const rowCheckboxes = document.querySelectorAll('.row-checkbox');
+    
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = false;
+    }
+    
+    rowCheckboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
 }
 
 function copyWriteoffItem(rowId) {
@@ -10263,6 +10376,11 @@ function setupEventListeners() {
     document.getElementById('closeWriteoffModalBtn')?.addEventListener('click', closeWriteoffModal);
     document.getElementById('addWriteoffItemBtn')?.addEventListener('click', () => addWriteoffItemSection());
     setupWriteoffExportXls();
+    
+    // Обработчики для системы выделения строк
+    document.getElementById('selectRowsBtn')?.addEventListener('click', toggleSelectionMode);
+    document.getElementById('selectAllCheckboxes')?.addEventListener('change', handleSelectAllCheckboxes);
+    
     document.getElementById('writeoffType')?.addEventListener('change', updateWriteoffTypeUI);
     document.querySelectorAll('.writeoff-type-option').forEach(btn => {
         btn.addEventListener('click', () => {

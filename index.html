@@ -623,6 +623,9 @@
 						</div>
                     </div>
                     <div class="controls-right">
+                        <button id="exportXlsBtn" class="btn-export-xls" style="opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0.3s ease;" title="Экспорт выбранных записей в Excel">
+                            <span class="btn-export-icon">📥</span> Сохранить в XLS
+                        </button>
                         <button id="selectRowsBtn" class="btn-primary">Выделить строки</button>
                     </div>
                 </div>
@@ -656,10 +659,14 @@
                         <div class="writeoff-table-header">
                             <table id="writeoffTableHead">
                                 <colgroup>
+                                    <col class="selection-column" style="width:35px">
                                     <col style="width:7%"><col style="width:9%"><col style="width:17%"><col style="width:12%"><col style="width:11%"><col style="width:4%"><col style="width:8%"><col style="width:6%"><col style="width:18%"><col style="width:8%">
                                 </colgroup>
                                 <thead>
                                     <tr>
+                                        <th class="selection-column">
+                                            <input type="checkbox" id="selectAllCheckboxes" title="Выделить все">
+                                        </th>
                                         <th class="th-left">&nbsp;&nbsp;Дата</th>
                                         <th class="th-left">&nbsp;Системный ID</th>
                                         <th class="th-left">Изделие</th>
@@ -677,6 +684,7 @@
                         <div class="writeoff-table-body-scroll">
                             <table id="writeoffTableBody">
                                 <colgroup>
+                                    <col class="selection-column" style="width:35px">
                                     <col style="width:7%"><col style="width:9%"><col style="width:17%"><col style="width:12%"><col style="width:11%"><col style="width:4%"><col style="width:8%"><col style="width:6%"><col style="width:18%"><col style="width:8%">
                                 </colgroup>
                                 <tbody></tbody>
