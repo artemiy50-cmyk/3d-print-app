@@ -5980,6 +5980,14 @@ body.store-page #storeRoot {
 .store-category-chip input[type="checkbox"] { margin: 0; cursor: pointer; }
 .store-category-chip label { cursor: pointer; margin: 0; }
 
+#selectRowsBtn {
+    height: 41px;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
 /* =============================================================================
    ИМ (index.html): планшет и мобильная адаптация
    Десктоп без изменений; ≤1024 — компактнее; ≤768 — выезжающее меню + полировка.
