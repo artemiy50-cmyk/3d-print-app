@@ -628,6 +628,37 @@
         .writeoff-export-option { display: block; width: 100%; padding: 10px 14px; border: none; background: none; text-align: left; font-size: 13px; color: var(--color-text); cursor: pointer; transition: background 0.15s; }
         .writeoff-export-option:hover { background: var(--color-bg); }
 
+        /* Стили для всплывающего меню сводного акта передачи */
+        .summary-act-menu { 
+            position: absolute; 
+            left: 0; 
+            bottom: 100%; 
+            margin-bottom: 6px; 
+            min-width: 220px; 
+            background: #fff; 
+            border: 1px solid var(--color-border); 
+            border-radius: var(--radius); 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15); 
+            z-index: 100000; 
+            overflow: visible; 
+        }
+        .summary-act-menu.hidden { display: none !important; }
+        .summary-act-option { 
+            display: block; 
+            width: 100%; 
+            padding: 10px 14px; 
+            border: none; 
+            background: none; 
+            text-align: left; 
+            font-size: 13px; 
+            color: var(--color-text); 
+            cursor: pointer; 
+            transition: background 0.15s; 
+        }
+        .summary-act-option:hover { 
+            background: var(--color-bg); 
+        }
+
         /* Changelog styles */
         .changelog-list { display: flex; flex-direction: column; gap: 12px; font-size: 13px; color: #1e293b; }
         .changelog-item { padding: 10px 12px; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; transition: box-shadow 0.2s ease; }
@@ -6325,7 +6356,29 @@ td.selection-column {
     content: none !important;
 }
 
-/* ===
+/* 1. Делаем кнопку XLS идеально ровной по высоте с синей кнопкой (41px) */
+#exportXlsBtn, .btn-export-xls {
+    height: 41px !important;
+    box-sizing: border-box !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
 
+/* Позиционируем меню строго под кнопкой "Сохранить в XLS" */
+.dropdown-menu, 
+[id*="menu" i], 
+[class*="dropdown" i] {
+    top: 100% !important; /* Спускаем меню ровно под нижний край кнопки */
+    bottom: auto !important; /* Отменяем открытие вверх */
+    left: 0 !important; /* Выравниваем по левому краю кнопки */
+    transform: none !important; /* Убираем возможные перекосы анимации Клайна */
+    margin-top: 4px !important; /* Небольшой аккуратный отступ */
+}
+
+/* На всякий случай добавим родителю кнопок относительный тип, чтобы меню не улетало на другой конец экрана */
+#exportXlsBtn {
+    position: relative !important;
+}
 
 

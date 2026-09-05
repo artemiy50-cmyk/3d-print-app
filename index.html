@@ -623,9 +623,14 @@
 						</div>
                     </div>
                     <div class="controls-right">
-                        <button id="exportXlsBtn" class="btn-export-xls" style="opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0.3s ease;" title="Экспорт выбранных записей в Excel">
-                            <span class="btn-export-icon">📥</span> Сохранить в XLS
-                        </button>
+                        <div class="summary-act-export-wrapper" style="position: relative; display: inline-block;">
+                            <button id="exportXlsBtn" class="btn-export-xls" style="opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0.3s ease;" title="Экспорт выбранных записей в Excel">
+                                <span class="btn-export-icon">📥</span> Сохранить в XLS
+                            </button>
+                            <div id="summaryActMenu" class="summary-act-menu hidden">
+                                <button type="button" id="summaryActOption" class="summary-act-option">Сводный Акт передачи</button>
+                            </div>
+                        </div>
                         <button id="selectRowsBtn" class="btn-primary">Выделить строки</button>
                     </div>
                 </div>

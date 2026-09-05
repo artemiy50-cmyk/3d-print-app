@@ -8838,6 +8838,329 @@ function updateExportButtonVisibility() {
     }
 }
 
+// Функция для сбора выбранных строк таблицы списаний для сводного акта
+function collectSelectedWriteoffRowsForSummaryAct() {
+    const checkedCheckboxes = document.querySelectorAll('.row-checkbox:not(:disabled):checked');
+    const rows = [];
+    
+    checkedCheckboxes.forEach(checkbox => {
+        const writeoffId = checkbox.getAttribute('data-writeoff-id');
+        if (!writeoffId) return;
+        
+        const writeoff = db.writeoffs.find(w => w.id == writeoffId);
+        if (!writeoff) return;
+        
+        const product = db.products.find(p => p.id === writeoff.productId);
+        const productName = product ? product.name : writeoff.productName || '—';
+        
+        // Собираем комплектующие, если есть
+        const enrichmentNames = [];
+        if (writeoff.enrichments && Array.isArray(writeoff.enrichments)) {
+            writeoff.enrichments.forEach(enrichment => {
+                if (enrichment.name && enrichment.name.trim()) {
+                    enrichmentNames.push(enrichment.name.trim());
+                }
+            });
+        }
+        
+        rows.push({
+            productName,
+            enrichmentNames,
+            price: writeoff.price || 0,
+            qty: writeoff.qty || 0,
+            total: (writeoff.qty || 0) * (writeoff.price || 0),
+            date: writeoff.date,
+            systemId: writeoff.systemId
+        });
+    });
+    
+    return rows;
+}
+
+// Функция для построения листа сводного акта передачи
+function buildSummaryActSheet(XLSXLib, rows, currentDate) {
+    var vc = _alignVertCenter;
+    var headerStyle = { bold: true, fill: _fillGray, border: _borderThin, sz: 12, alignment: Object.assign({}, vc) };
+    var headerCenterStyle = { bold: true, fill: _fillGray, border: _borderThin, sz: 12, alignment: { vertical: 'center', horizontal: 'center', wrapText: true } };
+    var cellBorder = { border: _borderThin };
+    var cellStyle = function(v, extra) {
+        var a = Object.assign({ sz: 12, alignment: vc }, cellBorder, extra || {});
+        return styleCell(v, a);
+    };
+
+    var data = [];
+    var dateStr = formatDateForAct(currentDate);
+
+    // Заголовок документа
+    data.push([
+        styleCell('СВОДНЫЙ АКТ ПЕРЕДАЧИ', { bold: true, sz: 16 }),
+        styleCell('', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12, alignment: vc }),
+        styleCell('Дата: ' + dateStr, { bold: true, sz: 12, alignment: { horizontal: 'right', vertical: 'center' } })
+    ]);
+    data.push([
+        styleCell('изделий под реализацию', { bold: true, sz: 12, alignment: vc }),
+        styleCell('', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12, alignment: vc })
+    ]);
+    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
+
+    // Заголовки таблицы с добавленной колонкой "Дата передачи"
+    var headerRow = [
+        styleCell('№', Object.assign({}, headerCenterStyle, { border: _borderThin })),
+        styleCell('Наименование', Object.assign({}, headerStyle, { border: _borderThin })),
+        styleCell('Дата передачи', Object.assign({}, headerCenterStyle, { border: _borderThin, alignment: { vertical: 'center', horizontal: 'center', wrapText: true } })),
+        styleCell('Цена, за 1 шт.', Object.assign({}, headerCenterStyle, { border: _borderThin })),
+        styleCell('Кол-во', Object.assign({}, headerCenterStyle, { border: _borderThin })),
+        styleCell('Стоимость', Object.assign({}, headerCenterStyle, { border: _borderThin })),
+        styleCell('Рекомендуемая цена продажи, 1 шт.', Object.assign({}, headerCenterStyle, { border: _borderThin }))
+    ];
+    data.push(headerRow);
+
+    // Группировка строк по systemId для вставки пустых строк между разными документами
+    var groupedRows = {};
+    rows.forEach(function(r, idx) {
+        var systemId = r.systemId || 'unknown';
+        if (!groupedRows[systemId]) {
+            groupedRows[systemId] = [];
+        }
+        groupedRows[systemId].push(Object.assign({}, r, { originalIndex: idx }));
+    });
+
+    var totalQty = 0;
+    var dataRowCount = 0;
+    var rowIndex = 1;
+    var systemIds = Object.keys(groupedRows);
+    
+    systemIds.forEach(function(systemId, groupIndex) {
+        var groupRows = groupedRows[systemId];
+        
+        groupRows.forEach(function(r) {
+            var transferDate = '';
+            if (r.date) {
+                // Пробуем очистить строку, если она пришла в виде "2026-08-28T20:00:00"
+                var cleanDate = r.date.split('T')[0]; // берем только дату до буквы T
+                var parts = cleanDate.split('-'); // разбиваем по дефисам
+                
+                if (parts.length === 3) {
+                    // Если дата была в формате ГГГГ-ММ-ДД, собираем в ДД.ММ.ГГГГ
+                    transferDate = parts[2] + '.' + parts[1] + '.' + parts[0];
+                } else {
+                    // Если формат другой, пробуем стандартный метод JS
+                    var d = new Date(r.date);
+                    if (!isNaN(d.getTime())) {
+                        var day = String(d.getDate()).padStart(2, '0');
+                        var month = String(d.getMonth() + 1).padStart(2, '0');
+                        var year = d.getFullYear();
+                        transferDate = day + '.' + month + '.' + year;
+                    } else {
+                        transferDate = r.date; // оставляем как есть, если совсем всё плохо
+                    }
+                }
+            }
+
+            
+            data.push([
+                cellStyle(rowIndex, { alignment: { horizontal: 'center', vertical: 'center' } }),
+                cellStyle(r.productName, { bold: true, alignment: { vertical: 'center', wrapText: true } }),
+                cellStyle(transferDate, { alignment: { horizontal: 'center', vertical: 'center' } }),
+                cellStyle(r.price),
+                cellStyle(r.qty),
+                cellStyle(r.total),
+                cellStyle('')
+            ]);
+            dataRowCount++;
+            totalQty += r.qty;
+            rowIndex++;
+
+            // Добавляем строку с комплектующими, если есть
+            if (r.enrichmentNames.length > 0) {
+                var compText = 'включая комплектующие: ' + r.enrichmentNames.join('; ');
+                data.push([
+                    cellStyle(''),
+                    styleCell(compText, Object.assign({ sz: 10, bold: false, alignment: { vertical: 'center', wrapText: true } }, cellBorder)),
+                    cellStyle(''),
+                    cellStyle(''),
+                    cellStyle(''),
+                    cellStyle(''),
+                    cellStyle('')
+                ]);
+                dataRowCount++;
+            }
+        });
+        
+        // Добавляем пустую строку между группами (документами), если это не последняя группа
+        if (groupIndex < systemIds.length - 1) {
+            data.push([
+                cellStyle(''),
+                cellStyle(''),
+                cellStyle(''),
+                cellStyle(''),
+                cellStyle(''),
+                cellStyle(''),
+                cellStyle('')
+            ]);
+            dataRowCount++;
+        }
+    });
+
+    // Строка ИТОГО
+    var totalRowStyle = Object.assign({}, cellBorder, { bold: true, fill: _fillGray, sz: 14, alignment: { horizontal: 'right', vertical: 'center' } });
+    var totalRow = [
+        styleCell('', totalRowStyle),
+        styleCell('ИТОГО', totalRowStyle),
+        styleCell('', totalRowStyle),
+        styleCell('', totalRowStyle),
+        styleCell(totalQty, totalRowStyle),
+        styleCell('', totalRowStyle),
+        styleCell('', totalRowStyle)
+    ];
+    data.push(totalRow);
+
+    // Подписи
+    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
+    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
+    data.push([
+        styleCell('Передал:', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 })
+    ]);
+    data.push([
+        styleCell('', { sz: 12, border: _borderBottomOnly }),
+        styleCell('', { sz: 12, border: _borderBottomOnly }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 })
+    ]);
+    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
+    data.push([styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 }), styleCell('', { sz: 12 })]);
+    data.push([
+        styleCell('Принял:', { sz: 12, alignment: vc }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 })
+    ]);
+    data.push([
+        styleCell('', { sz: 12, border: _borderBottomOnly }),
+        styleCell('', { sz: 12, border: _borderBottomOnly }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 }),
+        styleCell('', { sz: 12 })
+    ]);
+
+    var ws = XLSXLib.utils.aoa_to_sheet(data);
+    // Настройка ширины колонок с учетом новой колонки "Дата передачи"
+    ws['!cols'] = [{ wch: 12 }, { wch: 40 }, { wch: 14 }, { wch: 14 }, { wch: 8 }, { wch: 14 }, { wch: 28 }];
+    
+    // Объединения ячеек
+    var merges = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 1 } },  // Заголовок "СВОДНЫЙ АКТ ПЕРЕДАЧИ"
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } },  // Подзаголовок
+        { s: { r: 7 + dataRowCount, c: 0 }, e: { r: 7 + dataRowCount, c: 1 } },  // "Передал:"
+        { s: { r: 8 + dataRowCount, c: 0 }, e: { r: 8 + dataRowCount, c: 1 } },  // Линия под "Передал:"
+        { s: { r: 11 + dataRowCount, c: 0 }, e: { r: 11 + dataRowCount, c: 1 } }, // "Принял:"
+        { s: { r: 12 + dataRowCount, c: 0 }, e: { r: 12 + dataRowCount, c: 1 } }  // Линия под "Принял:"
+    ];
+    ws['!merges'] = merges;
+    return ws;
+}
+
+// Главная функция экспорта сводного акта передачи
+function exportSummaryAct() {
+    var XLSXLib = getXLSXLib();
+    if (!XLSXLib || !XLSXLib.utils || !XLSXLib.utils.aoa_to_sheet) {
+        showToast('Загрузка библиотеки Excel...', 'info');
+        loadXLSXLib(function(lib) {
+            if (lib && lib.utils) exportSummaryAct();
+            else showToast('Библиотека Excel не загружена. Обновите страницу.', 'error');
+        });
+        return;
+    }
+    
+    const rows = collectSelectedWriteoffRowsForSummaryAct();
+    if (rows.length === 0) {
+        showToast('Нет выбранных записей для экспорта. Выберите строки в таблице списаний.', 'error');
+        return;
+    }
+    
+    const currentDate = new Date().toISOString().slice(0, 10);
+    const ws = buildSummaryActSheet(XLSXLib, rows, currentDate);
+    const wb = XLSXLib.utils.book_new();
+    const sheetName = 'Сводный акт передачи';
+    XLSXLib.utils.book_append_sheet(wb, ws, sheetName);
+    
+    const fileName = 'Сводный_Акт_передачи_' + currentDate.replace(/-/g, '') + '.xlsx';
+    
+    try {
+        XLSXLib.writeFile(wb, fileName, { cellStyles: true });
+    } catch (e) {
+        XLSXLib.writeFile(wb, fileName);
+    }
+    
+    showToast('Сводный акт передачи сохранён', 'success');
+    hideSummaryActMenu();
+}
+
+// Функции для управления всплывающим меню сводного акта
+function showSummaryActMenu() {
+    const menu = document.getElementById('summaryActMenu');
+    if (menu) {
+        menu.classList.remove('hidden');
+    }
+}
+
+function hideSummaryActMenu() {
+    const menu = document.getElementById('summaryActMenu');
+    if (menu) {
+        menu.classList.add('hidden');
+    }
+}
+
+function setupSummaryActExport() {
+    const exportBtn = document.getElementById('exportXlsBtn');
+    const menu = document.getElementById('summaryActMenu');
+    const summaryActOption = document.getElementById('summaryActOption');
+    
+    if (exportBtn) {
+        exportBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            showSummaryActMenu();
+        });
+    }
+    
+    if (summaryActOption) {
+        summaryActOption.addEventListener('click', (e) => {
+            e.stopPropagation();
+            exportSummaryAct();
+        });
+    }
+    
+    // Скрыть меню при клике вне его
+    document.addEventListener('click', (e) => {
+        if (menu && !menu.contains(e.target) && exportBtn && !exportBtn.contains(e.target)) {
+            hideSummaryActMenu();
+        }
+    });
+}
+
 function clearAllSelections() {
     const selectAllCheckbox = document.getElementById('selectAllCheckboxes');
     const rowCheckboxes = document.querySelectorAll('.row-checkbox');
@@ -10380,6 +10703,9 @@ function setupEventListeners() {
     // Обработчики для системы выделения строк
     document.getElementById('selectRowsBtn')?.addEventListener('click', toggleSelectionMode);
     document.getElementById('selectAllCheckboxes')?.addEventListener('change', handleSelectAllCheckboxes);
+    
+    // Настройка экспорта сводного акта передачи
+    setupSummaryActExport();
     
     document.getElementById('writeoffType')?.addEventListener('change', updateWriteoffTypeUI);
     document.querySelectorAll('.writeoff-type-option').forEach(btn => {
