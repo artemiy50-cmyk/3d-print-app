@@ -8794,7 +8794,25 @@ function handleSelectAllCheckboxes() {
     updateExportButtonVisibility();
 }
 
-function handleRowCheckboxChange() {
+function handleRowCheckboxChange(event) {
+    const clickedCheckbox = event.target;
+    const clickedRow = clickedCheckbox.closest('tr');
+    const systemId = clickedRow ? clickedRow.querySelector('[data-system-id]')?.getAttribute('data-system-id') : null;
+    
+    if (clickedCheckbox.checked) {
+        // Если чекбокс был отмечен, выделяем все строки с тем же системным ID
+        if (systemId) {
+            const rowsWithSameSystemId = document.querySelectorAll(`[data-system-id="${systemId}"]`);
+            rowsWithSameSystemId.forEach(row => {
+                const checkbox = row.closest('tr').querySelector('.row-checkbox');
+                if (checkbox && checkbox !== clickedCheckbox) {
+                    checkbox.checked = true;
+                }
+            });
+        }
+    }
+    // Если чекбокс был снят, ничего не делаем (требование 2)
+    
     updateSelectAllCheckboxState();
     updateExportButtonVisibility();
 }
