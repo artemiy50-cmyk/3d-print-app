@@ -8965,7 +8965,6 @@ function buildSummaryActSheet(XLSXLib, rows, currentDate) {
                     }
                 }
             }
-
             
             data.push([
                 cellStyle(rowIndex, { alignment: { horizontal: 'center', vertical: 'center' } }),
@@ -8994,7 +8993,7 @@ function buildSummaryActSheet(XLSXLib, rows, currentDate) {
                 ]);
                 dataRowCount++;
             }
-        });
+        }); // Закрываем groupRows.forEach
         
         // Добавляем пустую строку между группами (документами), если это не последняя группа
         if (groupIndex < systemIds.length - 1) {
@@ -9009,7 +9008,7 @@ function buildSummaryActSheet(XLSXLib, rows, currentDate) {
             ]);
             dataRowCount++;
         }
-    });
+    }); // Закрываем systemIds.forEach
 
     // Строка ИТОГО
     var totalRowStyle = Object.assign({}, cellBorder, { bold: true, fill: _fillGray, sz: 14, alignment: { horizontal: 'right', vertical: 'center' } });
@@ -9081,7 +9080,8 @@ function buildSummaryActSheet(XLSXLib, rows, currentDate) {
     ];
     ws['!merges'] = merges;
     return ws;
-}
+    
+};
 
 // Главная функция экспорта сводного акта передачи
 function exportSummaryAct() {
