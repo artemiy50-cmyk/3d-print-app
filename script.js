@@ -3,14 +3,19 @@
 const APP_VERSION_NUMBER =
     typeof window !== 'undefined' && window.APP_VERSION != null
         ? String(window.APP_VERSION)
-        : '6.7.1';
-console.log('2026-04-12 09-00-00');
+        : '6.8.0';
+console.log('2026-09-05 20-00-00');
 
 // Базовая версия для кнопки и модалки (без префикса "v")
 const APP_BASE_VERSION = APP_VERSION_NUMBER;
 
 // === CHANGELOG
 const CHANGELOG_ENTRIES = [
+    {
+        version: '6.8.0', 
+        dateDisplay: '05.09.2026', 
+        description: 'Добавлена возможность удообного формирования сводного акта передачи сразу из нескольких списаний. Работает по кнопке в таблице списаний'
+    },
     {
         version: '6.7.1', 
         dateDisplay: '12.04.2026', 
